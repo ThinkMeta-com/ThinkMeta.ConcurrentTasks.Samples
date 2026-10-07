@@ -1,0 +1,11 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="libdeflate/libdeflate-1.26/gzip.vcxproj" Id="a281a489-0004-4000-8000-000000000005">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="libdeflate/libdeflate-1.26/libdeflate.vcxproj" Id="a281a489-0004-4000-8000-000000000004">
+    <Platform Project="x64" />
+  </Project>
+</Solution>

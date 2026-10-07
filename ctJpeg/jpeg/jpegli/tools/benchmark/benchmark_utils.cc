@@ -1,0 +1,118 @@
+// Copyright (c) the JPEG XL Project Authors.
+//
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file or at
+// https://developers.google.com/open-source/licenses/bsd
+
+#define _DEFAULT_SOURCE  // NOLINT for mkstemps().
+
+#include "tools/benchmark/benchmark_utils.h"
+
+#include <cstdlib>
+#include <string>
+#include <vector>
+
+#include "lib/base/status.h"
+
+// Not supported on Windows due to Linux-specific functions.
+// Not supported in Android NDK before API 28.
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && \
+    (!defined(__ANDROID_API__) || __ANDROID_API__ >= 28)
+
+#include <libgen.h>
+#include <spawn.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include <cstdio>
+#include <utility>
+
+#ifdef __APPLE__
+#include <crt_externs.h>
+#define environ (*_NSGetEnviron())
+#else
+extern char** environ;  // NOLINT
+#endif
+
+namespace jpegli_tools {
+TemporaryFile::TemporaryFile(std::string basename, std::string extension) {
+  const auto extension_size = 1 + extension.size();
+  temp_filename_ = std::move(basename) + "_XXXXXX." + std::move(extension);
+  const int fd =
+      mkstemps(const_cast<char*>(temp_filename_.data()), extension_size);
+  if (fd == -1) {
+    ok_ = false;
+    return;
+  }
+  close(fd);
+}
+TemporaryFile::~TemporaryFile() {
+  if (ok_) {
+    unlink(temp_filename_.c_str());
+  }
+}
+
+Status TemporaryFile::GetFileName(std::string* const output) const {
+  JPEGLI_RETURN_IF_ERROR(ok_);
+  *output = temp_filename_;
+  return true;
+}
+
+std::string GetBaseName(std::string filename) {
+  std::string result = std::move(filename);
+  result = basename(const_cast<char*>(result.data()));
+  const size_t dot = result.rfind('.');
+  if (dot != std::string::npos) {
+    result.resize(dot);
+  }
+  return result;
+}
+
+Status RunCommand(const std::string& command,
+                  const std::vector<std::string>& arguments, bool quiet) {
+  std::vector<char*> args;
+  args.reserve(arguments.size() + 2);
+  args.push_back(const_cast<char*>(command.c_str()));
+  for (const std::string& argument : arguments) {
+    args.push_back(const_cast<char*>(argument.c_str()));
+  }
+  args.push_back(nullptr);
+  pid_t pid;
+  posix_spawn_file_actions_t file_actions;
+  posix_spawn_file_actions_init(&file_actions);
+  if (quiet) {
+    posix_spawn_file_actions_addclose(&file_actions, STDOUT_FILENO);
+    posix_spawn_file_actions_addclose(&file_actions, STDERR_FILENO);
+  }
+  JPEGLI_RETURN_IF_ERROR(posix_spawnp(&pid, command.c_str(), &file_actions,
+                                      nullptr, args.data(), environ) == 0);
+  int wstatus;
+  waitpid(pid, &wstatus, 0);
+  posix_spawn_file_actions_destroy(&file_actions);
+  return WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == EXIT_SUCCESS;
+}
+
+}  // namespace jpegli_tools
+
+#else
+
+namespace jpegli_tools {
+
+TemporaryFile::TemporaryFile(std::string basename, std::string extension) {}
+TemporaryFile::~TemporaryFile() {}
+Status TemporaryFile::GetFileName(std::string* const output) const {
+  (void)ok_;
+  return JPEGLI_FAILURE("Not supported on this build");
+}
+
+std::string GetBaseName(std::string filename) { return filename; }
+
+Status RunCommand(const std::string& command,
+                  const std::vector<std::string>& arguments, bool quiet) {
+  return JPEGLI_FAILURE("Not supported on this build");
+}
+
+}  // namespace jpegli_tools
+
+#endif  // _MSC_VER

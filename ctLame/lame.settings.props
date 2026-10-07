@@ -1,0 +1,46 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!--
+        Shared by libmp3lame and the lame frontend, imported after Microsoft.Cpp.props: the CRT is
+        linked statically, so lame.exe needs no DLL besides KERNEL32; output in build\<Configuration>.
+    -->
+    <PropertyGroup>
+        <OutDir>$(MSBuildThisFileDirectory)build\$(Configuration)\</OutDir>
+        <IntDir>$(MSBuildThisFileDirectory)build\$(Configuration)\obj\$(MSBuildProjectName)\</IntDir>
+    </PropertyGroup>
+    <ItemDefinitionGroup>
+        <ClCompile>
+            <WarningLevel>Level4</WarningLevel>
+            <SDLCheck>false</SDLCheck>
+            <ConformanceMode>true</ConformanceMode>
+            <LanguageStandard_C>stdc17</LanguageStandard_C>
+            <MultiProcessorCompilation>true</MultiProcessorCompilation>
+            <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)lame;$(MSBuildThisFileDirectory)lame\include;$(MSBuildThisFileDirectory)lame\libmp3lame;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+            <PreprocessorDefinitions>WIN32;_WIN32;_CONSOLE;_WINDOWS;HAVE_CONFIG_H;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+        </ClCompile>
+        <Link>
+            <SubSystem>Console</SubSystem>
+            <GenerateDebugInformation>true</GenerateDebugInformation>
+        </Link>
+    </ItemDefinitionGroup>
+    <ItemDefinitionGroup Condition="'$(Configuration)' == 'Debug'">
+        <ClCompile>
+            <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+            <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+        </ClCompile>
+    </ItemDefinitionGroup>
+    <ItemDefinitionGroup Condition="'$(Configuration)' == 'Release'">
+        <ClCompile>
+            <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+            <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+            <FunctionLevelLinking>true</FunctionLevelLinking>
+            <IntrinsicFunctions>true</IntrinsicFunctions>
+            <OmitFramePointers>true</OmitFramePointers>
+            <WholeProgramOptimization>true</WholeProgramOptimization>
+        </ClCompile>
+        <Link>
+            <EnableCOMDATFolding>true</EnableCOMDATFolding>
+            <OptimizeReferences>true</OptimizeReferences>
+            <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+        </Link>
+    </ItemDefinitionGroup>
+</Project>

@@ -1,0 +1,409 @@
+# Copyright (c) the JPEG XL Project Authors.
+#
+# Use of this source code is governed by a BSD-style
+# license that can be found in the LICENSE file or at
+# https://developers.google.com/open-source/licenses/bsd
+
+# Workflow for building the release binaries.
+#
+# This workflow runs as a post-submit step, when pushing to main or the release
+# branches (v*.*.x), and when creating a release in GitHub.
+#
+# In the GitHub release case, in addition to build the release binaries it also
+# uploads the binaries to the given release automatically.
+
+name: Release build / upload
+on:
+  merge_group:
+  push:
+    branches:
+      - main
+      - v*.*.x
+  pull_request:
+    types: [opened, reopened, labeled, unlabeled, synchronize]
+    paths-ignore:
+      - '**.md'
+      - 'AUTHORS'
+  release:
+    types: [ published ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ubuntu_static_x86_64:
+    name: linux x86_64 static
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'CI:none') }}
+    runs-on: [ubuntu-latest]
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      with:
+        egress-policy: audit
+
+    - name: Install build deps
+      run: |
+        sudo rm -f /var/lib/man-db/auto-update
+        sudo apt update
+        sudo apt install -y \
+          asciidoc \
+          clang \
+          cmake \
+          doxygen \
+          graphviz \
+          libgif-dev \
+          libgtest-dev \
+          libjpeg-dev \
+          libopenexr-dev \
+          libpng-dev \
+          libwebp-dev \
+          ninja-build \
+          pkg-config \
+        #
+        echo "CC=clang" >> $GITHUB_ENV
+        echo "CXX=clang++" >> $GITHUB_ENV
+
+    - name: Checkout the source
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        submodules: true
+        fetch-depth: 1
+
+    - name: Build
+      run: |
+        SKIP_TEST=1 \
+        ./ci.sh release \
+          -DJPEGLI_DEP_LICENSE_DIR=/usr/share/doc \
+          -DJPEGLI_STATIC=ON \
+          -DBUILD_TESTING=OFF \
+          -DJPEGLI_ENABLE_JPEGLI_LIBJPEG=OFF \
+          -DJPEGLI_ENABLE_OPENEXR=OFF \
+          -DJPEGLI_ENABLE_DEVTOOLS=OFF \
+
+    - name: Package release tarball
+      run: |
+        cd build
+        tar -zcvf ${{ runner.workspace }}/release_file.tar.gz \
+          LICENSE* tools/{cjpegli,djpegli}
+        ln -s ${{ runner.workspace }}/release_file.tar.gz \
+          ${{ runner.workspace }}/jpegli-linux-x86_64-static-${{ github.event.release.tag_name }}.tar.gz
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: jpegli-linux-x86_64-static
+        path: ${{ runner.workspace }}/release_file.tar.gz
+
+    - name: Upload binaries to release
+      if: github.event_name == 'release'
+      uses: AButler/upload-release-assets@3d6774fae0ed91407dc5ae29d576b166536d1777 # v3.0
+      with:
+        files: ${{ runner.workspace }}/jpegli-linux-x86_64-static-${{ github.event.release.tag_name }}.tar.gz
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+
+  # Build .deb packages Ubuntu/Debian
+  release_ubuntu_pkg:
+    name: .deb / ${{ matrix.os }}
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'CI:none') }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu:24.04
+        - ubuntu:22.04
+        - ubuntu:20.04
+        - debian:bullseye
+        - debian:bookworm
+        - debian:trixie
+        - debian:sid
+
+    container:
+      image: ${{ matrix.os }}
+
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      with:
+        egress-policy: audit
+
+    - name: Set env
+      shell: 'bash'
+      id: 'env'
+      run: |
+        matrix_os=${{ matrix.os }}
+        artifact_name="jpegli-debs-amd64-${matrix_os/:/-}"
+        echo ${artifact_name}
+        echo "artifact_name=${artifact_name}" >> $GITHUB_OUTPUT
+
+    - name: Install build deps
+      run: |
+        rm -f /var/lib/man-db/auto-update
+        apt update
+        DEBIAN_FRONTEND=noninteractive apt install -y \
+          build-essential \
+          devscripts \
+          python3 \
+          sed \
+        #
+
+    - name: Set git safe dir
+      run: |
+        export GIT_CEILING_DIRECTORIES=/__w # only work before git v2.35.2
+        git config --global --add safe.directory /__w/jpegli/jpegli
+
+    - name: Checkout the source
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        submodules: true
+        fetch-depth: 1
+
+    - name: Stamp non-release versions
+      # Stamps the built package with the commit date as part of the version
+      # after the version number so newer release candidates can override older
+      # ones.
+      if: github.event_name != 'release'
+      shell: 'bash'
+      run: |
+        # Committer timestamp.
+        set -x
+        commit_timestamp=$(git show -s --format=%ct)
+        commit_datetime=$(date --utc "--date=@${commit_timestamp}" '+%Y%m%d%H%M%S')
+        commit_ref=$(git rev-parse --short HEAD)
+        sem_version=$(dpkg-parsechangelog --show-field Version)
+        sem_version="${sem_version%%-*}"
+        deb_version="${sem_version}~alpha${commit_datetime}-0+git${commit_ref}"
+        dch -M --distribution unstable -b --newversion "${deb_version}" \
+          "Stamping build with version ${deb_version}"
+
+    - name: Stamp release versions
+      # Mark the version as released
+      if: github.event_name == 'release'
+      shell: 'bash'
+      run: |
+        if head -n1 debian/changelog | grep UNRELEASED; then
+          dch -M --distribution unstable --release ''
+        fi
+
+    - name: Configure hwy
+      if: ${{ github.event_name == 'schedule' || github.event_name == 'release' || contains(github.event.pull_request.labels.*.name, 'CI:full') }}
+      run: |
+        echo "HWY_PKG_OPTIONS=" >> $GITHUB_ENV
+
+    - name: Build hwy
+      run: |
+        apt build-dep -y ./third_party/highway
+        ./ci.sh debian_build highway
+        dpkg -i build/debs/libhwy-dev_*_amd64.deb
+
+    - name: Build libjpegli
+      run: |
+        apt build-dep -y .
+        EXCLUDE_DEBIAN_PACKAGES="${{ matrix.exclude_debian_packages || '' }}" ./ci.sh debian_build jpegli
+
+    - name: Stats
+      run: |
+        ./ci.sh debian_stats
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ steps.env.outputs.artifact_name }}
+        path: |
+          build/debs/*jpegli*.*
+
+    - name: Package release tarball
+      if: github.event_name == 'release'
+      run: |
+        (cd build/debs/; find -maxdepth 1 -name '*jpegli*.*') | \
+        tar -zcvf release_file.tar.gz -C build/debs/ -T -
+        ln -s release_file.tar.gz \
+          ${{ steps.env.outputs.artifact_name }}-${{ github.event.release.tag_name }}.tar.gz
+
+    - name: Upload binaries to release
+      if: github.event_name == 'release'
+      uses: AButler/upload-release-assets@3d6774fae0ed91407dc5ae29d576b166536d1777 # v3.0
+      with:
+        files: ${{ steps.env.outputs.artifact_name }}-${{ github.event.release.tag_name }}.tar.gz
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+
+  windows_build:
+    name: vcpkg / ${{ matrix.triplet }} ${{ matrix.build_type || 'Release'}}
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'CI:none') }}
+    runs-on: [windows-2022]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - triplet: x86-windows-static
+            arch: '-A Win32'
+          - triplet: x64-windows-static
+            arch: '-A x64'
+            run_benchmark: true
+          - triplet: x64-windows-static
+            arch: '-A x64'
+            build_type: Debug
+            upload: 'OFF'
+          - triplet: x86-windows
+            arch: '-A Win32'
+            static: 'OFF'
+            tools: 'OFF'
+          - triplet: x64-windows
+            arch: '-A x64'
+            static: 'OFF'
+            tools: 'OFF'
+
+    env:
+      VCPKG_VERSION: '2025.10.17'
+      VCPKG_ROOT: vcpkg
+      VCPKG_DISABLE_METRICS: 1
+      BUILD_TYPE: ${{ matrix.build_type || 'Release' }}
+      PREFIX: ${{matrix.triplet}}
+
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      with:
+        egress-policy: audit
+
+    - name: Checkout the source
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        submodules: true
+        fetch-depth: 2
+
+    - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      id: cache-vcpkg
+      with:
+        path: vcpkg
+        key: release-${{ runner.os }}-vcpkg-${{ env.VCPKG_VERSION }}-${{ matrix.triplet }}
+
+    - name: Download vcpkg
+      if: steps.cache-vcpkg.outputs.cache-hit != 'true'
+      # wget doesn't seem to work under bash.
+      shell: 'powershell'
+      run: |
+        C:\msys64\usr\bin\wget.exe -nv `
+           https://github.com/microsoft/vcpkg/archive/refs/tags/${{ env.VCPKG_VERSION }}.zip `
+          -O vcpkg.zip
+    - name: Bootstrap vcpkg
+      if: steps.cache-vcpkg.outputs.cache-hit != 'true'
+      shell: 'bash'
+      run: |
+        set -x
+        unzip -q vcpkg.zip
+        rm -rf ${VCPKG_ROOT}
+        mv vcpkg-${VCPKG_VERSION} ${VCPKG_ROOT}
+        ${VCPKG_ROOT}/bootstrap-vcpkg.sh
+
+    - name: Install libraries with vcpkg
+      shell: 'bash'
+      run: |
+        set -x
+        ${VCPKG_ROOT}/vcpkg --triplet ${{ matrix.triplet }} install \
+          giflib \
+          libjpeg-turbo \
+          libpng \
+          libwebp \
+          pkgconf \
+        #
+
+    - name: Configure
+      shell: 'bash'
+      run: |
+        set -x
+        mkdir build
+        cmake -Bbuild -H. ${{ matrix.arch }} \
+          -DJPEGLI_STATIC=${{ matrix.static || 'ON'}} \
+          -DJPEGLI_ENABLE_TOOLS=${{ matrix.tools || 'ON'}} \
+          -DBUILD_TESTING=OFF \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DCMAKE_INSTALL_PREFIX=`pwd`/${PREFIX} \
+          -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake \
+          -DJPEGLI_ENABLE_JPEGLI_LIBJPEG=OFF \
+          -DJPEGLI_ENABLE_OPENEXR=OFF \
+          -DJPEGLI_ENABLE_TCMALLOC=OFF \
+          -DJPEGLI_ENABLE_DEVTOOLS=${{ matrix.tools || 'ON'}} \
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
+        #
+    - name: Build
+      shell: 'bash'
+      run: |
+        set -x
+        cmake --build build --config ${{ env.BUILD_TYPE }}
+    - name: Install
+      shell: 'bash'
+      run: |
+        set -x
+        cmake --build build --config ${{ env.BUILD_TYPE }} --target install
+        for pkg in giflib libjpeg-turbo libpng libwebp zlib; do
+          cp vcpkg/installed/${{matrix.triplet}}/share/${pkg}/copyright \
+            ${PREFIX}/bin/LICENSE.${pkg}
+        done
+        cp third_party/sjpeg/COPYING ${PREFIX}/bin/LICENSE.sjpeg
+        cp third_party/skcms/LICENSE ${PREFIX}/bin/LICENSE.skcms
+        cp third_party/highway/LICENSE ${PREFIX}/bin/LICENSE.highway
+        cp LICENSE ${PREFIX}/bin/LICENSE.jpegli
+
+    - name: Fast benchmark ${{ matrix.triplet }}
+      shell: 'bash'
+      if: matrix.run_benchmark && true
+      run: |
+        systeminfo | grep -A 1 Processor
+        powershell -c "Get-CimInstance -ClassName Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed"
+        mkdir tmp
+        export TMPDIR=`pwd`/tmp
+        export PATH=$PATH:`pwd`/build/lib
+        BUILD_CONFIG=Release/ BENCHMARK_NUM_THREADS=2 STORE_IMAGES=0 ./ci.sh fast_benchmark
+
+    - name: Package release
+      shell: 'bash'
+      if: matrix.upload != 'OFF'
+      run: |
+        7z -mx a jpegli-${{matrix.triplet}}.7z ${PREFIX}/bin/* ${PREFIX}/lib/*
+        7z -mx a jpegli-${{matrix.triplet}}.zip ${PREFIX}/bin/* ${PREFIX}/lib/*
+
+    - name: Upload release
+      if: matrix.upload != 'OFF'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: jpegli-${{matrix.triplet}}
+        path: |
+          jpegli-${{matrix.triplet}}.7z
+          jpegli-${{matrix.triplet}}.zip
+        compression-level: 0
+
+
+  publish_release_assets:
+    name: Publish release assets
+    needs: [ubuntu_static_x86_64, release_ubuntu_pkg, windows_build]
+    if: github.event_name == 'release'
+    runs-on: [ubuntu-latest]
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout the source
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        submodules: true
+        fetch-depth: 1
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        path: release_assets
+        merge-multiple: true
+
+    - name: Publish assets
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release upload ${{ github.event.release.tag_name }} ./release_assets/*

@@ -1,0 +1,8 @@
+flowchart LR
+    R["Read"] -- "pixels" --> S
+    subgraph E ["Encode, one thread"]
+        S["setup"] --> P["pixel phase<br/>in bands"] --> C[("coefficients")] --> T["tokenize<br/>scan by scan"] --> H["Huffman tables"] --> W["write<br/>scan by scan"]
+        T -. "end-of-band run" .-> T
+        W -. "bit position" .-> W
+    end
+    W -- "JPEG" --> F["Save file"]

@@ -1,0 +1,11 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="lame/frontend/lame.vcxproj" Id="e2f3a4b5-c6d7-4890-0123-456789abcdf1">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="lame/libmp3lame/libmp3lame.vcxproj" Id="d1e2f3a4-b5c6-4789-9012-3456789abcf0">
+    <Platform Project="x64" />
+  </Project>
+</Solution>

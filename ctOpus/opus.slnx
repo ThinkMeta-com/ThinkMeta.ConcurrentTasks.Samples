@@ -1,0 +1,17 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="opus/opus-tools-0.2/opusenc.vcxproj" Id="4f707573-0001-4000-8000-000000000005">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="opus/libopusenc-0.2.1/libopusenc.vcxproj" Id="4f707573-0001-4000-8000-000000000004">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="opus/libogg-1.3.6/libogg.vcxproj" Id="aff27a26-c088-444b-bc2a-0ba94a02afa7">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="opus/opus-1.6.1/libopus.vcxproj" Id="4f707573-0001-4000-8000-000000000001">
+    <Platform Project="x64" />
+  </Project>
+</Solution>

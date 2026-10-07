@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildThisFileDirectory)..\libdeflate.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{A281A489-0004-4000-8000-000000000004}</ProjectGuid>
+    <RootNamespace>libdeflate</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\libdeflate.settings.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="common_defs.h" />
+    <ClInclude Include="libdeflate.h" />
+    <ClInclude Include="lib\bt_matchfinder.h" />
+    <ClInclude Include="lib\cpu_features_common.h" />
+    <ClInclude Include="lib\crc32_multipliers.h" />
+    <ClInclude Include="lib\crc32_tables.h" />
+    <ClInclude Include="lib\decompress_template.h" />
+    <ClInclude Include="lib\deflate_compress.h" />
+    <ClInclude Include="lib\deflate_constants.h" />
+    <ClInclude Include="lib\gzip_constants.h" />
+    <ClInclude Include="lib\hc_matchfinder.h" />
+    <ClInclude Include="lib\ht_matchfinder.h" />
+    <ClInclude Include="lib\lib_common.h" />
+    <ClInclude Include="lib\matchfinder_common.h" />
+    <ClInclude Include="lib\zlib_constants.h" />
+    <ClInclude Include="lib\x86\adler32_impl.h" />
+    <ClInclude Include="lib\x86\adler32_template.h" />
+    <ClInclude Include="lib\x86\cpu_features.h" />
+    <ClInclude Include="lib\x86\crc32_impl.h" />
+    <ClInclude Include="lib\x86\crc32_pclmul_template.h" />
+    <ClInclude Include="lib\x86\decompress_impl.h" />
+    <ClInclude Include="lib\x86\matchfinder_impl.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="lib\adler32.c" />
+    <ClCompile Include="lib\crc32.c" />
+    <ClCompile Include="lib\deflate_compress.c" />
+    <ClCompile Include="lib\deflate_decompress.c" />
+    <ClCompile Include="lib\gzip_compress.c" />
+    <ClCompile Include="lib\gzip_decompress.c" />
+    <ClCompile Include="lib\utils.c" />
+    <ClCompile Include="lib\zlib_compress.c" />
+    <ClCompile Include="lib\zlib_decompress.c" />
+    <ClCompile Include="lib\x86\cpu_features.c" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

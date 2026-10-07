@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildThisFileDirectory)..\opus.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4F707573-0001-4000-8000-000000000004}</ProjectGuid>
+    <RootNamespace>libopusenc</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\opus.settings.props" />
+  <!-- Unmodified libopusenc 0.2.1 sources; defines as in upstream win32\VS2015\common.props, plus
+       __SSE__, which GCC/Clang define on every x64 target: the Speex resampler then uses its SSE inner
+       product (resample_sse.h) like real-world opusenc builds do. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir)msvc;$(ProjectDir)win32;$(ProjectDir)include;$(MSBuildThisFileDirectory)..\opus-1.6.1\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_LIB;_CRT_SECURE_NO_WARNINGS;RANDOM_PREFIX=libopusenc;OUTSIDE_SPEEX;HAVE_CONFIG_H;__SSE__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ForcedIncludeFiles>opus_compat.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <WarningLevel>Level3</WarningLevel>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="include\opusenc.h" />
+    <ClInclude Include="msvc\version.h" />
+    <ClInclude Include="src\arch.h" />
+    <ClInclude Include="src\ogg_packer.h" />
+    <ClInclude Include="src\opus_header.h" />
+    <ClInclude Include="src\picture.h" />
+    <ClInclude Include="src\resample_sse.h" />
+    <ClInclude Include="src\speex_resampler.h" />
+    <ClInclude Include="src\unicode_support.h" />
+    <ClInclude Include="win32\config.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\ogg_packer.c" />
+    <ClCompile Include="src\opus_header.c" />
+    <ClCompile Include="src\opusenc.c" />
+    <ClCompile Include="src\picture.c" />
+    <ClCompile Include="src\resample.c" />
+    <ClCompile Include="src\unicode_support.c" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

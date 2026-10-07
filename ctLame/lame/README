@@ -1,0 +1,67 @@
+THIS IS A REDUCED BUILD OF LAME 4.0
+===================================
+
+This tree is LAME 4.0 (release tarball of the SVN tag RELEASE__4_0, r6552),
+reduced to what the ThinkMeta.ConcurrentTasks MP3 sample needs:
+
+  - MPEG-1 Layer III encoding with the "new" VBR routine (vbr_mtrh) only,
+    default -V 4; no CBR, ABR, old VBR routine or free format
+  - WAV file input only (PCM 8/16/24/32 bit, 32 bit float), 32, 44.1 or
+    48 kHz; no resampling, no MPEG-2/2.5, no stdin/stdout
+  - no decoder, gapless (nogap) encoding, ID3 tags, ReplayGain or frame
+    analyzer
+  - x64 only, built with MSBuild (libmp3lame/libmp3lame.vcxproj,
+    frontend/lame.vcxproj); the autotools build and the side projects
+    (ACM, DirectShow, DLL, mp3x, mp3rtp) are removed
+
+For the same options and a supported input, the output is bit-identical to
+the unmodified LAME 4.0 - except that the output keeps the input sample
+rate where LAME would have lowered it (-V 6.5 and above at 44.1/48 kHz,
+-V 8 and above at 32 kHz); there it is bit-identical to LAME 4.0 with
+--resample <input rate>.
+
+The original text of this file follows.
+
+============================================================================
+
+                      LAME 3.xx
+               LAME Ain't an MP3 Encoder
+                  http://lame.sf.net
+	                  May 2011
+
+Originally developed by Mike Cheng (www.uq.net.au/~zzmcheng) and was
+latter developed by Mark Taylor (www.mp3dev.org). Currently maintained
+by The LAME Project.
+
+This code is distributed under the GNU LIBRARY GENERAL PUBLIC LICENSE
+(LGPL, see www.gnu.org), version 2.
+
+As LAME may contain software for which some companies may claim software
+patents, if you are in a location where software patents are recognized, it is
+suggested that you seek legal advice before deploying and/or redistributing
+LAME.
+
+In particular, it is suggested to visit
+
+    http://www.mp3licensing.com/
+
+if it applies to your jurisdiction.
+
+============================================================================
+
+see the file "USAGE" for the most up-to-date guide to the command line options.
+see the file "LICENSE" for details on how to use LAME in non-GPL programs.
+see the file "HACKING" if you are interested in working on LAME
+see the file "API" for details of the LAME encoding library API
+
+(The INSTALL file, the HTML documentation and the man page were removed
+together with the autotools build.)
+
+============================================================================
+
+Copyrights (c) 1999-2011 by The LAME Project
+Copyrights (c) 1999,2000,2001 by Mark Taylor
+Copyrights (c) 1998 by Michael Cheng
+Copyrights (c) 1995,1996,1997 by Michael Hipp: mpglib
+
+As well as additional copyrights as documented in the source code.

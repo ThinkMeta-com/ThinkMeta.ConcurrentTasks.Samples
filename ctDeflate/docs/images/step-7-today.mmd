@@ -1,0 +1,14 @@
+flowchart LR
+    R["Read<br/>I/O scheduler<br/>overlapped ReadFile"]
+    P["Match search<br/>×N, compute scheduler"]
+    V["Resolve<br/>in order<br/>own thread"]
+    E["Huffman coding<br/>×N, same workers"]
+    S["Assemble<br/>in order"]
+    W["Write<br/>I/O scheduler<br/>overlapped WriteFile"]
+    R -- "input window" --> P
+    P -- "chunk parses" --> V
+    V -- "block ring" --> E
+    E --> S
+    S -- "output window" --> W
+    V -. "parse window, feedback" .-> P
+    P ~~~ V

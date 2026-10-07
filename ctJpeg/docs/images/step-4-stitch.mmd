@@ -1,0 +1,3 @@
+flowchart LR
+    S["Setup"] --> P["Pixel ×N<br/>bands"] --> C[("coefficients")] --> T["Tokenize ×N<br/>scans and bands"] --> B[("tokens per band")] --> ST["Stitch<br/>per scan"] --> H["Huffman"] --> W["Write ×N<br/>scan by scan"] --> A["Assemble"]
+    ST -. "end-of-band run" .-> ST

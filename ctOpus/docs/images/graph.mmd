@@ -1,0 +1,23 @@
+flowchart LR
+    subgraph io ["I/O scheduler · 1 thread"]
+        R["Read<br/>WAV, drain extension"]
+    end
+    subgraph cpu ["compute scheduler · one thread per logical processor"]
+        W["Resample ×N<br/>any block"]
+        A["Analyse<br/>tonality"]
+        S["Signal<br/>input and CELT signal stage"]
+        F["Front<br/>CELT front part"]
+        E["Encode<br/>the serial backbone, frames in order<br/>Ogg pages"]
+        T["Theta<br/>second rounding trial"]
+        P["Speculate ×3<br/>next frames on cloned states"]
+    end
+    R -- "PCM" --> W
+    W -- "blocks" --> E
+    W -- "blocks" --> A
+    A -- "calls" --> S
+    S -- "signal frames" --> F
+    F -- "front frames" --> E
+    E -. "resync" .-> F
+    E <-- "trial" --> T
+    E -- "clone" --> P
+    P -- "symbol log" --> E

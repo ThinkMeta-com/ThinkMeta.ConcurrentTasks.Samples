@@ -1,0 +1,8 @@
+flowchart LR
+    R["Read"] -- "input window" --> P["Match search<br/>×N, speculative chunks"]
+    P -- "chunk parses" --> V["Resolve<br/>in order"]
+    V -- "block ring" --> E["Huffman coding<br/>×N"]
+    E --> S["Assemble<br/>in order"]
+    S -- "output window" --> W["Write"]
+    V -. "parse window,<br/>read allowance" .-> P
+    P ~~~ V

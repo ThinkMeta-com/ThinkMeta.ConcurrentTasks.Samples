@@ -1,0 +1,7 @@
+/jpeg/build
+/jpeg/jpegli-oracle/build
+/.vs
+*.vcxproj.user
+/benchmark/work
+/benchmark/results
+/dist

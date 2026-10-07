@@ -1,0 +1,7 @@
+/opus/build
+/.vs
+*.vcxproj.user
+/benchmark/work
+/benchmark/results
+/dist
+*.opus

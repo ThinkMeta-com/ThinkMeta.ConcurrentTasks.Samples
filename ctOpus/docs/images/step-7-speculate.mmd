@@ -1,0 +1,12 @@
+flowchart LR
+    W["Resample ×N"] -- "blocks" --> A["Analyse<br/>High"]
+    W -- "blocks" --> E["Encode<br/>High"]
+    A -- "calls" --> S["Signal<br/>High"]
+    S -- "signal frames" --> F["Front<br/>High"]
+    F -- "front frames" --> E
+    E -. "resync" .-> F
+    E <-- "trial" --> T["Theta"]
+    E -- "clone of frame N+1" --> P["Speculate<br/>quantize N+1"]
+    P -- "symbol log" --> E
+    E -. "seed, abort" .-> P
+    P <-- "trial" --> PT["Theta<br/>of the speculation"]

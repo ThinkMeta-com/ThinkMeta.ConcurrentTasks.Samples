@@ -1,0 +1,92 @@
+// Copyright (c) the JPEG XL Project Authors.
+//
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file or at
+// https://developers.google.com/open-source/licenses/bsd
+
+#ifndef JPEGLI_TOOLS_BENCHMARK_BENCHMARK_CODEC_H_
+#define JPEGLI_TOOLS_BENCHMARK_BENCHMARK_CODEC_H_
+
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "lib/base/memory_manager.h"
+#include "lib/base/span.h"
+#include "lib/base/status.h"
+#include "lib/extras/packed_image.h"
+#include "tools/benchmark/benchmark_args.h"
+#include "tools/benchmark/benchmark_stats.h"
+#include "tools/speed_stats.h"
+#include "tools/thread_pool_internal.h"
+
+namespace jpegli_tools {
+
+using ::jpegli::Span;
+using ::jpegli::Status;
+using ::jpegli::extras::PackedPixelFile;
+
+// Thread-compatible.
+class ImageCodec {
+ public:
+  explicit ImageCodec(const BenchmarkArgs& args)
+      : args_(args),
+        butteraugli_target_(1.0f),
+        q_target_(100.0f),
+        bitrate_target_(0.0f) {}
+
+  virtual ~ImageCodec() = default;
+
+  void set_description(const std::string& desc) { description_ = desc; }
+  const std::string& description() const { return description_; }
+
+  virtual Status ParseParameters(const std::string& parameters);
+
+  virtual Status ParseParam(const std::string& param);
+
+  virtual Status Compress(const std::string& filename,
+                          const PackedPixelFile& ppf, ThreadPool* pool,
+                          std::vector<uint8_t>* compressed,
+                          jpegli_tools::SpeedStats* speed_stats) = 0;
+
+  virtual Status Decompress(const std::string& filename,
+                            Span<const uint8_t> compressed, ThreadPool* pool,
+                            PackedPixelFile* ppf,
+                            jpegli_tools::SpeedStats* speed_stats) = 0;
+
+  virtual void GetMoreStats(BenchmarkStats* stats) {}
+
+  virtual bool IgnoreAlpha() const { return false; }
+
+  virtual Status CanRecompressJpeg() const { return false; }
+  virtual Status RecompressJpeg(const std::string& filename,
+                                const std::vector<uint8_t>& data,
+                                std::vector<uint8_t>* compressed,
+                                jpegli_tools::SpeedStats* speed_stats) {
+    return false;
+  }
+
+  virtual std::string GetErrorMessage() const { return error_message_; }
+
+ protected:
+  const BenchmarkArgs& args_;
+  std::string params_;
+  std::string description_;
+  float butteraugli_target_;
+  float q_target_;
+  float bitrate_target_;
+  std::string error_message_;
+};
+
+using ImageCodecPtr = std::unique_ptr<ImageCodec>;
+
+// Creates an image codec by name, e.g. "jpegli" to get a new instance of the
+// jpegli codec. Optionally, behind a colon, parameters can be specified,
+// then ParseParameters of the codec gets called with the part behind the colon.
+ImageCodecPtr CreateImageCodec(const std::string& description,
+                               JpegliMemoryManager* memory_manager);
+
+}  // namespace jpegli_tools
+
+#endif  // JPEGLI_TOOLS_BENCHMARK_BENCHMARK_CODEC_H_

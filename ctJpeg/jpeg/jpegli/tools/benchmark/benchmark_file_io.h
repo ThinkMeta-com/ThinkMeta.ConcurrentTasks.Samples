@@ -1,0 +1,55 @@
+// Copyright (c) the JPEG XL Project Authors.
+//
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file or at
+// https://developers.google.com/open-source/licenses/bsd
+
+// File utilities for benchmarking and testing, but which are not needed for
+// main jpegli itself.
+
+#ifndef JPEGLI_TOOLS_BENCHMARK_BENCHMARK_FILE_IO_H_
+#define JPEGLI_TOOLS_BENCHMARK_BENCHMARK_FILE_IO_H_
+
+#include <string>
+#include <vector>
+
+#include "lib/base/status.h"
+
+namespace jpegli_tools {
+
+using ::jpegli::Status;
+
+// Checks if the file exists, either as file or as directory
+bool PathExists(const std::string& fname);
+
+// Checks if the file exists and is a regular file.
+bool IsRegularFile(const std::string& fname);
+
+// Checks if the file exists and is a directory.
+bool IsDirectory(const std::string& fname);
+
+// Recursively makes dir, or successfully does nothing if it already exists.
+Status MakeDir(const std::string& dirname);
+
+// Deletes a single regular file.
+Status DeleteFile(const std::string& fname);
+
+// Returns value similar to unix basename, except it returns empty string if
+// fname ends in '/'.
+std::string FileBaseName(const std::string& fname);
+// Returns value similar to unix dirname, except returns up to before the last
+// slash if fname ends in '/'.
+std::string FileDirName(const std::string& fname);
+
+// Returns the part of the filename starting from the last dot, or empty
+// string if there is no dot.
+std::string FileExtension(const std::string& fname);
+
+// Matches one or more files given glob pattern.
+Status MatchFiles(const std::string& pattern, std::vector<std::string>* list);
+
+std::string JoinPath(const std::string& first, const std::string& second);
+
+}  // namespace jpegli_tools
+
+#endif  // JPEGLI_TOOLS_BENCHMARK_BENCHMARK_FILE_IO_H_

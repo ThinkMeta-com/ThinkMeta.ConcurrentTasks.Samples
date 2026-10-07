@@ -1,0 +1,44 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!--
+        Shared by libopus, libogg, libopusenc and opusenc, imported after Microsoft.Cpp.props: the
+        settings bin\opusenc.exe was built with (x64, /O2, whole program optimization, the static C
+        runtime, no /arch switch). Output in opus\build\<configuration>\bin.
+    -->
+    <PropertyGroup>
+        <OutDir>$(MSBuildThisFileDirectory)build\$(Configuration)\bin\</OutDir>
+        <IntDir>$(MSBuildThisFileDirectory)build\$(Configuration)\obj\$(MSBuildProjectName)\</IntDir>
+    </PropertyGroup>
+    <ItemDefinitionGroup>
+        <ClCompile>
+            <WarningLevel>Level3</WarningLevel>
+            <SDLCheck>false</SDLCheck>
+            <ConformanceMode>true</ConformanceMode>
+            <MultiProcessorCompilation>true</MultiProcessorCompilation>
+            <TreatWarningAsError>false</TreatWarningAsError>
+        </ClCompile>
+        <Link>
+            <GenerateDebugInformation>true</GenerateDebugInformation>
+        </Link>
+    </ItemDefinitionGroup>
+    <ItemDefinitionGroup Condition="'$(Configuration)' == 'Debug'">
+        <ClCompile>
+            <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+            <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+        </ClCompile>
+    </ItemDefinitionGroup>
+    <ItemDefinitionGroup Condition="'$(Configuration)' == 'Release'">
+        <ClCompile>
+            <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+            <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+            <FunctionLevelLinking>true</FunctionLevelLinking>
+            <IntrinsicFunctions>true</IntrinsicFunctions>
+            <OmitFramePointers>true</OmitFramePointers>
+            <WholeProgramOptimization>true</WholeProgramOptimization>
+        </ClCompile>
+        <Link>
+            <EnableCOMDATFolding>true</EnableCOMDATFolding>
+            <OptimizeReferences>true</OptimizeReferences>
+            <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+        </Link>
+    </ItemDefinitionGroup>
+</Project>
