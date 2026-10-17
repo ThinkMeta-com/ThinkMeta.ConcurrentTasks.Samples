@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\..\lame.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{E2F3A4B5-C6D7-4890-0123-456789ABCDF1}</ProjectGuid>
+    <RootNamespace>lame</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <UseDebugLibraries Condition="'$(Configuration)' == 'Debug'">true</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)' == 'Release'">false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="..\..\lame.settings.props" />
+  <ItemGroup>
+    <ClInclude Include="console.h" />
+    <ClInclude Include="get_audio.h" />
+    <ClInclude Include="main.h" />
+    <ClInclude Include="parse.h" />
+    <ClInclude Include="timestatus.h" />
+    <ClInclude Include="..\include\lame.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="console.c" />
+    <ClCompile Include="get_audio.c" />
+    <ClCompile Include="lame_main.c" />
+    <ClCompile Include="main.c" />
+    <ClCompile Include="parse.c" />
+    <ClCompile Include="timestatus.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\libmp3lame\libmp3lame.vcxproj">
+      <Project>{D1E2F3A4-B5C6-4789-9012-3456789ABCF0}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

@@ -1,0 +1,17 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!--
+        Shared by libmp3lame and the lame frontend, imported before Microsoft.Cpp.Default.props:
+        x64 Debug and Release. lame.settings.props holds the rest. These are the settings the
+        published bin\lame.exe was built with.
+    -->
+    <ItemGroup Label="ProjectConfigurations">
+        <ProjectConfiguration Include="Debug|x64">
+            <Configuration>Debug</Configuration>
+            <Platform>x64</Platform>
+        </ProjectConfiguration>
+        <ProjectConfiguration Include="Release|x64">
+            <Configuration>Release</Configuration>
+            <Platform>x64</Platform>
+        </ProjectConfiguration>
+    </ItemGroup>
+</Project>

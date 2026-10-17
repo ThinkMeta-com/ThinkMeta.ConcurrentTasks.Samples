@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <!-- the API submodule of the Samples repository: build settings, include, library, core -->
+    <CT_ApiDir>$(MSBuildThisFileDirectory)..\..\..\ThinkMeta.ConcurrentTasks.API\</CT_ApiDir>
+  </PropertyGroup>
+  <Import Project="$(CT_ApiDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4f707573-0002-4000-8000-000000000002}</ProjectGuid>
+    <RootNamespace>ThinkMetaConcurrentTasksSamplesctOpusTasks</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!-- The core of the API submodule. -->
+  <Import Project="$(CT_ApiDir)Core\ThinkMeta.ConcurrentTasks.Core.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\Encoder;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="EncodeGraph.h" />
+    <ClInclude Include="EncodeHelpers.h" />
+    <ClInclude Include="EncodeTasks.h" />
+    <ClInclude Include="FileIo.h" />
+    <ClInclude Include="GraphEdges.h" />
+    <ClInclude Include="SchedulerHandle.h" />
+    <ClInclude Include="ToneChain.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="EncodeGraph.cpp" />
+    <ClCompile Include="EncodeTasks.cpp" />
+    <ClCompile Include="FileIo.cpp" />
+    <ClCompile Include="ToneChain.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(CT_ApiDir)Library\ThinkMeta.ConcurrentTasks\ThinkMeta.ConcurrentTasks.vcxproj">
+      <Project>{8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\Encoder\ThinkMeta.ConcurrentTasks.Samples.ctOpus.Encoder.vcxproj">
+      <Project>{4f707573-0002-4000-8000-000000000001}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

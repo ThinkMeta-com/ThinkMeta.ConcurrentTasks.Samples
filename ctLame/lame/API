@@ -1,0 +1,107 @@
+The LAME API
+
+This is the simple interface to the encoding part of libmp3lame. This
+reduced build encodes MPEG-1 Layer III VBR (the "new" VBR routine) only; it
+has no decoder, no ID3 tag support and no ReplayGain analysis. The
+complete list of functions is in "include/lame.h", the example frontend
+encoder is in frontend/lame_main.c.
+
+All of these steps should be done for every MP3 to be encoded.
+
+
+=========================================================================
+
+1. (optional) Get the version number of the encoder, if you are interested.
+   const char *get_lame_version(void);
+
+
+2. Error messages.  By default, LAME will write error messages to
+stderr using vfprintf().  For GUI applications, this is often a problem
+and you need to set your own error message handlers:
+
+   lame_set_errorf(gfp,error_handler_function);
+   lame_set_debugf(gfp,error_handler_function);
+   lame_set_msgf(gfp,error_handler_function);
+
+See lame.h for details.
+
+
+3. Initialize the encoder.  sets default for all encoder parameters.
+
+   #include "lame.h"
+   lame_global_flags *gfp;
+   gfp = lame_init();
+
+The default (if you set nothing) is a J-Stereo, 44.1khz VBR mp3 file at
+-V 4 and quality 3. The input sample rate must be 32, 44.1 or 48 kHz;
+it is also the output sample rate, LAME does not resample. Override
+various default settings as necessary, for example:
+
+   lame_set_num_channels(gfp,2);
+   lame_set_in_samplerate(gfp,44100);
+   lame_set_VBR_quality(gfp,2.0f);  /* 0=highest quality ... 9.999 */
+   lame_set_mode(gfp,1);
+   lame_set_quality(gfp,2);   /* 2=high  5 = medium  7=low */
+
+
+See lame.h for the complete list of options.  Note that there are
+some lame_set_*() calls not documented in lame.h.  These functions
+are experimental and for testing only.  They may be removed in
+the future.
+
+
+
+4. Set more internal configuration based on data provided above,
+   as well as checking for problems.  Check that ret_code >= 0.
+   lame_init_params fails for an input sample rate other than
+   32, 44.1 or 48 kHz.
+
+   ret_code = lame_init_params(gfp);
+
+
+
+5. Encode some data.  input pcm data, output (maybe) mp3 frames.
+This routine handles all buffering and filtering for you.
+The required mp3buffer_size can be computed from num_samples,
+samplerate and encoding rate, but here is a worst case estimate:
+mp3buffer_size (in bytes) = 1.25*num_samples + 7200.
+num_samples = the number of PCM samples in each channel.  It is
+not the sum of the number of samples in the L and R channels.
+
+The return code = number of bytes output in mp3buffer.  This can be 0.
+If it is <0, an error occured.
+
+   int lame_encode_buffer(lame_global_flags *gfp,
+         short int leftpcm[], short int rightpcm[],
+         int num_samples,char *mp3buffer,int  mp3buffer_size);
+
+
+There are also routines for various types of input
+(float, long, interleaved, etc).  See lame.h for details.
+
+
+6. lame_encode_flush will flush the buffers and may return a
+final few mp3 frames.  mp3buffer should be at least 7200 bytes.
+return code = number of bytes output to mp3buffer.  This can be 0.
+
+int lame_encode_flush(lame_global_flags *,char *mp3buffer, int mp3buffer_size);
+
+
+7.  Write the Xing VBR/LAME tag.
+
+LAME writes a placeholder frame at the start of the stream. After
+lame_encode_flush, get the final tag frame and write it over that first
+frame of the mp3 data:
+
+size_t lame_get_lametag_frame(const lame_global_flags *,
+                              unsigned char* buffer, size_t size);
+
+The tag contains information about the bitstream (e.g. for seeking) that
+some players may find useful. If you cannot rewrite the start of the
+output, disable the tag with lame_set_bWriteVbrTag(gfp,0) in step 3.
+
+
+
+8. free the internal data structures.
+
+void lame_close(lame_global_flags *);

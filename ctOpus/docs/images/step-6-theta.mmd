@@ -1,0 +1,7 @@
+flowchart LR
+    W["Resample ×N"] -- "blocks" --> A["Analyse + Signal<br/>High"]
+    W -- "blocks" --> E["Encode<br/>High"]
+    A -- "signal frames" --> F["Front<br/>High"]
+    F -- "front frames" --> E
+    E -. "resync" .-> F
+    E <-- "trial" --> T["Theta<br/>second rounding trial"]

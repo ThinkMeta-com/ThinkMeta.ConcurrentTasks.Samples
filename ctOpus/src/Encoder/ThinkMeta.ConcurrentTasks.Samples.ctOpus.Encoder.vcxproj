@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <!-- the API submodule of the Samples repository: build settings, include, library, core -->
+    <CT_ApiDir>$(MSBuildThisFileDirectory)..\..\..\ThinkMeta.ConcurrentTasks.API\</CT_ApiDir>
+  </PropertyGroup>
+  <Import Project="$(CT_ApiDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4f707573-0002-4000-8000-000000000001}</ProjectGuid>
+    <RootNamespace>ThinkMetaConcurrentTasksSamplesctOpusEncoder</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="ctOpusVersion.h" />
+    <ClInclude Include="HeapArray.h" />
+    <ClInclude Include="Report.h" />
+    <ClInclude Include="Resampler.h" />
+    <ClInclude Include="WavInput.h" />
+    <ClInclude Include="OggPacker.h" />
+    <ClInclude Include="OpusHeaders.h" />
+    <ClInclude Include="OggOpusEncoder.h" />
+    <ClInclude Include="ParallelResampler.h" />
+    <ClInclude Include="PlanarStore.h" />
+    <ClInclude Include="OpusStreamEncoder.h" />
+    <ClInclude Include="OpusMultistreamEncoder.h" />
+    <ClInclude Include="CeltMath.h" />
+    <ClInclude Include="CeltEncoder.h" />
+    <ClInclude Include="RangeEncoder.h" />
+    <ClInclude Include="CeltMode.h" />
+    <ClInclude Include="CeltMdct.h" />
+    <ClInclude Include="CeltSimd.h" />
+    <ClInclude Include="CeltBands.h" />
+    <ClInclude Include="CeltEnergy.h" />
+    <ClInclude Include="CeltRate.h" />
+    <ClInclude Include="CeltPitch.h" />
+    <ClInclude Include="CeltVq.h" />
+    <ClInclude Include="OpusPacket.h" />
+    <ClInclude Include="OpusDefines.h" />
+    <ClInclude Include="SilkMacros.h" />
+    <ClInclude Include="SilkState.h" />
+    <ClInclude Include="SilkTables.h" />
+    <ClInclude Include="SilkSigProc.h" />
+    <ClInclude Include="SilkResampler.h" />
+    <ClInclude Include="SilkStereo.h" />
+    <ClInclude Include="SilkEncoder.h" />
+    <ClInclude Include="SilkDefines.h" />
+    <ClInclude Include="SilkVad.h" />
+    <ClInclude Include="SilkCoding.h" />
+    <ClInclude Include="SilkEncodeFrame.h" />
+    <ClInclude Include="SilkNsq.h" />
+    <ClInclude Include="SilkNlsf.h" />
+    <ClInclude Include="SilkPredCoefs.h" />
+    <ClInclude Include="SilkPitchAnalysis.h" />
+    <ClInclude Include="SilkSigProcFlp.h" />
+    <ClInclude Include="SilkNoiseShape.h" />
+    <None Include="CeltCwrsTable.inc" />
+    <None Include="CeltModeTables.inc" />
+    <ClInclude Include="KissFft.h" />
+    <ClInclude Include="ToneAnalysis.h" />
+    <None Include="KissFftTables.inc" />
+    <None Include="ToneAnalysisMlp.inc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Resampler.cpp" />
+    <ClCompile Include="WavInput.cpp" />
+    <ClCompile Include="OggPacker.cpp" />
+    <ClCompile Include="OpusHeaders.cpp" />
+    <ClCompile Include="OggOpusEncoder.cpp" />
+    <ClCompile Include="ParallelResampler.cpp" />
+    <ClCompile Include="PlanarStore.cpp" />
+    <ClCompile Include="OpusStreamEncoder.cpp" />
+    <ClCompile Include="OpusMultistreamEncoder.cpp" />
+    <ClCompile Include="KissFft.cpp" />
+    <ClCompile Include="CeltEncoder.cpp" />
+    <ClCompile Include="RangeEncoder.cpp" />
+    <ClCompile Include="CeltMode.cpp" />
+    <ClCompile Include="CeltMdct.cpp" />
+    <ClCompile Include="CeltBands.cpp" />
+    <ClCompile Include="CeltEnergy.cpp" />
+    <ClCompile Include="CeltRate.cpp" />
+    <ClCompile Include="CeltPitch.cpp" />
+    <ClCompile Include="CeltVq.cpp" />
+    <ClCompile Include="OpusPacket.cpp" />
+    <ClCompile Include="SilkSigProc.cpp" />
+    <ClCompile Include="SilkResampler.cpp" />
+    <ClCompile Include="SilkStereo.cpp" />
+    <ClCompile Include="SilkEncoder.cpp" />
+    <ClCompile Include="SilkVad.cpp" />
+    <ClCompile Include="SilkCoding.cpp" />
+    <ClCompile Include="SilkEncodeFrame.cpp" />
+    <ClCompile Include="SilkNsq.cpp" />
+    <ClCompile Include="SilkNlsf.cpp" />
+    <ClCompile Include="SilkPredCoefs.cpp" />
+    <ClCompile Include="SilkPitchAnalysis.cpp" />
+    <ClCompile Include="SilkSigProcFlp.cpp" />
+    <ClCompile Include="SilkNoiseShape.cpp" />
+    <ClCompile Include="ToneAnalysis.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

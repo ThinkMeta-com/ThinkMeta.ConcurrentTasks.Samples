@@ -1,0 +1,54 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!--
+        Shared by libdeflate and gzip, imported after Microsoft.Cpp.props: x64, /O2, whole program
+        optimization, the static C runtime. Output in libdeflate\build\<configuration>\bin.
+
+        LibdeflateDllCrt=true (passed by the ctDeflate unit tests, which use the DLL runtime) builds the
+        library with the DLL runtime instead, into libdeflate\build\<configuration>Dll.
+    -->
+    <PropertyGroup>
+        <LibdeflateBuildName>$(Configuration)</LibdeflateBuildName>
+        <LibdeflateBuildName Condition="'$(LibdeflateDllCrt)' == 'true'">$(Configuration)Dll</LibdeflateBuildName>
+        <OutDir>$(MSBuildThisFileDirectory)build\$(LibdeflateBuildName)\bin\</OutDir>
+        <IntDir>$(MSBuildThisFileDirectory)build\$(LibdeflateBuildName)\obj\$(MSBuildProjectName)\</IntDir>
+    </PropertyGroup>
+    <ItemDefinitionGroup>
+        <ClCompile>
+            <WarningLevel>Level3</WarningLevel>
+            <SDLCheck>false</SDLCheck>
+            <ConformanceMode>true</ConformanceMode>
+            <MultiProcessorCompilation>true</MultiProcessorCompilation>
+            <TreatWarningAsError>false</TreatWarningAsError>
+        </ClCompile>
+        <Link>
+            <GenerateDebugInformation>true</GenerateDebugInformation>
+        </Link>
+    </ItemDefinitionGroup>
+    <ItemDefinitionGroup Condition="'$(Configuration)' == 'Debug'">
+        <ClCompile>
+            <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+            <RuntimeLibrary Condition="'$(LibdeflateDllCrt)' != 'true'">MultiThreadedDebug</RuntimeLibrary>
+            <RuntimeLibrary Condition="'$(LibdeflateDllCrt)' == 'true'">MultiThreadedDebugDLL</RuntimeLibrary>
+        </ClCompile>
+    </ItemDefinitionGroup>
+    <ItemDefinitionGroup Condition="'$(Configuration)' == 'Release'">
+        <ClCompile>
+            <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+            <Optimization>MaxSpeed</Optimization>
+            <FunctionLevelLinking>true</FunctionLevelLinking>
+            <IntrinsicFunctions>true</IntrinsicFunctions>
+            <OmitFramePointers>true</OmitFramePointers>
+            <WholeProgramOptimization>true</WholeProgramOptimization>
+            <RuntimeLibrary Condition="'$(LibdeflateDllCrt)' != 'true'">MultiThreaded</RuntimeLibrary>
+            <RuntimeLibrary Condition="'$(LibdeflateDllCrt)' == 'true'">MultiThreadedDLL</RuntimeLibrary>
+        </ClCompile>
+        <Link>
+            <EnableCOMDATFolding>true</EnableCOMDATFolding>
+            <OptimizeReferences>true</OptimizeReferences>
+            <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+        </Link>
+        <Lib>
+            <LinkTimeCodeGeneration>true</LinkTimeCodeGeneration>
+        </Lib>
+    </ItemDefinitionGroup>
+</Project>

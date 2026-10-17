@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <!-- the API submodule of the Samples repository: build settings, include, library, core -->
+    <CT_ApiDir>$(MSBuildThisFileDirectory)..\..\..\ThinkMeta.ConcurrentTasks.API\</CT_ApiDir>
+  </PropertyGroup>
+  <Import Project="$(CT_ApiDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4f707573-0002-4000-8000-000000000004}</ProjectGuid>
+    <RootNamespace>ThinkMetaConcurrentTasksSamplesctOpusGui</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <TargetName>ctOpusGui</TargetName>
+  </PropertyGroup>
+  <Import Project="$(CT_ApiDir)Core\ThinkMeta.ConcurrentTasks.Core.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!-- The encoder's headers (ctOpus), SchedulerHandle.h (header only, from the pipeline project) and opus.h (libopus as
+           decoder and comparison engine). -->
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);$(MSBuildThisFileDirectory)..\Encoder;$(MSBuildThisFileDirectory)..\Tasks;$(MSBuildThisFileDirectory)..\..\opus\opus-1.6.1\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>avrt.lib;comctl32.lib;comdlg32.lib;ole32.lib;propsys.lib;shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <!-- CpuCheckEntry.cpp: checks for AVX2 and the rest of /arch:AVX2 before the C runtime starts -->
+  <ItemDefinitionGroup>
+    <Link>
+      <EntryPointSymbol>CtCpuCheckEntry</EntryPointSymbol>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="Audio.h" />
+    <ClInclude Include="Common.h" />
+    <ClInclude Include="FrameCodec.h" />
+    <ClInclude Include="LiveSession.h" />
+    <ClInclude Include="LoadTest.h" />
+    <ClInclude Include="MainWindow.h" />
+    <ClInclude Include="Runtime.h" />
+    <ClInclude Include="SignalSource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Audio.cpp" />
+    <ClCompile Include="CtOpusCodec.cpp" />
+    <ClCompile Include="LibopusCodec.cpp" />
+    <ClCompile Include="LiveSession.cpp" />
+    <ClCompile Include="LoadTest.cpp" />
+    <ClCompile Include="..\Encoder\CpuCheckEntry.cpp">
+      <PreprocessorDefinitions>CT_CPUCHECK_CRT_ENTRY=wWinMainCRTStartup;CT_CPUCHECK_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="MainWindow.cpp" />
+    <ClCompile Include="Runtime.cpp" />
+    <ClCompile Include="SignalSource.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ctOpusGui.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(CT_ApiDir)Library\ThinkMeta.ConcurrentTasks\ThinkMeta.ConcurrentTasks.vcxproj">
+      <Project>{8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\Encoder\ThinkMeta.ConcurrentTasks.Samples.ctOpus.Encoder.vcxproj">
+      <Project>{4f707573-0002-4000-8000-000000000001}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\opus\opus-1.6.1\libopus.vcxproj">
+      <AdditionalProperties>OpusRuntime=DLL</AdditionalProperties>
+      <Project>{4f707573-0001-4000-8000-000000000001}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

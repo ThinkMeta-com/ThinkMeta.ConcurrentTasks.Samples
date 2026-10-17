@@ -1,0 +1,6 @@
+flowchart LR
+    W["Resample ×N"] -- "blocks" --> A["Analyse + Signal<br/>in the chain"]
+    W -- "blocks" --> E["Encode<br/>High"]
+    A -- "signal frames" --> F["Front<br/>in the chain"]
+    F -- "front frames" --> E
+    E -. "resync after a miss" .-> F

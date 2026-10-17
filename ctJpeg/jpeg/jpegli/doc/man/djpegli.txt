@@ -1,0 +1,61 @@
+djpegli(1)
+==========
+:doctype: manpage
+
+Name
+----
+
+djpegli - decompress JPEG XL images
+
+Synopsis
+--------
+
+*djpegli* ['options'...] 'input.jpegli' ['output']
+
+Description
+-----------
+
+`djpegli` decompresses a JPEG XL image or animation. The output format is determined
+by the extension of the output file, which can be `.png`, `.jpg`, `.ppm`, `.pfm`.
+If the JPEG XL input file contains an animation, multiple output files will be
+produced, with names of the form "'output'-*framenumber*.ext".
+
+
+Options
+-------
+
+-h::
+--help::
+    Displays the options that `djpegli` supports.
+
+-j::
+--pixels_to_jpeg::
+    By default, if the input JPEG XL contains a recompressed JPEG file,
+    djpegli reconstructs the exact original JPEG file if the output file has the
+    `.jpg` (or `.jpeg`) filename extension.
+    This flag causes the decoder to instead decode the image to pixels and
+    encode a new (lossy) JPEG in this case.
+
+
+-q 'quality'::
+--jpeg_quality='quality'::
+    When decoding to `.jpg`, use this output quality. This option implicitly
+    enables the --pixels_to_jpeg option.
+
+
+Examples
+--------
+
+----
+# Decompress a JPEG XL file to PNG
+$ djpegli input.jpegli output.png
+
+# Reconstruct a losslessly-recompressed JPEG file
+$ djpegli lossless-jpeg.jpegli reconstructed.jpeg
+----
+
+
+See also
+--------
+
+*cjpegli*(1)

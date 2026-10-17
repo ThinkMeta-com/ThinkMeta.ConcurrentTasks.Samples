@@ -1,0 +1,26 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!--
+        Static C runtime, as for bin\ctDeflate.exe: the usual settings of ThinkMeta.SolutionFiles, then /MT and a
+        separate build folder (build\<Configuration>Static), so the normal build stays as it is. Only for the program
+        projects (the unit tests need the DLL runtime):
+
+        msbuild src\ThinkMeta.ConcurrentTasks.Samples.ctDeflate\ThinkMeta.ConcurrentTasks.Samples.ctDeflate.vcxproj
+                -p:Configuration=Release -p:Platform=x64 -p:ForceImportAfterCppProps=%CD%\props\StaticCrt.props
+    -->
+    <Import Project="$(MSBuildThisFileDirectory)..\..\ThinkMeta.ConcurrentTasks.API\ThinkMeta.SolutionFiles\ThinkMeta.Cpp.ForceImportAfterCppProps.props" />
+    <PropertyGroup>
+        <OutDir>$(SolutionDir)build\$(Configuration)Static\bin\</OutDir>
+        <IntDir>$(SolutionDir)build\$(Configuration)Static\obj\$(MSBuildProjectName)\</IntDir>
+    </PropertyGroup>
+    <ItemDefinitionGroup>
+        <ClCompile>
+            <RuntimeLibrary Condition="'$(Configuration)' == 'Release'">MultiThreaded</RuntimeLibrary>
+            <RuntimeLibrary Condition="'$(Configuration)' == 'Debug'">MultiThreadedDebug</RuntimeLibrary>
+            <AdditionalBMIDirectories>$(SolutionDir)build\$(Configuration)Static\bmi\</AdditionalBMIDirectories>
+            <ModuleOutputFile>$(SolutionDir)build\$(Configuration)Static\bmi\</ModuleOutputFile>
+        </ClCompile>
+        <BuildLog>
+            <Path>$(IntDir)$(MSBuildProjectName).log</Path>
+        </BuildLog>
+    </ItemDefinitionGroup>
+</Project>

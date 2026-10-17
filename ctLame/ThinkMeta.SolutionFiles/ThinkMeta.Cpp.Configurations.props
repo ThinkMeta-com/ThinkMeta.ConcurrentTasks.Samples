@@ -1,0 +1,4 @@
+<Project>
+    <!-- Forwards to the configurations (Debug and Release, x64) of the API submodule. -->
+    <Import Project="$(MSBuildThisFileDirectory)..\..\ThinkMeta.ConcurrentTasks.API\ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+</Project>

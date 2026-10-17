@@ -1,0 +1,5 @@
+<Project>
+    <!-- Forwards to ThinkMeta.SolutionFiles in the API submodule. The library of the submodule looks for the solution
+         files under $(SolutionDir), which is this ctDeflate folder when ctDeflate.slnx is built. -->
+    <Import Project="$(MSBuildThisFileDirectory)..\..\ThinkMeta.ConcurrentTasks.API\ThinkMeta.SolutionFiles\ThinkMeta.Build.props" />
+</Project>

@@ -1,0 +1,11 @@
+/opus/build
+/.vs
+*.vcxproj.user
+/benchmark/work
+/benchmark/results
+/dist
+*.opus
+/build
+/.clang-format
+/verify/inputs
+/verify/work

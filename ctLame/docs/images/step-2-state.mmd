@@ -1,0 +1,11 @@
+flowchart LR
+    R["Read"] -- "PCM" --> I
+    subgraph E ["Encode, one task"]
+        I["input"] --> P["psychoacoustics"] --> M["MDCT"] --> S["stereo"] --> Q["quantization"] --> B["bit stream"]
+        P -. "masking, attacks" .-> P
+        M -. "filterbank" .-> M
+        Q -. "bit reservoir" .-> Q
+        Q ~~~ B
+        B -. "main_data_begin" .-> Q
+    end
+    B -- "MP3" --> W["Write"]

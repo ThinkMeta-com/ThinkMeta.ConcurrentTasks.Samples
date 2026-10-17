@@ -1,0 +1,30 @@
+MIT License
+
+Copyright (c) 2026 ThinkMeta Software GmbH
+
+This license applies to the scripts in benchmark\ and verify\, to ThinkMeta.SolutionFiles\ and
+to the build files (ctLame.slnx, lame.props, lame.settings.props, src\Directory.Build.props). It
+does not apply to the ctLame source code in src\ and to bin\ctLame.exe, a port of LAME under the
+GNU Library General Public License (COPYING, src\ctLame-LICENSE.md); nor to the LAME sources in
+lame\ and bin\lame.exe (GNU LGPL, COPYING); nor to the scheduler core
+bin\ThinkMeta.ConcurrentTasks.Core.dll, which has its own terms in LICENSE-Core.txt. The
+.clang-format in ThinkMeta.SolutionFiles\ is a copy from the ThinkMeta.ConcurrentTasks.API
+submodule and keeps its license there.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

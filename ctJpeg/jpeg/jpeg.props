@@ -1,0 +1,19 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!--
+        Shared by mozjpeg, cjpeg, libjpeg-turbo and cjpeg-turbo, imported before
+        Microsoft.Cpp.Default.props: x64 Debug and Release. jpeg.settings.props holds the rest.
+    -->
+    <ItemGroup Label="ProjectConfigurations">
+        <ProjectConfiguration Include="Debug|x64">
+            <Configuration>Debug</Configuration>
+            <Platform>x64</Platform>
+        </ProjectConfiguration>
+        <ProjectConfiguration Include="Release|x64">
+            <Configuration>Release</Configuration>
+            <Platform>x64</Platform>
+        </ProjectConfiguration>
+    </ItemGroup>
+    <PropertyGroup Label="Configuration">
+        <PlatformToolset Condition="'$(PlatformToolset)' == ''">v145</PlatformToolset>
+    </PropertyGroup>
+</Project>

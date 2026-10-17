@@ -1,0 +1,7 @@
+/build
+/.vs
+*.vcxproj.user
+# copied from the API submodule by every build
+/.clang-format
+/benchmark/results
+/benchmark/work

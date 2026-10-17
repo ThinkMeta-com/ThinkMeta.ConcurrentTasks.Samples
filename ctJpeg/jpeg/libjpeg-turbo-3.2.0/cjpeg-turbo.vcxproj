@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildThisFileDirectory)..\jpeg.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4A504547-0001-4000-8000-000000000004}</ProjectGuid>
+    <RootNamespace>cjpeg-turbo</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\jpeg.settings.props" />
+  <!-- Unmodified libjpeg-turbo 3.2.0 cjpeg (speed/size reference); upstream cjpeg-static defines without PNG input. -->
+  <PropertyGroup>
+    <TargetName>cjpeg-turbo</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir)msvc;$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_CONSOLE;BMP_SUPPORTED;GIF_SUPPORTED;PPM_SUPPORTED;TARGA_SUPPORTED;USE_SETMODE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <WarningLevel>Level3</WarningLevel>
+      <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\cjpeg.c" />
+    <ClCompile Include="src\cdjpeg.c" />
+    <ClCompile Include="src\rdbmp.c" />
+    <ClCompile Include="src\rdgif.c" />
+    <ClCompile Include="src\wrapper\rdppm-8.c" />
+    <ClCompile Include="src\wrapper\rdppm-12.c" />
+    <ClCompile Include="src\wrapper\rdppm-16.c" />
+    <ClCompile Include="src\rdswitch.c" />
+    <ClCompile Include="src\rdtarga.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="turbojpeg-lib.vcxproj">
+      <Project>{4A504547-0001-4000-8000-000000000003}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

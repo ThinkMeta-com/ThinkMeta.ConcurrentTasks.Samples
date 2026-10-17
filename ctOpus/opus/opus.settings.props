@@ -1,0 +1,51 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!--
+        Shared by libopus, libogg, libopusenc and opusenc, imported after Microsoft.Cpp.props: the
+        settings bin\opusenc.exe was built with (x64, /O2, whole program optimization, the static C
+        runtime, no /arch switch). Output in opus\build\<configuration>\bin.
+
+        OpusRuntime=DLL (set by ctOpusGui for its libopus comparison) builds the same library with the
+        DLL runtime of the ctOpus projects, in opus\build\<configuration>DLL.
+    -->
+    <PropertyGroup>
+        <OpusBuild>$(Configuration)</OpusBuild>
+        <OpusBuild Condition="'$(OpusRuntime)' == 'DLL'">$(Configuration)DLL</OpusBuild>
+        <OutDir>$(MSBuildThisFileDirectory)build\$(OpusBuild)\bin\</OutDir>
+        <IntDir>$(MSBuildThisFileDirectory)build\$(OpusBuild)\obj\$(MSBuildProjectName)\</IntDir>
+    </PropertyGroup>
+    <ItemDefinitionGroup>
+        <ClCompile>
+            <WarningLevel>Level3</WarningLevel>
+            <SDLCheck>false</SDLCheck>
+            <ConformanceMode>true</ConformanceMode>
+            <MultiProcessorCompilation>true</MultiProcessorCompilation>
+            <TreatWarningAsError>false</TreatWarningAsError>
+        </ClCompile>
+        <Link>
+            <GenerateDebugInformation>true</GenerateDebugInformation>
+        </Link>
+    </ItemDefinitionGroup>
+    <ItemDefinitionGroup Condition="'$(Configuration)' == 'Debug'">
+        <ClCompile>
+            <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+            <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+            <RuntimeLibrary Condition="'$(OpusRuntime)' == 'DLL'">MultiThreadedDebugDLL</RuntimeLibrary>
+        </ClCompile>
+    </ItemDefinitionGroup>
+    <ItemDefinitionGroup Condition="'$(Configuration)' == 'Release'">
+        <ClCompile>
+            <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+            <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+            <RuntimeLibrary Condition="'$(OpusRuntime)' == 'DLL'">MultiThreadedDLL</RuntimeLibrary>
+            <FunctionLevelLinking>true</FunctionLevelLinking>
+            <IntrinsicFunctions>true</IntrinsicFunctions>
+            <OmitFramePointers>true</OmitFramePointers>
+            <WholeProgramOptimization>true</WholeProgramOptimization>
+        </ClCompile>
+        <Link>
+            <EnableCOMDATFolding>true</EnableCOMDATFolding>
+            <OptimizeReferences>true</OptimizeReferences>
+            <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+        </Link>
+    </ItemDefinitionGroup>
+</Project>

@@ -1,0 +1,67 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\..\lame.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{D1E2F3A4-B5C6-4789-9012-3456789ABCF0}</ProjectGuid>
+    <RootNamespace>libmp3lame</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <UseDebugLibraries Condition="'$(Configuration)' == 'Debug'">true</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)' == 'Release'">false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="..\..\lame.settings.props" />
+  <ItemGroup>
+    <ClInclude Include="VbrTag.h" />
+    <ClInclude Include="VbrTagCrc.h" />
+    <ClInclude Include="bitstream.h" />
+    <ClInclude Include="encoder.h" />
+    <ClInclude Include="fft.h" />
+    <ClInclude Include="l3side.h" />
+    <ClInclude Include="lame_global_flags.h" />
+    <ClInclude Include="lameerror.h" />
+    <ClInclude Include="machine.h" />
+    <ClInclude Include="newmdct.h" />
+    <ClInclude Include="psymodel.h" />
+    <ClInclude Include="quantize.h" />
+    <ClInclude Include="quantize_pvt.h" />
+    <ClInclude Include="reservoir.h" />
+    <ClInclude Include="set_get.h" />
+    <ClInclude Include="tables.h" />
+    <ClInclude Include="util.h" />
+    <ClInclude Include="vbrquantize.h" />
+    <ClInclude Include="version.h" />
+    <ClInclude Include="vector\lame_intrin.h" />
+    <ClInclude Include="..\include\lame.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="bitstream.c" />
+    <ClCompile Include="encoder.c" />
+    <ClCompile Include="fft.c" />
+    <ClCompile Include="lame.c" />
+    <ClCompile Include="newmdct.c" />
+    <ClCompile Include="presets.c" />
+    <ClCompile Include="psymodel.c" />
+    <ClCompile Include="quantize.c" />
+    <ClCompile Include="quantize_pvt.c" />
+    <ClCompile Include="reservoir.c" />
+    <ClCompile Include="set_get.c" />
+    <ClCompile Include="tables.c">
+      <WarningLevel>Level1</WarningLevel>
+    </ClCompile>
+    <ClCompile Include="takehiro.c" />
+    <ClCompile Include="util.c" />
+    <ClCompile Include="vbrquantize.c" />
+    <ClCompile Include="VbrTag.c" />
+    <ClCompile Include="version.c" />
+    <ClCompile Include="vector\xmm_quantize_sub.c" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

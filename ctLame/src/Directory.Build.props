@@ -1,0 +1,8 @@
+<Project>
+    <!--
+        The ctLame projects use the build settings of ThinkMeta.ConcurrentTasks (C++ modules, warning
+        level 4, output in build\<Configuration>\bin). $(SolutionDir) is this repository's folder;
+        ThinkMeta.SolutionFiles there forwards to the API submodule.
+    -->
+    <Import Project="$(SolutionDir)ThinkMeta.SolutionFiles\ThinkMeta.Build.props" />
+</Project>

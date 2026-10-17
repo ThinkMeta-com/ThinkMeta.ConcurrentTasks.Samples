@@ -1,0 +1,32 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/ctLame/">
+    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctLame/ThinkMeta.ConcurrentTasks.Samples.ctLame.vcxproj" Id="d7fec108-4d95-4bef-ad22-c4fc83c435f1">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctLame.Encoder/ThinkMeta.ConcurrentTasks.Samples.ctLame.Encoder.vcxproj" Id="85c3ba8a-9f1f-41fe-a4c1-d0e1a1db95e7">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctLame.Tasks/ThinkMeta.ConcurrentTasks.Samples.ctLame.Tasks.vcxproj" Id="a01a3676-2e89-4a4e-927e-8090d2904a80">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctLame.Tests/ThinkMeta.ConcurrentTasks.Samples.ctLame.Tests.vcxproj" Id="2eb96f7b-ceec-4964-b443-bd9ba3e76269">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/lame/">
+    <Project Path="lame/frontend/lame.vcxproj" Id="e2f3a4b5-c6d7-4890-0123-456789abcdf1">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="lame/libmp3lame/libmp3lame.vcxproj" Id="d1e2f3a4-b5c6-4789-9012-3456789abcf0">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/ThinkMeta.ConcurrentTasks/">
+    <Project Path="../ThinkMeta.ConcurrentTasks.API/Library/ThinkMeta.ConcurrentTasks/ThinkMeta.ConcurrentTasks.vcxproj" Id="8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+</Solution>

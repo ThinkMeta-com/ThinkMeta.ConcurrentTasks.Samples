@@ -1,0 +1,4 @@
+<Project>
+    <!-- libdeflate and gzip build with their own settings (libdeflate.props, libdeflate.settings.props), not with
+         those of ThinkMeta.SolutionFiles that ..\Directory.Build.props brings in for the ctDeflate projects. -->
+</Project>

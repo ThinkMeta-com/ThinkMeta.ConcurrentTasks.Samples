@@ -1,0 +1,8 @@
+flowchart LR
+    R["Read"] -- "input window" --> P["Match search<br/>×N, all parse paths or one"]
+    P -- "chunk parses" --> V["Resolve<br/>in order"]
+    V -- "block ring" --> E["Huffman coding<br/>×N"]
+    E --> S["Assemble"]
+    S -- "output window" --> W["Write"]
+    V -. "which parse paths held" .-> P
+    P ~~~ V

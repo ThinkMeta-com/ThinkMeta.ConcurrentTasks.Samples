@@ -1,0 +1,8 @@
+<Project>
+    <!--
+        The library projects of the API submodule look for their build settings in
+        $(SolutionDir)ThinkMeta.SolutionFiles. With ctLame.slnx that is this folder, so it forwards to
+        the settings in the submodule.
+    -->
+    <Import Project="$(MSBuildThisFileDirectory)..\..\ThinkMeta.ConcurrentTasks.API\ThinkMeta.SolutionFiles\ThinkMeta.Build.props" />
+</Project>

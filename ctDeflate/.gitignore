@@ -1,0 +1,10 @@
+/verify/corpus
+/.clang-format
+/build
+/libdeflate/build
+/.vs
+*.vcxproj.user
+/benchmark/work
+/benchmark/results
+/dist
+*.gz

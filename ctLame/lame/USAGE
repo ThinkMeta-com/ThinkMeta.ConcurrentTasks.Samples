@@ -1,0 +1,442 @@
+% lame [options] inputfile [outputfile]
+    inputfile must be a WAVE file (PCM 8/16/24/32 bit or 32 bit float,
+    32, 44.1 or 48 kHz). Reading from stdin and writing to stdout are
+    not supported.
+
+This LAME build is reduced to MPEG-1 Layer III VBR encoding (the "new" VBR
+routine, vbr_mtrh). CBR, ABR, the old VBR routine, MPEG-2/2.5, resampling,
+decoding, ID3 tags and ReplayGain are not available.
+
+For more options, just type:
+% lame --help  or lame --longhelp
+
+
+=======================================================================
+Variable Bitrate Examples:
+=======================================================================
+The value 0 is the highest quality, which creates bigger files, and the
+lowest is 9.999, which creates the smallest files. Decimal values can be
+specified, like: 4.51. The resulting filesizes depend on the input
+material. On typical music you can expect -V5 resulting in files averaging
+132 kbps, -V2 averaging 200 kbps.
+
+% lame -V2 sample.wav sample.mp3
+
+Use highest quality mode, slowest:
+% lame -q0 -V2 sample.wav sample.mp3
+
+Use fast encode, lower quality:
+% lame -f -V2 sample.wav sample.mp3
+
+
+=======================================================================
+options guide:
+=======================================================================
+These options are explained in detail below.
+
+Quality related:
+
+-V n              VBR quality, 0 (highest) ... 9.999 (smallest files), default 4
+-q n              algorithm quality selection, 0 ... 9, default 3
+-h                same as -q 2
+-f                same as -q 7
+--preset type     medium, standard or extreme
+--r3mix           the tuning of the former r3mix preset, like -V 3
+-b n              minimum allowed bitrate
+-B n              maximum allowed bitrate
+-F                strictly enforce the -b option
+-Y                ignore noise in sfb21
+-Z [n]            always do calculate short block maskings
+--athaa-sensitivity x  activation offset in -/+ dB for ATH auto-adjustment
+
+Input options:
+
+--scale <arg>     multiply PCM input by <arg>
+--scale-l <arg>   scale channel 0 (left) input by <arg>
+--scale-r <arg>   scale channel 1 (right) input by <arg>
+--gain <arg>      apply gain in decibels, -20.0 ... +12.0
+--swap-channel    swap L/R channels
+--ignorelength    ignore file length in WAV header
+-a                downmix from stereo to mono
+
+Filtering:
+
+--lowpass freq          frequency(kHz), lowpass filter cutoff above freq
+--lowpass-width freq    frequency(kHz) - default 15% of lowpass freq
+--highpass freq         frequency(kHz), highpass filter cutoff below freq
+--highpass-width freq   frequency(kHz) - default 15% of highpass freq
+
+Operational:
+
+-m mode           (j)oint, (s)imple, (f)orce, (d)ual-mono, (m)ono (l)eft (r)ight
+--flush           flush output stream as soon as possible
+--priority type   sets the process priority (Windows and OS/2 only)
+
+MP3 header/stream options:
+
+-e n/5/c          de-emphasis
+-c                mark as copyright
+-o                mark as non-original
+-p                error protection. adds 16 bit checksum to every frame
+--nores           disable the bit reservoir
+--strictly-enforce-ISO   comply as much as possible to ISO MPEG spec
+--buffer-constraint <constraint>  default, strict or maximum
+-t                disable writing the VBR (Xing/LAME) tag
+-T                enable and force writing the VBR tag
+
+Verbosity:
+
+-S                don't print the LAME tag message
+--quiet           don't print anything on screen
+--silent          don't print anything on screen, but fatal errors
+--brief           print more useful information
+--verbose         print a lot of useful information
+--help, --usage   short help
+--longhelp, -?    full list of options
+--version, --license   print version and license information
+
+
+=======================================================================
+Detailed description of all options in alphabetical order
+=======================================================================
+
+
+=======================================================================
+Downmix
+=======================================================================
+-a
+
+mix the stereo input file to mono and encode as mono.
+
+Using "-m m" also produces a mono .mp3 file from both mono and stereo
+input.
+
+
+=======================================================================
+Bitrate
+=======================================================================
+-b  n
+
+MPEG-1   layer III sample frequencies (kHz):  32  48  44.1
+bitrates (kbps): 32 40 48 56 64 80 96 112 128 160 192 224 256 320
+
+-b specifies the minimum bitrate to use, default 32 kbps. A value
+above 320 also disables the bit reservoir.  This is useful only if you need to circumvent
+a buggy hardware device with strange bitrate constrains.
+
+
+=======================================================================
+Max bitrate
+=======================================================================
+-B  n
+
+see also option "-b" for allowed bitrates.
+
+Maximum allowed bitrate, default 320 kbps.
+
+Using -B is NOT RECOMMENDED.  VBR minimizes the use of the bit
+reservoir, and thus needs to allow 320 kbps frames.  This is useful only if you need to circumvent a buggy hardware
+device with strange bitrate constrains.
+
+
+=======================================================================
+Copyright
+=======================================================================
+-c
+
+flag the encoded file as copyrighted
+
+
+=======================================================================
+De-emphasis
+=======================================================================
+-e  n/5/c
+
+  n = (none, default)
+  5 = 0/15 microseconds
+  c = CCITT j.17
+
+All this does is set a flag in the bitstream.  If you have a PCM
+input file where one of the above types of (obsolete) emphasis has
+been applied, you can set this flag in LAME.  Then the mp3 decoder
+should de-emphasize the output during playback, although most
+decoders ignore this flag.
+
+A better solution would be to apply the de-emphasis with a standalone
+utility before encoding, and then encode without -e.
+
+
+=======================================================================
+Strictly enforce VBR minimum bitrate
+=======================================================================
+-F
+
+strictly enforce VBR minimum bitrate.   Without this option, passages of
+analog silence will be encoded at the minimum bitrate possible (32 or 8,
+depending on MPEG version).
+
+
+=======================================================================
+Gain
+=======================================================================
+--gain Apply gain in decibels.
+
+Apply Gain adjustment in decibels, range -20.0 to +12.0. 0dBFS means no 
+amplification.
+
+
+=======================================================================
+High pass filter
+=======================================================================
+--highpass number Use a highpass filter when encoding
+
+Enables a highpass filter of the specified frequency when encoding the source.
+    Range [0.001..50]kHz or [50..50000]Hz.
+This is usually not required, and the gains are usually minimal. May be useful
+to remove an interference signal on 50Hz or 60Hz, or a DC offset.
+(default: disabled)
+Note: The current implementation has a minimum highpass frequency of
+(67.5/62)% of the sample rate (I.e. 481Hz at 44Khz).
+
+
+=======================================================================
+High pass filter
+=======================================================================
+--highpass-width width Set the width of the decaying curve.
+
+Specify the width in Hz of the decaying curve of the highpass.
+    Range [16..50000]Hz
+The minimum (and default) width is 75% of a band's width (which is 1/64th of
+ the sample rate).
+Note: See the remark in the --highpass command above.
+
+
+=======================================================================
+Low pass filter
+=======================================================================
+--lowpass number Use a lowpass filter when encoding
+
+Enables a lowpass filter of the specified frequency when encoding the source.
+    Range [0.001..50]kHz or [50..50000]Hz
+
+Using a lowpass filter helps reducing the amount of data to encode. This is
+important in MP3 due to a limitation in very high frequencies (>16Khz).
+The default value depends on the target bitrate/quality. It is not recommended
+to change it as a general basis.
+
+--lowpass-width width Set the width of the decaying curve.
+
+Specify the width in Hz of the decaying curve of the lowpass.
+    Range [0.001..16]kHz or [16..50000]Hz
+The lowpass is in the center of this curve. The minimum (and default) width
+is 75% of a band's width (which is 1/64th of the sample rate).
+
+
+=======================================================================
+Modes:
+=======================================================================
+-m m        mono
+-m l	    get only the left channel of a stereo signal for a mono output
+-m r	    get only the right channel of a stereo signal for a mono output
+-m s        (forced) L/R stereo
+-m j        joint stereo
+-m f        forced mid/side stereo
+-m d        dual (independent) channels. Its purpose was meant for dual language
+            streams where only one of them should be decoded.
+			Most decoders just decode them as a stereo stream.
+-m a        Currently, a synonym of m j. (In older releases it selected
+            different modes depending on the bitrate)
+
+MONO is the default mode for mono input files.  If "-m m" is specified
+for a stereo input file, the two channels will be averaged into a mono
+signal.
+
+(FORCED) L/R STEREO encodes the left and the right signals independently,
+and gives more or less bits to each, depending on the currently available.
+
+JOINT STEREO is the default mode of encoding.
+jstereo means the encoder can use (on a frame by frame basis) either
+L/R stereo or mid/side stereo.  In mid/side stereo, the mid(L+R) and side(L-R)
+channels are encoded, and more bits are allocated to the mid channel
+than the side channel.  When there isn't too much stereo separation, this
+effectively increases the bandwidth, so having higher quality with the same
+amount of bits.
+
+Using mid/side stereo inappropriately can result in audible
+compression artifacts.  Too much switching between mid/side and L/R
+stereo can also sound bad. To determine when to switch to mid/side
+stereo, LAME uses a much more sophisticated algorithm than that
+described in the ISO documentation.
+
+FORCED MID/SIDE STEREO forces all frames to be encoded mid/side stereo.  It
+should only be used if you are sure every frame of the input file
+has very little stereo seperation.
+
+DUAL CHANNEL mode is similar to encode the left and right as two mono signals.
+Its purpose was meant for Dual language streams where only one of them should
+be decoded. Most decoders just decode them as a stereo stream
+
+INTENSITY STEREO
+	Not supported.
+
+
+=======================================================================
+Non-original
+=======================================================================
+-o
+
+mark the encoded file as a copy
+
+
+=======================================================================
+CRC error protection
+=======================================================================
+-p
+
+Turn on CRC error protection.
+It will add a cyclic redundancy check (CRC) code in each frame, allowing
+to detect transmission errors that could occur on the MP3 stream. However,
+it takes 16 bits per frame that would otherwise be used for encoding, and
+therefore will slightly reduce the sound quality.
+
+
+=======================================================================
+Preset system.
+=======================================================================
+--preset x Enable one of the presets
+
+   Setting         Meaning
+--preset medium    -V 4
+--preset standard  -V 2
+--preset extreme   -V 0
+
+--r3mix            the tuning of the former r3mix preset, like -V 3
+                   (at 32 kHz input it differs from -V 3)
+
+
+=======================================================================
+Windows and OS/2 process priority control
+=======================================================================
+--priority <type>
+
+(Windows and OS/2 only)
+
+Sets the process priority for LAME while running under Windows or IBM OS/2.
+This can be very useful to avoid the system becoming slow and/or unresponsive. 
+By setting LAME to run in a lower priority, you leave more time for the system 
+to update basic processing (drawing windows, polling keyboard/mouse, etc). The 
+impact in LAME's performance is minimal if you use priority 0 to 2.
+
+The valid parameters are:
+
+     0 = Low priority (IDLE, delta = 0)
+     1 = Medium priority (IDLE, delta = +31)
+     2 = Regular priority (REGULAR, delta = -31)
+     3 = High priority (REGULAR, delta = 0)
+     4 = Maximum priority (REGULAR, delta = +31)
+
+Note that if you call '--priority' without a parameter, priority 0 will be 
+assumed.
+
+
+=======================================================================
+Algorithm quality selection
+=======================================================================
+-q n
+
+The -V setting is of course the main influence on quality. But for a given
+setting, we have a choice of algorithms to determine the best scalefactors
+and Huffman coding (noise shaping). -q 3 is the default.
+
+-q 0 to -q 4    include all features of the other modes and additionally use
+                the best search when applying Huffman coding.
+-q 5 and -q 6   include all features of -q7, calculate and consider actual
+                quantisation noise, and additionally enable subblock gain.
+-q 7 to -q 9    This level uses a psymodel but does not calculate quantisation
+                noise when encoding: it takes a quick guess.
+
+
+=======================================================================
+Silent operation
+=======================================================================
+-S
+
+don't print progress report
+
+
+=======================================================================
+Scale
+=======================================================================
+--scale <arg>
+
+Scales input by <arg>.  This just multiplies the PCM data
+(after it has been converted to floating point) by <arg>.
+
+<arg> > 1:  increase volume
+<arg> = 1:  no effect
+<arg> < 1:  reduce volume
+
+Use with care, since most MP3 decoders will truncate data
+which decodes to values greater than 32768.
+
+
+=======================================================================
+Strict ISO complience
+=======================================================================
+--strictly-enforce-ISO
+
+With this option, LAME will enforce the 7680 bit limitation on
+total frame size.  This results in many wasted bits for
+high bitrate encodings.
+
+
+=======================================================================
+Disable VBR tag
+=======================================================================
+-t
+
+Disables writing the VBR Tag (also known as XING tag). This tag is embedded
+by default in the frame 0 of MP3 file. It allows VBR aware players to
+accurately seek and compute playing times in such files.
+
+-T
+
+Enables and forces writing the VBR Tag (the default).
+
+
+=======================================================================
+VBR quality setting
+=======================================================================
+ -V n VBR quality, default 4
+
+Encodes at the indicated quality.
+0=highest quality, bigger files. 9.999=lowest quality, smaller files.
+Decimal values can be specified, like: 4.51
+
+On average, the resulting bitrates are as follows:
+Setting       Average bitrate (kbps)
+    0             245
+    2             190
+    3             175
+    4             165
+    5             130
+
+Using -V 7 or higher (lower quality) is not recommended.
+The output keeps the sample rate of the input; lower -V settings do not
+downsample.
+
+
+=======================================================================
+Ignore scalefactor band 21
+=======================================================================
+-Y Ignore noise in sbf21
+
+Allows -V2, -V1 and -V0 to not encode the highest frequencies accurately,
+if doing so causes disproportional increases in bitrate.
+
+Due to the design of the MP3 format, to keep precision in the last scalefactor
+band, an encoder needs to increase the precision in all the bands (not only in
+this one).
+The consequence is an increase of bitrate (+60kbps in some cases) compared to
+not keeping that precision. Generally, this band should allow for distortions,
+so using this switch shouldn't cause harm.

@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildThisFileDirectory)..\jpeg.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4A504547-0001-4000-8000-000000000001}</ProjectGuid>
+    <RootNamespace>mozjpeg</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\jpeg.settings.props" />
+  <!-- Unmodified mozjpeg 4.1.5 libjpeg (bit oracle), x86_64 NASM SIMD enabled.
+       msvc\jconfig.h, jconfigint.h, jversion.h = CMake-generated (VS 18, x64, WITH_SIMD=1).
+       Source list matches the upstream CMake target jpeg-static (no arithmetic coding, no turbojpeg). -->
+  <PropertyGroup>
+    <TM_Nasm Condition="'$(TM_Nasm)' == ''">nasm.exe</TM_Nasm>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir)msvc;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <WarningLevel>Level3</WarningLevel>
+    </ClCompile>
+    <CustomBuild>
+      <Message>NASM %(Filename)%(Extension)</Message>
+      <Command>"$(TM_Nasm)" -fwin64 -DWIN64 -D__x86_64__ -I"$(ProjectDir)simd\nasm\\" -I"$(ProjectDir)simd\x86_64\\" "%(FullPath)" -o"$(IntDir)%(Filename).asm.obj"</Command>
+      <Outputs>$(IntDir)%(Filename).asm.obj</Outputs>
+      <AdditionalInputs>$(ProjectDir)simd\nasm\jsimdext.inc;$(ProjectDir)simd\nasm\jsimdcfg.inc;$(ProjectDir)simd\nasm\jdct.inc;$(ProjectDir)simd\nasm\jcolsamp.inc;%(AdditionalInputs)</AdditionalInputs>
+      <LinkObjects>true</LinkObjects>
+    </CustomBuild>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="msvc\jconfig.h" />
+    <ClInclude Include="msvc\jconfigint.h" />
+    <ClInclude Include="msvc\jversion.h" />
+    <ClInclude Include="jchuff.h" />
+    <ClInclude Include="jcmaster.h" />
+    <ClInclude Include="jdct.h" />
+    <ClInclude Include="jerror.h" />
+    <ClInclude Include="jinclude.h" />
+    <ClInclude Include="jmemsys.h" />
+    <ClInclude Include="jmorecfg.h" />
+    <ClInclude Include="jpegcomp.h" />
+    <ClInclude Include="jpegint.h" />
+    <ClInclude Include="jpeglib.h" />
+    <ClInclude Include="jsimd.h" />
+    <ClInclude Include="jsimddct.h" />
+    <ClInclude Include="simd\jsimd.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="jcapimin.c" />
+    <ClCompile Include="jcapistd.c" />
+    <ClCompile Include="jccoefct.c" />
+    <ClCompile Include="jccolor.c" />
+    <ClCompile Include="jcdctmgr.c" />
+    <ClCompile Include="jchuff.c" />
+    <ClCompile Include="jcext.c" />
+    <ClCompile Include="jcicc.c" />
+    <ClCompile Include="jcinit.c" />
+    <ClCompile Include="jcmainct.c" />
+    <ClCompile Include="jcmarker.c" />
+    <ClCompile Include="jcmaster.c" />
+    <ClCompile Include="jcomapi.c" />
+    <ClCompile Include="jcparam.c" />
+    <ClCompile Include="jcphuff.c" />
+    <ClCompile Include="jcprepct.c" />
+    <ClCompile Include="jcsample.c" />
+    <ClCompile Include="jctrans.c" />
+    <ClCompile Include="jdapimin.c" />
+    <ClCompile Include="jdapistd.c" />
+    <ClCompile Include="jdatadst.c" />
+    <ClCompile Include="jdatasrc.c" />
+    <ClCompile Include="jdcoefct.c" />
+    <ClCompile Include="jdcolor.c" />
+    <ClCompile Include="jddctmgr.c" />
+    <ClCompile Include="jdhuff.c" />
+    <ClCompile Include="jdicc.c" />
+    <ClCompile Include="jdinput.c" />
+    <ClCompile Include="jdmainct.c" />
+    <ClCompile Include="jdmarker.c" />
+    <ClCompile Include="jdmaster.c" />
+    <ClCompile Include="jdmerge.c" />
+    <ClCompile Include="jdphuff.c" />
+    <ClCompile Include="jdpostct.c" />
+    <ClCompile Include="jdsample.c" />
+    <ClCompile Include="jdtrans.c" />
+    <ClCompile Include="jerror.c" />
+    <ClCompile Include="jfdctflt.c" />
+    <ClCompile Include="jfdctfst.c" />
+    <ClCompile Include="jfdctint.c" />
+    <ClCompile Include="jidctflt.c" />
+    <ClCompile Include="jidctfst.c" />
+    <ClCompile Include="jidctint.c" />
+    <ClCompile Include="jidctred.c" />
+    <ClCompile Include="jquant1.c" />
+    <ClCompile Include="jquant2.c" />
+    <ClCompile Include="jutils.c" />
+    <ClCompile Include="jmemmgr.c" />
+    <ClCompile Include="jmemnobs.c" />
+    <ClCompile Include="simd\x86_64\jsimd.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="simd\x86_64\jsimdcpu.asm" />
+    <CustomBuild Include="simd\x86_64\jfdctflt-sse.asm" />
+    <CustomBuild Include="simd\x86_64\jccolor-sse2.asm">
+      <AdditionalInputs>$(ProjectDir)simd\x86_64\jccolext-sse2.asm;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="simd\x86_64\jcgray-sse2.asm">
+      <AdditionalInputs>$(ProjectDir)simd\x86_64\jcgryext-sse2.asm;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="simd\x86_64\jchuff-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jcphuff-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jcsample-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jdcolor-sse2.asm">
+      <AdditionalInputs>$(ProjectDir)simd\x86_64\jdcolext-sse2.asm;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="simd\x86_64\jdmerge-sse2.asm">
+      <AdditionalInputs>$(ProjectDir)simd\x86_64\jdmrgext-sse2.asm;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="simd\x86_64\jdsample-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jfdctfst-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jfdctint-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jidctflt-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jidctfst-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jidctint-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jidctred-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jquantf-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jquanti-sse2.asm" />
+    <CustomBuild Include="simd\x86_64\jccolor-avx2.asm">
+      <AdditionalInputs>$(ProjectDir)simd\x86_64\jccolext-avx2.asm;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="simd\x86_64\jcgray-avx2.asm">
+      <AdditionalInputs>$(ProjectDir)simd\x86_64\jcgryext-avx2.asm;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="simd\x86_64\jcsample-avx2.asm" />
+    <CustomBuild Include="simd\x86_64\jdcolor-avx2.asm">
+      <AdditionalInputs>$(ProjectDir)simd\x86_64\jdcolext-avx2.asm;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="simd\x86_64\jdmerge-avx2.asm">
+      <AdditionalInputs>$(ProjectDir)simd\x86_64\jdmrgext-avx2.asm;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="simd\x86_64\jdsample-avx2.asm" />
+    <CustomBuild Include="simd\x86_64\jfdctint-avx2.asm" />
+    <CustomBuild Include="simd\x86_64\jidctint-avx2.asm" />
+    <CustomBuild Include="simd\x86_64\jquanti-avx2.asm" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

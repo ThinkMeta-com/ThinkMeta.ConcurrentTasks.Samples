@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildThisFileDirectory)..\opus.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4F707573-0001-4000-8000-000000000005}</ProjectGuid>
+    <RootNamespace>opusenc</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\opus.settings.props" />
+  <!-- Unmodified opus-tools 0.2 opusenc (bit oracle); msvc\config.h = upstream win32\config.h without FLAC. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir)msvc;$(ProjectDir)win32;$(ProjectDir)include;$(ProjectDir)src;$(MSBuildThisFileDirectory)..\opus-1.6.1\include;$(MSBuildThisFileDirectory)..\libopusenc-0.2.1\include;$(MSBuildThisFileDirectory)..\libogg-1.3.6\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_CONSOLE;HAVE_CONFIG_H;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ForcedIncludeFiles>opus_compat.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <WarningLevel>Level3</WarningLevel>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>$(OutDir)libopus.lib;$(OutDir)libopusenc.lib;$(OutDir)libogg.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="include\getopt.h" />
+    <ClInclude Include="msvc\config.h" />
+    <ClInclude Include="msvc\version.h" />
+    <ClInclude Include="src\diag_range.h" />
+    <ClInclude Include="src\encoder.h" />
+    <ClInclude Include="src\opus_header.h" />
+    <ClInclude Include="src\picture.h" />
+    <ClInclude Include="win32\unicode_support.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="share\getopt.c" />
+    <ClCompile Include="share\getopt1.c" />
+    <ClCompile Include="src\audio-in.c" />
+    <ClCompile Include="src\diag_range.c" />
+    <ClCompile Include="src\flac.c" />
+    <ClCompile Include="src\opus_header.c" />
+    <ClCompile Include="src\opusenc.c" />
+    <ClCompile Include="src\picture.c" />
+    <ClCompile Include="win32\unicode_support.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\opus-1.6.1\libopus.vcxproj">
+      <Project>{4F707573-0001-4000-8000-000000000001}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\libogg-1.3.6\libogg.vcxproj">
+      <Project>{AFF27A26-C088-444B-BC2A-0BA94A02AFA7}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\libopusenc-0.2.1\libopusenc.vcxproj">
+      <Project>{4F707573-0001-4000-8000-000000000004}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

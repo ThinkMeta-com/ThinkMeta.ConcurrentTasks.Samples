@@ -1,0 +1,7 @@
+<Project>
+    <!--
+        The ctDeflate projects build with the settings of ThinkMeta.SolutionFiles from the API submodule (forwarded
+        by ThinkMeta.SolutionFiles\ in this folder): C++ modules, warnings as errors, output in build\<Configuration>.
+    -->
+    <Import Project="$(MSBuildThisFileDirectory)ThinkMeta.SolutionFiles\ThinkMeta.Build.props" />
+</Project>
