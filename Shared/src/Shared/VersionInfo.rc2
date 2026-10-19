@@ -1,0 +1,51 @@
+// Copyright (c) 2026 ThinkMeta Software GmbH
+// SPDX-License-Identifier: MIT (see LICENSE.txt)
+
+// The version resource of every sample program. The .rc of a program defines these macros and includes this file:
+//   CT_RC_VERSION_MAJOR, CT_RC_VERSION_MINOR, CT_RC_VERSION_PATCH  the version as numbers
+//   CT_RC_VERSION_STRING                                           the version as text, "0.1.1"
+//   CT_RC_NAME                                                     the program, "ctLame"
+//   CT_RC_PRODUCT                                                  optional: the product, if not the program ("ctOpus")
+//   CT_RC_DESCRIPTION                                              what it is
+//   CT_RC_REFERENCE                                                the copyright and license of the code it is ported from
+
+#include <winver.h>
+
+#include "VersionInfo.h"
+
+#ifndef CT_RC_PRODUCT
+#define CT_RC_PRODUCT CT_RC_NAME
+#endif
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     CT_RC_VERSION_MAJOR, CT_RC_VERSION_MINOR, CT_RC_VERSION_PATCH, 0
+PRODUCTVERSION  CT_RC_VERSION_MAJOR, CT_RC_VERSION_MINOR, CT_RC_VERSION_PATCH, 0
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+FILEFLAGS       VS_FF_DEBUG
+#else
+FILEFLAGS       0
+#endif
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", CT_SAMPLES_COMPANY
+            VALUE "FileDescription", CT_RC_DESCRIPTION
+            VALUE "FileVersion", CT_RC_VERSION_STRING
+            VALUE "InternalName", CT_RC_NAME
+            VALUE "LegalCopyright", CT_SAMPLES_COPYRIGHT "; " CT_RC_REFERENCE
+            VALUE "OriginalFilename", CT_RC_NAME ".exe"
+            VALUE "ProductName", CT_RC_PRODUCT
+            VALUE "ProductVersion", CT_RC_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

@@ -1,0 +1,13 @@
+// Version resource of ctOpus.exe: the values; the resource itself is Shared/VersionInfo.rc2
+
+#include "ctOpusVersion.h"
+
+#define CT_RC_VERSION_MAJOR  CTOPUS_VERSION_MAJOR
+#define CT_RC_VERSION_MINOR  CTOPUS_VERSION_MINOR
+#define CT_RC_VERSION_PATCH  CTOPUS_VERSION_PATCH
+#define CT_RC_VERSION_STRING CTOPUS_VERSION_STRING
+#define CT_RC_NAME           "ctOpus"
+#define CT_RC_DESCRIPTION    "ctOpus - parallel Opus encoder on ThinkMeta.ConcurrentTasks"
+#define CT_RC_REFERENCE      "Opus: Copyright (c) 2001-2024 Xiph.Org Foundation, Skype Limited, Octasic; BSD-3-Clause"
+
+#include "VersionInfo.rc2"

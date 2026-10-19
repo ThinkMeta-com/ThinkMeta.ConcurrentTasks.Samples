@@ -9,9 +9,10 @@
 #include <cstring>
 
 #include "CeltMath.h"
+#include "IntMath.h"
 #include "KissFft.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     namespace {
 
@@ -67,15 +68,6 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         constexpr float StdFeatureBias[9] = {5.684947f, 3.475288f, 1.770634f, 1.599784f, 3.773215f, 2.163313f, 1.260756f, 1.116868f, 1.918795f};
 
-        constexpr std::int32_t Imin(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a < b ? a : b;
-        }
-        constexpr std::int32_t Imax(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a > b ? a : b;
-        }
-
         // the double-precision libm calls of the C code (a float argument is promoted)
         inline float LogD(float x) noexcept
         {
@@ -108,6 +100,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         constexpr GruLayer   Layer1 = {Layer1Bias, Layer1Weights, Layer1RecurWeights, 32, 24};
         constexpr DenseLayer Layer2 = {Layer2Bias, Layer2Weights, 24, 2, true};
 
+        // libopus: tansig_approx() (src/mlp.c)
         inline float TansigApprox(float x) noexcept
         {
             constexpr float n0  = 952.52801514f;
@@ -123,11 +116,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return Max32(-1.f, Min32(1.f, num));
         }
 
+        // libopus: sigmoid_approx() (src/mlp.c)
         inline float SigmoidApprox(float x) noexcept
         {
             return .5f + .5f * TansigApprox(.5f * x);
         }
 
+        // libopus: gemm_accum() (src/mlp.c)
         void GemmAccum(float* out, const std::int8_t* weights, std::int32_t rows, std::int32_t cols, std::int32_t colStride, const float* x) noexcept
         {
             for (std::int32_t i = 0; i < rows; ++i) {
@@ -136,6 +131,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: analysis_compute_dense() (src/mlp.c)
         void ComputeDense(const DenseLayer& layer, float* output, const float* input) noexcept
         {
             const std::int32_t n = layer.nbNeurons;
@@ -148,6 +144,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 output[i] = layer.sigmoid ? SigmoidApprox(output[i]) : TansigApprox(output[i]);
         }
 
+        // libopus: analysis_compute_gru() (src/mlp.c)
         void ComputeGru(const GruLayer& gru, float* state, const float* input) noexcept
         {
             constexpr std::int32_t maxNeurons = 32;
@@ -253,12 +250,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopus: tonality_analysis_init() (src/analysis.c)
     void ToneAnalysis::Init(std::int32_t fs) noexcept
     {
         fs_ = fs;
         Reset();
     }
 
+    // libopus: tonality_analysis_reset() (src/analysis.c)
     void ToneAnalysis::Reset() noexcept
     {
         const std::int32_t fs      = fs_;
@@ -283,6 +282,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return entry < 0 ? cleared : history_[static_cast<std::size_t>(entry & (HistorySize - 1))];
     }
 
+    // libopus: downmix_and_resample() (src/analysis.c)
     float ToneAnalysis::DownmixAndResample(const float* x, float* y, std::int32_t subframe, std::int32_t offset, std::int32_t c1, std::int32_t c2,
                                            std::int32_t channels) noexcept
     {
@@ -320,6 +320,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return ret;
     }
 
+    // libopus: tonality_get_info() (src/analysis.c)
     void ToneAnalysis::GetInfo(AnalysisInfo& infoOut, std::int32_t len) noexcept
     {
         GetInfoFrom(*this, CurrentView(), infoOut, len);
@@ -336,6 +337,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             reader.GetInfoFrom(chain, views[i], infos[i], len);
     }
 
+    // libopus: tonality_get_info() (src/analysis.c), reading the entries of chain
     void ToneAnalysis::GetInfoFrom(const ToneAnalysis& chain, const View& view, AnalysisInfo& infoOut, std::int32_t len) noexcept
     {
         const std::int32_t writePos      = view.writePos;
@@ -462,6 +464,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         infoOut.musicProbMax = probMax;
     }
 
+    // libopus: tonality_analysis() (src/analysis.c) as run_analysis() calls it (AnalyzeFrame), with the entry kept
+    // for the readers of a chain
     void ToneAnalysis::Analyze(const float* x, std::int32_t len, std::int32_t offset, std::int32_t c1, std::int32_t c2, std::int32_t channels,
                                std::int32_t lsbDepth) noexcept
     {
@@ -475,6 +479,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: tonality_analysis() (src/analysis.c)
     void ToneAnalysis::AnalyzeFrame(const float* x, std::int32_t len, std::int32_t offset, std::int32_t c1, std::int32_t c2, std::int32_t channels,
                                     std::int32_t lsbDepth) noexcept
     {
@@ -857,6 +862,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         info.valid     = 1;
     }
 
+    // libopus: run_analysis() (src/analysis.c)
     void ToneAnalysis::Run(const float* pcm, std::int32_t analysisFrameSize, std::int32_t frameSize, std::int32_t c1, std::int32_t c2, std::int32_t channels,
                            std::int32_t lsbDepth, AnalysisInfo& info) noexcept
     {
@@ -864,6 +870,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         GetInfo(info, frameSize);
     }
 
+    // libopus: run_analysis() (src/analysis.c), the analysis loop without tonality_get_info()
     void ToneAnalysis::Advance(const float* pcm, std::int32_t analysisFrameSize, std::int32_t frameSize, std::int32_t c1, std::int32_t c2,
                                std::int32_t channels, std::int32_t lsbDepth) noexcept
     {
@@ -882,4 +889,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

@@ -19,12 +19,10 @@
 #include "CeltPitch.h"
 #include "CeltRate.h"
 #include "CeltSimd.h"
+#include "IntMath.h"
 #include "RangeEncoder.h"
 
-#include <Windows.h>
-#include <intrin.h>
-
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     namespace {
 
@@ -49,21 +47,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         constexpr float IntensityThresholds[21] = {1, 2, 3, 4, 5, 6, 7, 8, 16, 24, 36, 44, 50, 56, 62, 67, 72, 79, 88, 106, 134};
         constexpr float IntensityHysteresis[21] = {1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 4, 5, 6, 8, 8};
 
-        constexpr std::int32_t Imin(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a < b ? a : b;
-        }
-        constexpr std::int32_t Imax(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a > b ? a : b;
-        }
-
+        // libopus: bitrate_to_bits() (celt/celt.h)
         constexpr std::int32_t BitrateToBits(std::int32_t bitrate, std::int32_t fs, std::int32_t frameSize) noexcept
         {
             return bitrate * 6 / (6 * fs / frameSize);
         }
 
-        // celt_sqrt, celt_log2 and celt_exp2 of the float build without FLOAT_APPROX: double libm
+        // libopus: celt_sqrt(), celt_log2(), celt_exp2() (celt/mathops.h) of the float build without
+        // FLOAT_APPROX: double libm
         inline float SqrtD(double x) noexcept
         {
             return static_cast<float>(std::sqrt(x));
@@ -77,6 +68,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return static_cast<float>(std::exp(0.6931471805599453094 * static_cast<double>(x)));
         }
 
+        // libopus: resampling_factor() (celt/celt.c)
         std::int32_t ResamplingFactor(std::int32_t rate) noexcept
         {
             switch (rate) {
@@ -89,6 +81,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: transient_analysis() (celt/celt_encoder.c)
         bool TransientAnalysis(const float* in, std::int32_t len, std::int32_t c, float& tfEstimate, std::int32_t& tfChan, bool allowWeakTransients,
                                bool& weakTransient, float toneFreq, float toneishness) noexcept
         {
@@ -180,6 +173,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return isTransient;
         }
 
+        // libopus: patch_transient_decision() (celt/celt_encoder.c)
         // sudden increases of energy that patch the transient decision
         bool PatchTransientDecision(const float* newE, const float* oldE, std::int32_t nbEBands, std::int32_t start, std::int32_t end, std::int32_t c) noexcept
         {
@@ -210,6 +204,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return meanDiff > 1.f;
         }
 
+        // libopus: compute_mdcts() (celt/celt_encoder.c)
         // the window and the MDCTs of all sub-frames and channels
         void ComputeMdcts(const CeltMode::View& mode, std::int32_t shortBlocks, const float* in, float* out, std::int32_t c, std::int32_t cc, std::int32_t lm,
                           std::int32_t upsample) noexcept
@@ -242,7 +237,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
-        // celt_preemphasis for the static mode (coef[1] == 0)
+        // libopus: celt_preemphasis() (celt/celt_encoder.c) for the static mode (coef[1] == 0)
         void Preemphasis(const float* pcmp, float* inp, std::int32_t n, std::int32_t cc, std::int32_t upsample, const float* coef, float* mem,
                          bool clip) noexcept
         {
@@ -276,6 +271,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             *mem = m;
         }
 
+        // libopus: l1_metric() (celt/celt_encoder.c)
         float L1Metric(const float* tmp, std::int32_t n, std::int32_t lm, float bias) noexcept
         {
             float l1 = 0;
@@ -285,6 +281,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return l1 + lm * bias * l1;
         }
 
+        // libopus: tf_analysis() (celt/celt_encoder.c)
         std::int32_t TfAnalysis(const CeltMode::View& m, std::int32_t len, bool isTransient, std::int32_t* tfRes, std::int32_t lambda, const float* x,
                                 std::int32_t n0, std::int32_t lm, float tfEstimate, std::int32_t tfChan, const std::int32_t* importance) noexcept
         {
@@ -380,6 +377,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return tfSelect;
         }
 
+        // libopus: tf_encode() (celt/celt_encoder.c)
         void TfEncode(std::int32_t start, std::int32_t end, bool isTransient, std::int32_t* tfRes, std::int32_t lm, std::int32_t tfSelect,
                       RangeEncoder* enc) noexcept
         {
@@ -412,6 +410,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 tfRes[i] = TfSelectTable[lm][4 * tr + 2 * tfSelect + tfRes[i]];
         }
 
+        // libopus: alloc_trim_analysis() (celt/celt_encoder.c)
         std::int32_t AllocTrimAnalysis(const CeltMode::View& m, const float* x, const float* bandLogE, std::int32_t end, std::int32_t lm, std::int32_t c,
                                        std::int32_t n0, const AnalysisInfo& analysis, float& stereoSaving, float tfEstimate, std::int32_t intensity,
                                        float surroundTrim, std::int32_t equivRate) noexcept
@@ -462,6 +461,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return Imax(0, Imin(10, trimIndex));
         }
 
+        // libopus: stereo_analysis() (celt/celt_encoder.c)
         bool StereoAnalysis(const CeltMode::View& m, const float* x, std::int32_t lm, std::int32_t n0) noexcept
         {
             float sumLR = 1e-15f;
@@ -485,6 +485,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return ((m.eBands[13] << (lm + 1)) + thetas) * sumMS > (m.eBands[13] << (lm + 1)) * sumLR;
         }
 
+        // libopus: median_of_5() (celt/celt_encoder.c)
         float MedianOf5(const float* x) noexcept
         {
             float       t0 = 0;
@@ -524,6 +525,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return Min32(t2, t4);
         }
 
+        // libopus: median_of_3() (celt/celt_encoder.c)
         float MedianOf3(const float* x) noexcept
         {
             float t0 = 0;
@@ -543,6 +545,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return t0;
         }
 
+        // libopus: dynalloc_analysis() (celt/celt_encoder.c)
         float DynallocAnalysis(const float* bandLogE, const float* bandLogE2, const float* oldBandE, std::int32_t nbEBands, std::int32_t start,
                                std::int32_t end, std::int32_t c, std::int32_t* offsets, std::int32_t lsbDepth, const std::int16_t* logN, bool isTransient,
                                std::int32_t vbr, std::int32_t constrainedVbr, const std::int16_t* eBands, std::int32_t lm, std::int32_t effectiveBytes,
@@ -708,6 +711,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return maxDepth;
         }
 
+        // libopus: tone_lpc() (celt/celt_encoder.c)
         // LPC coefficients from a least-squares fit of the forward and backward prediction
         bool ToneLpc(const float* x, std::int32_t len, std::int32_t delay, float* lpc) noexcept
         {
@@ -768,6 +772,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return false;
         }
 
+        // libopus: tone_detect() (celt/celt_encoder.c)
         // pure or nearly pure tones, so that they do not cause problems in the encoder
         float ToneDetect(const float* in, std::int32_t cc, std::int32_t n, float& toneishness, std::int32_t fs) noexcept
         {
@@ -797,6 +802,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return -1;
         }
 
+        // libopus: compute_vbr() (celt/celt_encoder.c)
         std::int32_t ComputeVbr(const CeltMode::View& mode, const AnalysisInfo& analysis, std::int32_t baseTarget, std::int32_t lm, std::int32_t bitrate,
                                 std::int32_t lastCodedBands, std::int32_t c, std::int32_t intensity, std::int32_t constrainedVbr, float stereoSaving,
                                 std::int32_t totBoost, float tfEstimate, bool pitchChange, float maxDepth, std::int32_t lfe, bool hasSurroundMask,
@@ -865,12 +871,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopus: celt_preemphasis() (celt/celt_encoder.c)
     void CeltPreemphasis(const float* pcmp, float* inp, std::int32_t n, std::int32_t cc, std::int32_t upsample, const float* coef, float* mem,
                          bool clip) noexcept
     {
         Preemphasis(pcmp, inp, n, cc, upsample, coef, mem, clip);
     }
 
+    // libopus: celt_encoder_init() (celt/celt_encoder.c) with opus_custom_encoder_init_arch()
     std::int32_t CeltEncoder::Init(std::int32_t fs, std::int32_t channels, std::int32_t arch) noexcept
     {
         if (channels < 0 || channels > 2)
@@ -899,6 +907,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return OPUS_OK;
     }
 
+    // libopus: OPUS_RESET_STATE of opus_custom_encoder_ctl() (celt/celt_encoder.c)
     void CeltEncoder::Reset() noexcept
     {
         auto* const start = reinterpret_cast<std::byte*>(&rng_);
@@ -914,6 +923,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         tapsetDecision_ = 0;
     }
 
+    // libopus: opus_custom_encoder_ctl() (celt/celt_encoder.c)
     std::int32_t CeltEncoder::Ctl(std::int32_t request, std::int32_t value) noexcept
     {
         switch (request) {
@@ -986,6 +996,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return state;
     }
 
+    // libopus: celt_encode_with_ec() (celt/celt_encoder.c), the part from the sample peak to transient_analysis() and the
+    // pitch search of run_prefilter()
     void CeltEncoder::SignalStage(const SignalConfig& config, const float* pcm, std::int32_t n, float* preemphMem, float& overlapMax, const float* prefilterMem,
                                   CeltSignalFrame& frame) const noexcept
     {
@@ -1036,6 +1048,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: celt_encode_with_ec() (celt/celt_encoder.c), the part of SignalStage, with the pre-filter memory advanced
+    // as run_prefilter() leaves it
     void CeltEncoder::AnalyseSignal(const SignalConfig& config, const float* pcm, std::int32_t frameSize, SignalState& state,
                                     CeltSignalFrame& frame) const noexcept
     {
@@ -1068,6 +1082,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: run_prefilter() (celt/celt_encoder.c)
     std::int32_t CeltEncoder::RunPrefilter(FrontState& fs, float* in, std::int32_t cc, std::int32_t n, std::int32_t prefilterTapset, std::int32_t& pitch,
                                            float& gain, std::int32_t& qgain, bool enabled, std::int32_t complexity, float tfEstimate,
                                            std::int32_t nbAvailableBytes, float toneFreq, float toneishness, const CeltSignalFrame& signal,
@@ -1246,6 +1261,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             && spreadDecision_ == s.spreadDecision && tapsetDecision_ == s.tapsetDecision;
     }
 
+    // libopus: celt_encode_with_ec() (celt/celt_encoder.c), the end: quant_energy_finalise() and the energy histories
     void CeltEncoder::FinishEnergies(const EnergyTail& t, float* error, std::int32_t bitsLeft, RangeEncoder* enc) noexcept
     {
         constexpr std::int32_t nbEBands = NbEBands;
@@ -1289,126 +1305,6 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
-    void CeltEncoder::BuildSpeculation(const EnergyTail& t, const float* error, bool transientGotDisabled, std::int32_t frameSize,
-                                       std::int32_t nbCompressedBytes, const RangeEncoder& entryEnc, std::int64_t frame) noexcept
-    {
-        CeltSpeculation& s     = *spec_;
-        CeltEncoder&     clone = s.clone;
-        clone                  = *this;
-        clone.spec_            = nullptr;
-        clone.specOut_         = nullptr;
-        clone.next_            = nullptr;
-        clone.thetaRunner_     = s.trialRunner;
-        clone.analysis_        = next_->analysis;
-        // the end of this frame with the guessed bits left (the energies; the seed comes later)
-        float specError[MaxChannels * NbEBands];
-        std::memcpy(specError, error, sizeof(specError));
-        std::uint8_t tailBytes[1276];
-        RangeEncoder tailEnc;
-        tailEnc.Init(tailBytes, sizeof(tailBytes));
-        clone.FinishEnergies(t, specError, CeltSpeculation::GuessBitsLeft, &tailEnc);
-        if (t.isTransient || transientGotDisabled)
-            ++clone.consecTransient_;
-        else
-            clone.consecTransient_ = 0;
-        // the request
-        s.frame             = frame;
-        s.pcm               = next_->pcm;
-        s.signal            = next_->signal;
-        s.front             = next_->front;
-        s.frameSize         = frameSize;
-        s.nbCompressedBytes = nbCompressedBytes;
-        s.entryEnc          = entryEnc;
-        s.afterCount        = 0;
-        for (const NextCeltFrame* a = next_->after; a != nullptr && s.afterCount < CeltSpeculation::MaxAfter; a = a->after)
-            s.after[s.afterCount++] = *a;
-        for (std::int32_t i = 0; i < s.afterCount; ++i)
-            s.after[i].after = i + 1 < s.afterCount ? &s.after[i + 1] : nullptr;
-        s.cancel     = 0;
-        s.seed.ready = 0;
-        s.seed.used  = 0;
-        InterlockedExchange(&s.state, CeltSpeculation::Queued);
-        s.runner->Post(&s);
-    }
-
-    void RunSpeculation(CeltSpeculation& s) noexcept
-    {
-        if (InterlockedCompareExchange(&s.state, CeltSpeculation::Running, CeltSpeculation::Queued) != CeltSpeculation::Queued)
-            return; // taken back by the encoder
-        QabJob& job  = s.job;
-        job.valid    = false;
-        job.ran      = false;
-        job.cascaded = false;
-        if (s.cancel == 0) {
-            // the frame up to its residual quantisation (which may request the frame after: the cascade)
-            s.clone.specOut_   = &job;
-            s.clone.specFrame_ = s.frame;
-            s.clone.spec_      = s.cascade;
-            s.clone.next_      = s.cascade != nullptr && s.afterCount != 0 ? &s.after[0] : nullptr;
-            RangeEncoder enc   = s.entryEnc;
-            enc.Rebase(job.bytes);
-            std::uint8_t scratch[1276];
-            s.clone.Encode(s.pcm, s.frameSize, scratch, s.nbCompressedBytes, &enc, s.signal, s.front);
-            s.clone.specOut_ = nullptr;
-            s.clone.spec_    = nullptr;
-            s.clone.next_    = nullptr;
-        }
-        const bool usable = job.valid && s.cancel == 0;
-        if (usable) {
-            InterlockedExchange(&s.state, CeltSpeculation::Inputs);
-            RunQabJob(job, s.trialRunner, &s.seed, &s.cancel);
-        }
-        // the seed of the frame after: this frame's final range (only raw bits follow); also when
-        // unusable (then a different value, which the check rejects if it is used)
-        if (job.cascaded) {
-            s.cascade->seed.value = job.enc.Range();
-            InterlockedExchange(&s.cascade->seed.ready, 1);
-        }
-        InterlockedExchange(&s.state, usable && job.ran && s.cancel == 0 ? CeltSpeculation::Done : CeltSpeculation::Off);
-    }
-
-    bool SameQabInputs(const QabInputs& a, const QabInputs& b) noexcept
-    {
-        if (a.start != b.start || a.end != b.end || a.c != b.c || a.n != b.n || a.m != b.m || a.lm != b.lm || a.shortBlocks != b.shortBlocks
-            || a.spread != b.spread || a.dualStereo != b.dualStereo || a.intensity != b.intensity || a.totalBits != b.totalBits || a.balance != b.balance
-            || a.codedBands != b.codedBands || a.complexity != b.complexity || a.disableInv != b.disableInv || a.range != b.range || a.tellFrac != b.tellFrac
-            || a.tell != b.tell || a.storage != b.storage)
-            return false;
-        const std::int32_t start = a.start;
-        const std::int32_t count = a.end - a.start;
-        if (std::memcmp(a.pulses + start, b.pulses + start, static_cast<std::size_t>(count) * sizeof(std::int32_t)) != 0
-            || std::memcmp(a.tfRes + start, b.tfRes + start, static_cast<std::size_t>(count) * sizeof(std::int32_t)) != 0)
-            return false;
-        const std::int16_t* eBands = CeltMode::EBands;
-        for (std::int32_t ch = 0; ch < a.c; ++ch) {
-            if (std::memcmp(a.bandE + ch * CeltEncoder::NbEBands + start, b.bandE + ch * CeltEncoder::NbEBands + start,
-                            static_cast<std::size_t>(count) * sizeof(float))
-                    != 0
-                || std::memcmp(a.x + ch * a.n + a.m * eBands[start], b.x + ch * b.n + b.m * eBands[start],
-                               static_cast<std::size_t>(a.m * (eBands[a.end] - eBands[start])) * sizeof(float))
-                    != 0)
-                return false;
-        }
-        // the precomputed thetas are what QuantAllBands would compute from x and bandE
-        return true;
-    }
-
-    void RunQabJob(QabJob& job, ThetaTrialRunner* runner, SeedPromise* seedPromise, const volatile long* abort) noexcept
-    {
-        QabInputs& q = job.in;
-        job.log.Attach(job.ops, QabJob::MaxOps);
-        job.enc.SetLog(&job.log);
-        std::uint8_t  collapseMasks[CeltEncoder::NbEBands * CeltEncoder::MaxChannels];
-        std::uint32_t seed = 0;
-        // the inputs stay as they were (for the check)
-        std::memcpy(job.x, q.x, static_cast<std::size_t>(q.c * q.n) * sizeof(float));
-        QuantAllBands(q.start, q.end, job.x, q.c == 2 ? job.x + q.n : nullptr, collapseMasks, q.bandE, q.pulses, q.shortBlocks, q.spread, q.dualStereo,
-                      q.intensity, q.tfRes, q.totalBits, q.balance, &job.enc, q.lm, q.codedBands, &seed, q.complexity, q.disableInv, runner,
-                      q.hasItheta ? q.stereoItheta : nullptr, seedPromise, abort);
-        job.enc.SetLog(nullptr);
-        job.ran = !job.log.Overflowed() && (abort == nullptr || *abort == 0);
-    }
-
     void CeltEncoder::SetFrontState(const FrontState& state) noexcept
     {
         std::memcpy(prefilterMem_, state.prefilterMem, sizeof(prefilterMem_));
@@ -1423,6 +1319,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         tapsetDecision_  = state.tapsetDecision;
     }
 
+    // libopus: celt_encode_with_ec() (celt/celt_encoder.c), the symbols of the front part: the silence flag and the
+    // pre-filter parameters
     void CeltEncoder::EncodeFrontSymbols(const FrontParams& params, const CeltFrontFrame& frame, RangeEncoder* enc) noexcept
     {
         // the silence flag; a silent frame is as if all remaining bits were filled with zeros
@@ -1450,6 +1348,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: celt_encode_with_ec() (celt/celt_encoder.c), the part from the silence decision to the temporal VBR, and
+    // normalise_bands() to spreading_decision() (see the remarks on CeltEncoder)
     void CeltEncoder::Front(const FrontParams& p, const CeltSignalFrame& signal, FrontState& fs, RangeEncoder* enc, CeltFrontFrame& out) const noexcept
     {
         const std::int32_t cc       = channels_;
@@ -1679,6 +1579,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         out.temporalVbr          = temporalVbr;
     }
 
+    // libopus: celt_encode_with_ec() (celt/celt_encoder.c); its sections are marked "// ---" below
     std::int32_t CeltEncoder::Encode(const float* pcm, std::int32_t frameSize, std::uint8_t* compressed, std::int32_t nbCompressedBytes, RangeEncoder* enc,
                                      const CeltSignalFrame* signal, const CeltFrontFrame* front) noexcept
     {
@@ -1692,6 +1593,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         const bool          hybrid      = start != 0;
         if (nbCompressedBytes < 2 || pcm == nullptr)
             return OPUS_BAD_ARG;
+
+        // --- celt_encode_with_ec: the frame size (LM), the start of the range coder, the bit budget
+        // and the VBR rate
 
         // the main frames (with a range coder from outside) are counted; their expected successor
         // is speculated on from this state
@@ -1759,6 +1663,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             enc = &localEnc;
         }
 
+        // --- the constrained VBR limit (max_allowed)
+
         if (vbrRate > 0) {
             // the max rate allowed in VBR mode against violating the target rate and buffering,
             // up front so that the bust prevention triggers correctly without enough bits
@@ -1779,6 +1685,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::int32_t effEnd = end;
         if (effEnd > mode_.effEBands)
             effEnd = mode_.effEBands;
+
+        // --- the sample peak, celt_preemphasis(), tone_detect(), transient_analysis() and the pitch
+        // search of run_prefilter(): SignalStage
 
         // the signal stage: from elsewhere if it was computed from exactly this input and state
         const SignalConfig config      = GetSignalConfig();
@@ -1801,6 +1710,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             SignalStage(config, pcm, n, preemphMemE_, overlapMax_, prefilterMem_, localSignal);
             signal = &localSignal;
         }
+
+        // --- the silence decision, run_prefilter() and its symbols, compute_mdcts(),
+        // compute_band_energies(), amp2Log2(), the temporal VBR (and the extended part below): Front
 
         // the front part: from elsewhere if it was computed from exactly these parameters, this
         // state and the signal stage used here
@@ -1879,6 +1791,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::memcpy(bandLogE, front->bandLogE, sizeof(bandLogE));
         std::memcpy(bandLogE2, front->bandLogE2, sizeof(bandLogE2));
 
+        // --- the surround masking analysis (energy_mask)
+
         float surroundDynalloc[NbEBands * MaxChannels];
         std::memset(surroundDynalloc, 0, static_cast<std::size_t>(end) * sizeof(float));
         float surroundMasking = 0;
@@ -1939,6 +1853,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             surroundTrim    = 64 * diff;
             surroundMasking = maskAvg;
         }
+
+        // --- patch_transient_decision() and the transient flag
+
         // the last chance for a transient missed by the time-domain analysis
         bool patched = false;
         if (lm > 0 && enc->Tell() + 3 <= totalBits && !isTransient && complexity_ >= 5 && lfe_ == 0 && !hybrid) {
@@ -1961,6 +1878,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         if (lm > 0 && enc->Tell() + 3 <= totalBits)
             enc->EncodeBitLogp(isTransient ? 1 : 0, 3);
+
+        // --- normalise_bands(), dynalloc_analysis() and tf_analysis(), from Front if it did them
 
         // the extended part of the front part, unless a late transient changed the blocks; else
         // its spreading decision (in the front state) is undone
@@ -2022,6 +1941,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // --- the energy error bias, quant_coarse_energy(), tf_encode() and the spreading decision
+        // (spreading_decision())
+
         float error[NbEBands * MaxChannels];
         for (std::int32_t ch = 0; ch < c; ++ch) {
             for (std::int32_t i = start; i < end; ++i) {
@@ -2071,6 +1993,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             spreadDecision_ = SpreadNormal;
         }
 
+        // --- the dynalloc symbols (init_caps(), the boosts)
+
         // for LFE, everything interesting is in the first band
         if (lfe_ != 0)
             offsets[0] = Imin(8, effectiveBytes / 3);
@@ -2104,6 +2028,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             offsets[i] = boost;
         }
 
+        // --- stereo_analysis(), the intensity (hysteresis_decision()) and alloc_trim_analysis()
+
         std::int32_t dualStereo = 0;
         if (c == 2) {
             // always M/S for 2.5 ms frames until there is a better analysis
@@ -2124,6 +2050,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             enc->EncodeIcdf(allocTrim, TrimIcdf, 7);
             tell = static_cast<std::int32_t>(enc->TellFrac());
         }
+
+        // --- the VBR target (compute_vbr()) and the VBR state (reservoir, drift, offset)
 
         // VBR must not shrink the frame so much that the encoder runs out of bits; the margin of
         // 2 bytes keeps all bust prevention of the decoder untriggered so far
@@ -2212,7 +2140,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             enc->Shrink(static_cast<std::uint32_t>(nbCompressedBytes));
         }
 
-        // bit allocation
+        // --- clt_compute_allocation() and quant_fine_energy()
+
         std::int32_t fineQuant[NbEBands];
         std::int32_t pulses[NbEBands];
         std::int32_t finePriority[NbEBands];
@@ -2247,7 +2176,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         QuantFineEnergy(start, end, oldBandE, error, fineQuant, enc, c);
         std::memset(energyError, 0, static_cast<std::size_t>(nbEBands * cc) * sizeof(float));
 
-        // residual quantisation
+        // --- quant_all_bands(), or the replay of the speculation (CeltSpeculation.h)
+
         std::uint8_t collapseMasks[NbEBands * MaxChannels];
         // the inputs of the residual quantisation
         QabInputs  qin;
@@ -2292,89 +2222,28 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             specTail.isTransient = isTransient;
         }
         if (specOut_ != nullptr) {
-            // a speculative run: the residual quantisation as a job, and the speculation of the
-            // frame after from this (speculative) state if there is one to request
-            QabJob& job = *specOut_;
-            job.in      = qin;
-            job.enc     = *enc;
-            job.enc.Rebase(job.bytes);
-            job.enc.SetLog(nullptr);
-            job.valid = true;
-            if (spec_ != nullptr && next_ != nullptr && lastFrontUsed_ && spec_->runner != nullptr && spec_->state == CeltSpeculation::Idle) {
-                BuildSpeculation(specTail, error, transientGotDisabled, frameSizeArg, nbCompressedBytesArg, entryEnc, specFrame_ + 1);
-                job.cascaded = true;
-            }
+            // a speculative run: the residual quantisation as a job (and the speculation of the
+            // frame after from this speculative state); the run ends here
+            PostQabJob(qin, *enc, specTail, error, transientGotDisabled, frameSizeArg, nbCompressedBytesArg, entryEnc);
             return 0;
         }
-        // the speculations for this frame, if there are any (the first one or the cascaded one): taken
-        // if its inputs are this frame's and it used no seed but this frame's
-        bool fromJob = false;
-        // the chain of speculations: this encoder's and the ones cascaded from it
-        CeltSpeculation* specs[1 + CeltSpeculation::MaxAfter] = {};
-        {
-            std::int32_t k = 0;
-            for (CeltSpeculation* sp = spec_; sp != nullptr && k < 1 + CeltSpeculation::MaxAfter; sp = sp->cascade)
-                specs[k++] = sp;
-        }
-        if (enc != nullptr) {
-            for (CeltSpeculation* sp : specs) {
-                if (sp == nullptr || sp->state == CeltSpeculation::Idle || sp->frame > frame)
-                    continue; // none, or for a later frame
-                CeltSpeculation& s    = *sp;
-                const bool       mine = s.frame == frame && !fromJob;
-                if (!(s.state == CeltSpeculation::Queued
-                      && InterlockedCompareExchange(&s.state, CeltSpeculation::Off, CeltSpeculation::Queued) == CeltSpeculation::Queued)) {
-                    // started: its inputs, then its result (or its end after the cancellation)
-                    while (s.state < CeltSpeculation::Inputs)
-                        _mm_pause();
-                    bool same = mine && s.state != CeltSpeculation::Off && SameQabInputs(s.job.in, qin);
-                    if (!same)
-                        InterlockedExchange(&s.cancel, 1);
-                    while (s.state < CeltSpeculation::Done)
-                        _mm_pause();
-                    same = same && s.state == CeltSpeculation::Done && (s.seed.used == 0 || s.seed.value == rng_);
-                    if (same) {
-                        s.job.log.ReplayInto(*enc, 0, s.job.log.Size());
-                        fromJob = true;
-                        ++s.hits;
-                    }
-                }
-                if (mine)
-                    ++s.frames;
-                InterlockedExchange(&s.state, CeltSpeculation::Idle);
-            }
-        }
+        // the speculations for this frame, if there are any (the first one or a cascaded one)
+        const bool fromJob = enc != nullptr && TakeSpeculation(frame, qin, *enc);
         // the speculation of the next frame, if this one is quantised here (else the next one is,
-        // and the speculation goes on from there): encoder and speculation take turns. Only with
-        // the next frame's inputs known and this frame's front part taken (no resynchronisation);
-        // a speculation still pending (a cascaded one, built on a frame quantised here after all)
-        // is cancelled first
-        bool speculating = false;
-        if (spec_ != nullptr && enc != nullptr && !fromJob && next_ != nullptr && lastFrontUsed_ && spec_->runner != nullptr) {
-            for (CeltSpeculation* sp : specs) {
-                if (sp == nullptr || sp->state == CeltSpeculation::Idle)
-                    continue;
-                if (!(sp->state == CeltSpeculation::Queued
-                      && InterlockedCompareExchange(&sp->state, CeltSpeculation::Off, CeltSpeculation::Queued) == CeltSpeculation::Queued)) {
-                    InterlockedExchange(&sp->cancel, 1);
-                    while (sp->state < CeltSpeculation::Done)
-                        _mm_pause();
-                }
-                InterlockedExchange(&sp->state, CeltSpeculation::Idle);
-            }
-            BuildSpeculation(specTail, error, transientGotDisabled, frameSizeArg, nbCompressedBytesArg, entryEnc, frame + 1);
-            speculating = true;
-        }
+        // and the speculation goes on from there): encoder and speculation take turns
+        const bool speculating = spec_ != nullptr && enc != nullptr && !fromJob
+            && SpeculateNext(specTail, error, transientGotDisabled, frameSizeArg, nbCompressedBytesArg, entryEnc, frame);
         next_ = nullptr;
         if (!fromJob)
             QuantAllBands(start, end, x, c == 2 ? x + n : nullptr, collapseMasks, bandE, pulses, shortBlocks, spreadDecision_, dualStereo, intensity_, tfRes,
                           nbCompressedBytes * (8 << BitRes) - antiCollapseRsv, balance, enc, lm, codedBands, &rng_, complexity_, disableInv_, thetaRunner_,
                           frontRest && c == 2 ? front->stereoItheta : nullptr);
-        if (speculating) {
-            // the seed of the next frame: the final range (only raw bits follow)
-            spec_->seed.value = enc->Range();
-            InterlockedExchange(&spec_->seed.ready, 1);
-        }
+        // the seed of the next frame: the final range (only raw bits follow)
+        if (speculating)
+            PublishSeed(enc->Range());
+
+        // --- the anti-collapse bit, quant_energy_finalise() and the energy histories
+        // (FinishEnergies), consec_transient, the final range and ec_enc_done()
 
         if (antiCollapseRsv > 0) {
             const std::int32_t antiCollapseOn = consecTransient_ < 2 ? 1 : 0;
@@ -2405,4 +2274,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return nbCompressedBytes;
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

@@ -10,7 +10,7 @@
 
 #include "HeapArray.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>The OpusHead identification header (RFC 7845), as libopusenc's opus_header.c writes it.</summary>
     struct OpusHead {
@@ -59,4 +59,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::int32_t            length_ = 0;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

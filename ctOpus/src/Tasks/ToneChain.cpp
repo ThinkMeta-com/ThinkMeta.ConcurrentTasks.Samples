@@ -9,7 +9,7 @@
 #include "OpusDefines.h"
 #include "RangeEncoder.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     bool ToneChain::CopyBlock(BlockRing& ring, std::int64_t keep) noexcept
     {
@@ -94,7 +94,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
         callFrameSize_[static_cast<std::size_t>(j % ViewRing)] = f;
-        InterlockedExchange64(&published_, j + 1);
+        published_.store(j + 1);
         chainDone_.Set();
         signalWake_.Set();
         callStart_ = s + f;
@@ -124,7 +124,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         const std::size_t  slot  = static_cast<std::size_t>(k * ViewRing + j % ViewRing);
         CeltFrontFrame&    frame = fronts_[slot];
         // not readable while it is being computed: the epoch is published last
-        InterlockedExchange(reinterpret_cast<volatile long*>(&frame.epoch), -1);
+        SetEpoch(frame, -1);
         frame.valid = frontReady_[k];
         if (frontReady_[k]) {
             // the parameters as at the resynchronisation, with the tonality analysis of this frame
@@ -148,8 +148,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             frame.after = frontState_[k];
         }
         frontNext_[k] = j + 1;
-        InterlockedExchange64(&frontPublished_[k], MaxI64(Load(&frontPublished_[k]), j + 1));
-        InterlockedExchange(reinterpret_cast<volatile long*>(&frame.epoch), static_cast<long>(appliedSeq_[k]));
+        Store(&frontPublished_[k], MaxI64(Load(&frontPublished_[k]), j + 1));
+        SetEpoch(frame, static_cast<std::int32_t>(appliedSeq_[k]));
         chainDone_.Set();
     }
 
@@ -159,11 +159,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             if (ring.Aborted())
                 break;
             // too far ahead of the encoder: on again at half the lead
-            if (callNext_ - consumed_ > maxLead_ && encoderDone_ == 0) {
-                InterlockedExchange64(&resumeAt_, callNext_ - maxLead_ / 2);
-                while (callNext_ - consumed_ > maxLead_ / 2 && !ring.Aborted() && encoderDone_ == 0)
+            if (callNext_ - consumed_.load(std::memory_order_acquire) > maxLead_ && !encoderDone_.load(std::memory_order_acquire)) {
+                resumeAt_.store(callNext_ - maxLead_ / 2);
+                while (callNext_ - consumed_.load() > maxLead_ / 2 && !ring.Aborted() && !encoderDone_.load(std::memory_order_acquire))
                     encoderMoved_.Wait();
-                InterlockedExchange64(&resumeAt_, 1ll << 62);
+                resumeAt_.store(1ll << 62);
                 continue;
             }
             if (!AdvanceCall(ring))
@@ -179,7 +179,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         for (;;) {
             if (ring.Aborted())
                 break;
-            const std::int64_t published = published_;
+            const std::int64_t published = published_.load(std::memory_order_acquire);
             if (signalNext_ < published) {
                 // the CELT input and the input stage of the frame, then the CELT signal stage
                 const std::int64_t j = signalNext_;
@@ -191,17 +191,17 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                     celt_[k]->AnalyseSignal(signalConfig_[k], celt, f, signalState_[k], frames_[slot]);
                 }
                 signalNext_ = j + 1;
-                InterlockedExchange64(&signalPublished_, j + 1);
+                signalPublished_.store(j + 1);
                 chainDone_.Set();
                 frontWake_.Set();
                 continue;
             }
             // the chain has ended and every call is done
-            if (stopped_ != 0 && signalNext_ >= published_)
+            if (stopped_.load(std::memory_order_acquire) && signalNext_ >= published_.load(std::memory_order_acquire))
                 break;
             signalWake_.Wait();
         }
-        InterlockedExchange(&signalsStopped_, 1);
+        signalsStopped_.store(true);
         chainDone_.Set();
         frontWake_.Set();
     }
@@ -213,7 +213,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 break;
             ApplyResyncs();
             // the front parts of the calls with their signal stage
-            const std::int64_t published = signalPublished_;
+            const std::int64_t published = signalPublished_.load(std::memory_order_acquire);
             bool               worked    = false;
             for (std::int32_t k = 0; k < signals_; ++k) {
                 if (frontNext_[k] < published) {
@@ -224,12 +224,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             if (worked)
                 continue;
             // until the encoder is done: it may still resynchronise
-            if (encoderDone_ != 0)
+            if (encoderDone_.load(std::memory_order_acquire))
                 break;
             frontWake_.Wait();
         }
-        InterlockedExchange(&frontsStopped_, 1);
+        frontsStopped_.store(true);
         chainDone_.Set();
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

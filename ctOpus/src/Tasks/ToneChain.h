@@ -8,6 +8,7 @@
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
 
+#include <atomic>
 #include <cstdint>
 
 #include "CeltEncoder.h"
@@ -21,9 +22,9 @@
 
 import ThinkMeta.ConcurrentTasks.Synchronization.AutoResetEvent;
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
-    // The analysis chain, three nodes and the rings between them (plan way B, step 3): the tonality
+    // The analysis chain, three nodes and the rings between them (docs/task-graph.md, steps 3 to 6): the tonality
     // analysis of a call depends only on the 48 kHz stream and on the schedule of the calls,
     // the CELT signal stage (sample peak, pre-emphasis, tone and transient detection, pitch
     // search) only on the CELT input, which the chain rebuilds from the stream; neither
@@ -35,7 +36,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     //   Signal (SignalTask, RunSignals): per call → the input and CELT signal stages
     //   Front (FrontTask, RunFronts): per call → the speculative CELT front part
     // The edges are the rings of the calls (views_, inputFrames_, frames_, fronts_), which the
-    // encoder reads through ToneAnalysisSource.
+    // encoder reads through ToneAnalysisSource. A "call" is one call of the encoder's write loop
+    // (OpusStreamEncoder::EncodeNative), the unit the chain analyses ahead. Shared counters are
+    // std::atomic; the per-stream counters in HeapArrays and a front part's epoch are accessed
+    // through std::atomic_ref (Load, Store, Epoch below).
     class ToneChain final : public ToneAnalysisSource
     {
     public:
@@ -140,12 +144,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                       const CeltFrontFrame*& front) noexcept override
         {
             const std::int32_t k = signalOf_[stream];
-            if (k < 0 || signalPublished_ <= call)
+            if (k < 0 || signalPublished_.load(std::memory_order_acquire) <= call)
                 return false;
             const std::size_t slot = static_cast<std::size_t>(k * ViewRing + call % ViewRing);
             // the front part computed after the last resynchronisation (final until the encoder sends another)
             const CeltFrontFrame& f = fronts_[slot];
-            if (!(Load(&frontPublished_[k]) > call && *reinterpret_cast<const volatile long*>(&f.epoch) == Load(&resyncSeq_[k])))
+            if (!(Load(&frontPublished_[k]) > call && Epoch(f) == Load(&resyncSeq_[k])))
                 return false;
             const std::int32_t i = slotOf_[stream];
             if (i >= 0)
@@ -170,8 +174,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 return nullptr;
             const CeltFrontFrame& frame = fronts_[static_cast<std::size_t>(k * ViewRing + call % ViewRing)];
             // computed (completely) after the last resynchronisation
-            while (!(Load(&frontPublished_[k]) > call && *reinterpret_cast<const volatile long*>(&frame.epoch) == Load(&resyncSeq_[k]))) {
-                if (frontsStopped_ != 0)
+            while (!(Load(&frontPublished_[k]) > call && Epoch(frame) == Load(&resyncSeq_[k]))) {
+                if (frontsStopped_.load(std::memory_order_acquire))
                     return nullptr;
                 chainDone_.Wait();
             }
@@ -186,14 +190,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             // the encoder sends the next one only after the front part of call, so the chain has this one by then
             mailbox_[k].call = call;
             mailbox_[k].sync = sync;
-            InterlockedIncrement64(&resyncSeq_[k]);
+            std::atomic_ref<std::int64_t>(resyncSeq_[k]).fetch_add(1);
             frontWake_.Set();
         }
 
         // the encoder task has finished
         void EncoderDone() noexcept
         {
-            InterlockedExchange(&encoderDone_, 1);
+            encoderDone_.store(true);
             encoderMoved_.Set();
             frontWake_.Set();
         }
@@ -209,7 +213,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         // the end of the chain (also on abort): the encoder no longer waits for its calls
         void Stop() noexcept
         {
-            InterlockedExchange(&stopped_, 1);
+            stopped_.store(true);
             chainDone_.Set();
             frontWake_.Set();
             signalWake_.Set();
@@ -224,7 +228,17 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             FrontSync    sync;
         };
 
-        static std::int64_t Load(const std::int64_t* x) noexcept { return *static_cast<const volatile std::int64_t*>(x); }
+        // the per-stream counters (HeapArray elements) and a front part's epoch, atomically
+        static std::int64_t Load(const std::int64_t* x) noexcept
+        {
+            return std::atomic_ref<std::int64_t>(*const_cast<std::int64_t*>(x)).load(std::memory_order_acquire);
+        }
+        static void         Store(std::int64_t* x, std::int64_t value) noexcept { std::atomic_ref<std::int64_t>(*x).store(value); }
+        static std::int32_t Epoch(const CeltFrontFrame& frame) noexcept
+        {
+            return std::atomic_ref<std::int32_t>(const_cast<std::int32_t&>(frame.epoch)).load(std::memory_order_acquire);
+        }
+        static void SetEpoch(CeltFrontFrame& frame, std::int32_t epoch) noexcept { std::atomic_ref<std::int32_t>(frame.epoch).store(epoch); }
 
         // the signal stage and the tonality analysis of the next call; false at the end of the calls
         bool AdvanceCall(BlockRing& ring) noexcept;
@@ -244,23 +258,23 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         // waits for the signal stages of call (false: they ended before it)
         bool WaitSignals(std::int64_t call) noexcept
         {
-            while (signalPublished_ <= call && signalsStopped_ == 0)
+            while (signalPublished_.load(std::memory_order_acquire) <= call && !signalsStopped_.load(std::memory_order_acquire))
                 chainDone_.Wait();
-            return signalPublished_ > call;
+            return signalPublished_.load(std::memory_order_acquire) > call;
         }
 
         // waits for call (false: the chain ended before it); the encoder is at call now
         bool WaitCall(std::int64_t call) noexcept
         {
-            while (published_ <= call && stopped_ == 0)
+            while (published_.load(std::memory_order_acquire) <= call && !stopped_.load(std::memory_order_acquire))
                 chainDone_.Wait();
-            if (call > consumed_) {
-                InterlockedExchange64(&consumed_, call);
+            if (call > consumed_.load(std::memory_order_relaxed)) { // only the encoder moves it
+                consumed_.store(call);
                 // wake a stalled chain only once it may go on (not on every call)
-                if (call >= resumeAt_)
+                if (call >= resumeAt_.load())
                     encoderMoved_.Set();
             }
-            return published_ > call;
+            return published_.load(std::memory_order_acquire) > call;
         }
 
         std::int32_t                  nbStreams_ = 0;
@@ -298,27 +312,27 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::uint8_t                        scratch_[1275]; // the empty range coder of a front part
         std::int64_t                        callStart_ = 0; // the next call: its start in the stream
         std::int64_t                        callNext_  = 0; // and its index
-        alignas(64) volatile long encoderDone_         = 0;
-        OggOpusEncoder::Schedule schedule_             = {};
-        std::int32_t             preskip_              = 0;
-        std::int32_t             channels_             = 0;
-        std::int64_t             maxLead_              = 0;
+        alignas(64) std::atomic<bool> encoderDone_{false};
+        OggOpusEncoder::Schedule schedule_ = {};
+        std::int32_t             preskip_  = 0;
+        std::int32_t             channels_ = 0;
+        std::int64_t             maxLead_  = 0;
         HeapArray<float>         buffer_; // the 48 kHz stream from bufferStart_ to bufferEnd_
         std::int64_t             window_                   = 0;
         std::int64_t             bufferStart_              = 0;
         std::int64_t             bufferEnd_                = 0;
-        alignas(64) volatile std::int64_t published_       = 0; // calls analysed
-        alignas(64) volatile std::int64_t signalPublished_ = 0; // calls with their input and signal stages
-        alignas(64) volatile long signalsStopped_          = 0;
-        std::int64_t                      signalNext_      = 0;
-        Synchronization::AutoResetEvent_s signalWake_;    // a call analysed, or the end
-        alignas(64) volatile std::int64_t consumed_ = -1; // the latest call the encoder read
-        alignas(64) volatile long stopped_          = 0;
-        alignas(64) volatile long frontsStopped_    = 0;
-        alignas(64) volatile std::int64_t resumeAt_ = 1ll << 62; // the encoder call that wakes a stalled chain
-        Synchronization::AutoResetEvent_s chainDone_;            // a call analysed, or the end
-        Synchronization::AutoResetEvent_s encoderMoved_;         // the encoder read a new call
-        Synchronization::AutoResetEvent_s frontWake_;            // a call analysed, a resynchronisation, or the end
+        alignas(64) std::atomic<std::int64_t> published_{0};       // calls analysed
+        alignas(64) std::atomic<std::int64_t> signalPublished_{0}; // calls with their input and signal stages
+        alignas(64) std::atomic<bool> signalsStopped_{false};
+        std::int64_t                      signalNext_ = 0;
+        Synchronization::AutoResetEvent_s signalWake_; // a call analysed, or the end; one waiter: Signal
+        alignas(64) std::atomic<std::int64_t> consumed_{-1}; // the latest call the encoder read
+        alignas(64) std::atomic<bool> stopped_{false};
+        alignas(64) std::atomic<bool> frontsStopped_{false};
+        alignas(64) std::atomic<std::int64_t> resumeAt_{1ll << 62}; // the encoder call that wakes a stalled chain
+        Synchronization::AutoResetEvent_s chainDone_;    // a call analysed, or the end; one waiter: the encoder
+        Synchronization::AutoResetEvent_s encoderMoved_; // the encoder read a new call; one waiter: Analyse
+        Synchronization::AutoResetEvent_s frontWake_;    // a call analysed, a resynchronisation, or the end; one waiter: Front
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

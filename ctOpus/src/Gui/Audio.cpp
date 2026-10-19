@@ -16,7 +16,7 @@
 
 #include "Audio.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     namespace {
 
@@ -641,4 +641,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         return true;
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

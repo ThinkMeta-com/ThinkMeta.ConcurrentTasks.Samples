@@ -10,7 +10,7 @@
 #include "SilkMacros.h"
 #include "SilkTables.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     namespace {
 
@@ -370,4 +370,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
         std::memcpy(s, &buf[nSamplesIn], orderFir * sizeof(std::int32_t));
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

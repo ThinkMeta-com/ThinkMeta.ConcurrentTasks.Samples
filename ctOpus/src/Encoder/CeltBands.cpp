@@ -14,11 +14,13 @@
 #include "CeltRate.h"
 #include "CeltSimd.h"
 #include "CeltVq.h"
+#include "IntMath.h"
 
 #include <intrin.h>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
+    // libopus: hysteresis_decision() (celt/bands.c)
     std::int32_t HysteresisDecision(float val, const float* thresholds, const float* hysteresis, std::int32_t n, std::int32_t prev) noexcept
     {
         std::int32_t i = 0;
@@ -33,6 +35,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return i;
     }
 
+    // libopus: compute_band_energies() (celt/bands.c)
     void ComputeBandEnergies(const float* x, float* bandE, std::int32_t end, std::int32_t c, std::int32_t lm) noexcept
     {
         const std::int16_t* eBands = CeltMode::EBands;
@@ -46,6 +49,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: normalise_bands() (celt/bands.c)
     void NormaliseBands(const float* freq, float* x, const float* bandE, std::int32_t end, std::int32_t c, std::int32_t m) noexcept
     {
         const std::int16_t* eBands = CeltMode::EBands;
@@ -59,6 +63,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: haar1() (celt/bands.c)
     void Haar1(float* x, std::int32_t n0, std::int32_t stride) noexcept
     {
         n0 >>= 1;
@@ -72,6 +77,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: spreading_decision() (celt/bands.c)
     std::int32_t SpreadingDecision(const float* x, std::int32_t* average, std::int32_t lastDecision, std::int32_t* hfAverage, std::int32_t* tapsetDecision,
                                    bool updateHf, std::int32_t end, std::int32_t c, std::int32_t m, const std::int32_t* spreadWeight) noexcept
     {
@@ -145,21 +151,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         constexpr std::int32_t NbEBands        = CeltMode::NbEBands;
         constexpr float        MinStereoEnergy = 1e-10f;
 
-        constexpr std::int32_t Imin(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a < b ? a : b;
-        }
-        constexpr std::int32_t Imax(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a > b ? a : b;
-        }
-
+        // libopus: celt_udiv() (celt/entcode.h)
         inline std::int32_t Udiv(std::int32_t n, std::int32_t d) noexcept
         {
             return static_cast<std::int32_t>(static_cast<std::uint32_t>(n) / static_cast<std::uint32_t>(d));
         }
 
-        // celt_sudiv: division rounding towards zero
+        // libopus: celt_sudiv() (celt/entcode.h): division rounding towards zero
         inline std::int32_t Sudiv(std::int32_t n, std::int32_t d) noexcept
         {
             return n < 0 ? -Udiv(-n, d) : Udiv(n, d);
@@ -171,11 +169,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return (16384 + static_cast<std::int32_t>(static_cast<std::int16_t>(a)) * static_cast<std::int16_t>(b)) >> 15;
         }
 
+        // libopus: celt_lcg_rand() (celt/bands.c)
         inline std::uint32_t LcgRand(std::uint32_t seed) noexcept
         {
             return 1664525 * seed + 1013904223;
         }
 
+        // libopus: bitexact_cos() (celt/bands.c)
         // a cos() approximation that is bit-exact on any platform (it affects the bit allocation)
         std::int16_t BitexactCos(std::int16_t x) noexcept
         {
@@ -185,6 +185,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return static_cast<std::int16_t>(1 + x2);
         }
 
+        // libopus: bitexact_log2tan() (celt/bands.c)
         std::int32_t BitexactLog2tan(std::int32_t isin, std::int32_t icos) noexcept
         {
             const std::int32_t lc = EcIlog(static_cast<std::uint32_t>(icos));
@@ -200,6 +201,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             1, 0, 3, 0, 2, 1, 7, 0, 4, 3, 6, 1, 5, 2, 15, 0, 8, 7, 12, 3, 11, 4, 14, 1, 9, 6, 13, 2, 10, 5,
         };
 
+        // libopus: deinterleave_hadamard() (celt/bands.c)
         void DeinterleaveHadamard(float* x, std::int32_t n0, std::int32_t stride, bool hadamard) noexcept
         {
             float              tmp[176];
@@ -217,6 +219,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             std::memcpy(x, tmp, static_cast<std::size_t>(n) * sizeof(float));
         }
 
+        // libopus: interleave_hadamard() (celt/bands.c)
         void InterleaveHadamard(float* x, std::int32_t n0, std::int32_t stride, bool hadamard) noexcept
         {
             float              tmp[176];
@@ -234,6 +237,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             std::memcpy(x, tmp, static_cast<std::size_t>(n) * sizeof(float));
         }
 
+        // libopus: compute_channel_weights() (celt/bands.c)
         // weights for the normalised distortion across channels: the amplitude weights the square
         // distortion (a quick perceptual compromise for inter-aural masking)
         void ComputeChannelWeights(float ex, float ey, float w[2]) noexcept
@@ -246,6 +250,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             w[1] = ey;
         }
 
+        // libopus: intensity_stereo() (celt/bands.c)
         void IntensityStereo(float* x, const float* y, const float* bandE, std::int32_t bandId, std::int32_t n) noexcept
         {
             const std::int32_t i     = bandId;
@@ -258,6 +263,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 x[j] = a1 * x[j] + a2 * y[j]; // the side is not encoded
         }
 
+        // libopus: stereo_split() (celt/bands.c)
         void StereoSplit(float* x, float* y, std::int32_t n) noexcept
         {
             for (std::int32_t j = 0; j < n; ++j) {
@@ -268,6 +274,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: stereo_merge() (celt/bands.c)
         void StereoMerge(float* x, float* y, float mid, std::int32_t n) noexcept
         {
             // the norms of X+Y and X-Y as |X|^2 + |Y|^2 +/- sum(xy)
@@ -292,6 +299,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: compute_qn() (celt/bands.c)
         std::int32_t ComputeQn(std::int32_t n, std::int32_t b, std::int32_t offset, std::int32_t pulseCap, bool stereo) noexcept
         {
             static constexpr std::int16_t exp2Table8[8] = {16384, 17866, 19483, 21247, 23170, 25267, 27554, 30048};
@@ -311,36 +319,37 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
 
         struct BandCtx {
-            bool                 resynth;
-            std::int32_t         i;
-            std::int32_t         intensity;
-            std::int32_t         spread;
-            std::int32_t         tfChange;
-            RangeEncoder*        ec;
-            std::int32_t         remainingBits;
-            const float*         bandE;
-            std::uint32_t        seed;
-            std::int32_t         thetaRound;
-            std::int32_t         disableInv;
-            bool                 avoidSplitNoise;
-            std::int32_t         stereoItheta; // the band's stereo theta computed beforehand, or -1
-            SeedPromise*         seedPromise;  // the seed is still to come from there
-            const volatile long* abort;
+            bool                             resynth;
+            std::int32_t                     i;
+            std::int32_t                     intensity;
+            std::int32_t                     spread;
+            std::int32_t                     tfChange;
+            RangeEncoder*                    ec;
+            std::int32_t                     remainingBits;
+            const float*                     bandE;
+            std::uint32_t                    seed;
+            std::int32_t                     thetaRound;
+            std::int32_t                     disableInv;
+            bool                             avoidSplitNoise;
+            std::int32_t                     stereoItheta; // the band's stereo theta computed beforehand, or -1
+            SeedPromise*                     seedPromise;  // the seed is still to come from there
+            const std::atomic<std::int32_t>* abort;
         };
 
-        // the seed at its first use, if it is still to come
+        // the seed at its first use, if it is still to come (the speculation, see
+        // CeltSpeculation.h): waits until it is published, or until the run is cancelled
         inline void TakeSeed(BandCtx* ctx) noexcept
         {
             if (ctx->seedPromise == nullptr)
                 return;
-            while (ctx->seedPromise->ready == 0) {
-                if (ctx->abort != nullptr && *ctx->abort != 0)
+            while (ctx->seedPromise->ready.load(std::memory_order_acquire) == 0) {
+                if (ctx->abort != nullptr && ctx->abort->load(std::memory_order_acquire) != 0)
                     break;
                 _mm_pause();
             }
-            ctx->seed              = ctx->seedPromise->value;
-            ctx->seedPromise->used = 1;
-            ctx->seedPromise       = nullptr;
+            ctx->seed = ctx->seedPromise->value.load(std::memory_order_acquire);
+            ctx->seedPromise->used.store(1, std::memory_order_release);
+            ctx->seedPromise = nullptr;
         }
 
         struct SplitCtx {
@@ -352,6 +361,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             std::int32_t qalloc;
         };
 
+        // libopus: compute_theta() (celt/bands.c)
         void ComputeTheta(BandCtx* ctx, SplitCtx* sctx, float* x, float* y, std::int32_t n, std::int32_t* b, std::int32_t bb, std::int32_t b0, std::int32_t lm,
                           bool stereo, std::int32_t* fill) noexcept
         {
@@ -463,6 +473,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             sctx->qalloc = qalloc;
         }
 
+        // libopus: quant_band_n1() (celt/bands.c)
         std::uint32_t QuantBandN1(BandCtx* ctx, float* x, float* y, float* lowbandOut) noexcept
         {
             const bool stereo = y != nullptr;
@@ -483,6 +494,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return 1;
         }
 
+        // libopus: quant_partition() (celt/bands.c)
         // A mono partition: possibly split in two with the energy difference of the halves
         // transmitted, recursively (a band can end up in 8 parts).
         std::uint32_t QuantPartition(BandCtx* ctx, float* x, std::int32_t n, std::int32_t b, std::int32_t bb, float* lowband, std::int32_t lm, float gain,
@@ -588,6 +600,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return cm;
         }
 
+        // libopus: quant_band() (celt/bands.c)
         std::uint32_t QuantBand(BandCtx* ctx, float* x, std::int32_t n, std::int32_t b, std::int32_t bb, float* lowband, std::int32_t lm, float* lowbandOut,
                                 float gain, float* lowbandScratch, std::int32_t fill) noexcept
         {
@@ -682,6 +695,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return cm;
         }
 
+        // libopus: quant_band_stereo() (celt/bands.c)
         std::uint32_t QuantBandStereo(BandCtx* ctx, float* x, float* y, std::int32_t n, std::int32_t b, std::int32_t bb, float* lowband, std::int32_t lm,
                                       float* lowbandOut, float* lowbandScratch, std::int32_t fill) noexcept
         {
@@ -782,6 +796,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return cm;
         }
 
+        // libopus: special_hybrid_folding() (celt/bands.c)
         void SpecialHybridFolding(float* norm, float* norm2, std::int32_t start, std::int32_t m, bool dualStereo) noexcept
         {
             const std::int16_t* eBands = CeltMode::EBands;
@@ -797,6 +812,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopus: compute_theta() (celt/bands.c), the theta of a stereo band before its quantisation
     std::int32_t BandStereoItheta(const float* x, const float* y, std::int32_t n, float bandEx, float bandEy) noexcept
     {
         // the copy of quant_band_stereo
@@ -864,11 +880,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         t->dist = t->w[0] * InnerProd(t->xSave, t->x, t->n) + t->w[1] * InnerProd(t->ySave, t->y, t->n);
     }
 
+    // libopus: quant_all_bands() (celt/bands.c) (encoding)
     void QuantAllBands(std::int32_t start, std::int32_t end, float* xAll, float* yAll, std::uint8_t* collapseMasks, const float* bandE,
                        const std::int32_t* pulses, std::int32_t shortBlocks, std::int32_t spread, std::int32_t dualStereo, std::int32_t intensity,
                        const std::int32_t* tfRes, std::int32_t totalBits, std::int32_t balance, RangeEncoder* ec, std::int32_t lm, std::int32_t codedBands,
                        std::uint32_t* seed, std::int32_t complexity, std::int32_t disableInv, ThetaTrialRunner* runner, const std::int32_t* stereoItheta,
-                       SeedPromise* seedPromise, const volatile long* abort) noexcept
+                       SeedPromise* seedPromise, const std::atomic<std::int32_t>* abort) noexcept
     {
         const std::int16_t* eBands        = CeltMode::EBands;
         const std::int32_t  m             = 1 << lm;
@@ -913,7 +930,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         // no noise injected into the first band on transients
         ctx.avoidSplitNoise = bb > 1;
         for (std::int32_t i = start; i < end; ++i) {
-            if (abort != nullptr && *abort != 0)
+            if (abort != nullptr && abort->load(std::memory_order_acquire) != 0)
                 break;
             ctx.i                   = i;
             const bool         last = i == end - 1;
@@ -1118,4 +1135,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         *seed = ctx.seed;
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

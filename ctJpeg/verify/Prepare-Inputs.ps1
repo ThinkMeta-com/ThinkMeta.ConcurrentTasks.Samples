@@ -8,7 +8,7 @@
     photos\  the 14 photos of the 8-bit RGB set of https://imagecompression.info/test_images/
              (download "rgb8bit", unpack, pass the folder with -Photos). Free redistribution with
              the notice of the set, which is not repeated here; they are copied, not changed.
-    images\  3 synthetic images, made by GenTestImages (built with src\ctJpeg.slnx).
+    images\  3 synthetic images, made by GenTestImages (built with ctJpeg.slnx).
     edge\    8 small images of odd sizes, GenTestImages --edge.
     gray\    4 grayscale images, GenTestImages --gray, from 3 photos and the synthetic text image.
 
@@ -27,8 +27,8 @@ param(
 $ErrorActionPreference = 'Stop'
 # defaults here, not in param(): $PSScriptRoot may be empty there under Windows PowerShell 5.1
 if (-not $OutDir) { $OutDir = Join-Path $PSScriptRoot '..\testdata' }
-if (-not $GenTestImages) { $GenTestImages = Join-Path $PSScriptRoot '..\src\build\Release\bin\GenTestImages.exe' }
-if (-not (Test-Path -LiteralPath $GenTestImages)) { throw "GenTestImages.exe not found: $GenTestImages (build src\ctJpeg.slnx, Release x64, first)" }
+if (-not $GenTestImages) { $GenTestImages = Join-Path $PSScriptRoot '..\build\Release\bin\GenTestImages.exe' }
+if (-not (Test-Path -LiteralPath $GenTestImages)) { throw "GenTestImages.exe not found: $GenTestImages (build ctJpeg.slnx, Release x64, first)" }
 $OutDir = [IO.Path]::GetFullPath($OutDir)
 $table = @(Import-Csv -LiteralPath (Join-Path $PSScriptRoot 'Input-Hashes.csv'))
 

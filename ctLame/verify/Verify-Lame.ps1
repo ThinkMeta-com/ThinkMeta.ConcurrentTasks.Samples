@@ -24,41 +24,59 @@
       Full   -V 0/2/4/6 at the default -q (all files)
     Your files are spread evenly over the sorted list.
 
-    -WriteTable encodes the signal cases of Quick and Full with -Lame and writes the table; this
-    is how Reference-Hashes-Signals.csv was made with bin\lame.exe.
+    -Mode Reference encodes the signal cases of Quick and Full with -Oracle and writes the table;
+    this is how Reference-Hashes-Signals.csv was made with bin\lame.exe.
+
+    Parameters, the same in the Verify script of every sample:
+      -Mode Compare|Reference  Compare (default) checks -Exe; Reference writes the table with -Oracle.
+      -Matrix                  the test matrix; -HashFile the table (default: the one of the matrix here).
+      -Exe                     the program to check (default: ..\build\Release\bin\ctLame.exe).
+      -Oracle                  the reference program (default: ..\build\Release\bin\lame.exe).
+      -ExtraArgs               options for -Exe only (e.g. '--threads 4', '--sequential').
+      -Repeat n                every case n times; all outputs must match (catches thread-timing dependent output).
+      -ThrottleLimit, -WorkDir cases run at once and the folder of the temporary outputs.
+      -TimeoutSec              a run beyond it counts as a hang: killed, exit code 'timeout'.
+    The names of earlier versions still work: -CtLame (-Exe), -Lame (-Oracle), -CtLameArgs
+    (-ExtraArgs), -Table (-HashFile), -WriteTable (-Mode Reference).
 
     Needs PowerShell 7 (ForEach-Object -Parallel).
 
 .EXAMPLE
     .\Verify-Lame.ps1 -Signals
     .\Verify-Lame.ps1 -WavDir D:\music\wav -Matrix Full
-    .\Verify-Lame.ps1 -Signals -WavDir D:\music\wav -Matrix Smoke -CtLameArgs '--threads 1'
+    .\Verify-Lame.ps1 -Signals -WavDir D:\music\wav -Matrix Smoke -ExtraArgs '--threads 1' -Repeat 3
 #>
 #Requires -Version 7
 param(
+    [ValidateSet('Reference', 'Compare')][string]$Mode = 'Compare',
+    [ValidateSet('Smoke', 'Quick', 'Full')][string]$Matrix = 'Quick',
+    [Alias('CtLame')][string]$Exe = (Join-Path $PSScriptRoot '..\build\Release\bin\ctLame.exe'),
+    [Alias('Lame')][string]$Oracle = (Join-Path $PSScriptRoot '..\build\Release\bin\lame.exe'),
+    [Alias('Table')][string]$HashFile = (Join-Path $PSScriptRoot 'Reference-Hashes-Signals.csv'),
+    [Alias('CtLameArgs')][string]$ExtraArgs = '', # options for ctLame only, e.g. '--threads 1' or '--sequential'
+    [ValidateRange(1, 100)][int]$Repeat = 1,
+    [int]$ThrottleLimit = [Environment]::ProcessorCount,
+    [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) 'ctLame-verify'),
+    [int]$TimeoutSec = 300,
     [switch]$Signals,
     [string[]]$WavDir = @(),
-    [ValidateSet('Smoke', 'Quick', 'Full')][string]$Matrix = 'Quick',
-    [string]$CtLame = (Join-Path $PSScriptRoot '..\build\Release\bin\ctLame.exe'),
-    [string]$Lame = (Join-Path $PSScriptRoot '..\build\Release\bin\lame.exe'),
-    [string]$CtLameArgs = '',                    # extra options for ctLame only, e.g. '--threads 1' or '--sequential'
-    [string]$Table = (Join-Path $PSScriptRoot 'Reference-Hashes-Signals.csv'),
-    [switch]$WriteTable,
-    [int]$ThrottleLimit = [Environment]::ProcessorCount,
-    [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) 'ctLame-verify')
+    [switch]$WriteTable # the name of earlier versions for -Mode Reference
 )
 
 $ErrorActionPreference = 'Stop'
+if ($WriteTable) { $Mode = 'Reference' }
+$WriteTable = $Mode -eq 'Reference'
+if ($WriteTable -and ($ExtraArgs -or $Repeat -gt 1)) { throw '-ExtraArgs and -Repeat are for compare runs only.' }
 if ($WriteTable) { $Signals = $true }
 if (-not $Signals -and $WavDir.Count -eq 0) { throw 'nothing to check: pass -Signals and/or -WavDir <folder>' }
 
 function Resolve-Exe([string]$Path) {
-    if (-not (Test-Path -LiteralPath $Path)) { throw "$Path not found - build ctLame.slnx (Release, x64) first or pass -CtLame/-Lame" }
+    if (-not (Test-Path -LiteralPath $Path)) { throw "$Path not found - build ctLame.slnx (Release, x64) first or pass -Exe/-Oracle" }
     (Resolve-Path -LiteralPath $Path).Path
 }
 $needLame = $WriteTable -or $WavDir.Count -gt 0
-if ($needLame) { $Lame = Resolve-Exe $Lame }
-if (-not $WriteTable) { $CtLame = Resolve-Exe $CtLame }
+if ($needLame) { $Oracle = Resolve-Exe $Oracle }
+if (-not $WriteTable) { $Exe = Resolve-Exe $Exe }
 
 $VbrQualities = '0', '2', '4', '6.5', '9'
 $Qualities = '0', '3', '7'
@@ -112,11 +130,12 @@ if ($WavDir.Count -gt 0 -and -not $WriteTable) {
 
 $reference = @{}
 if ($Signals -and -not $WriteTable) {
-    Import-Csv -LiteralPath $Table | ForEach-Object { $reference[$_.Key] = $_ }
+    Import-Csv -LiteralPath $HashFile | ForEach-Object { $reference[$_.Key] = $_ }
 }
 
-$what = if ($WriteTable) { "writing $Table with $Lame" } else { "$CtLame $CtLameArgs" }
-Write-Host "$(if ($WriteTable) { 'Table' } else { $Matrix }): $($cases.Count) cases, $what (x$ThrottleLimit)"
+$what = if ($WriteTable) { "writing $HashFile with $Oracle" } else { "$Exe $ExtraArgs".TrimEnd() }
+$times = if ($Repeat -gt 1) { " x$Repeat runs" } else { '' }
+Write-Host "$(if ($WriteTable) { 'Table' } else { $Matrix }): $($cases.Count) cases$times, $what (x$ThrottleLimit)"
 $sw = [Diagnostics.Stopwatch]::StartNew()
 
 $results = $cases | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
@@ -127,24 +146,29 @@ $results = $cases | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
         $out = Join-Path $using:WorkDir ([guid]::NewGuid().ToString() + '.mp3')
         $argList = @('--silent') + @($Extra -split ' ' | Where-Object { $_ }) + @($c.Args -split ' ') + @($c.Input, $out)
         $p = Start-Process -FilePath $Exe -ArgumentList ($argList | ForEach-Object { '"' + $_ + '"' }) `
-            -NoNewWindow -Wait -PassThru -RedirectStandardError "$out.err"
+            -NoNewWindow -PassThru -RedirectStandardError "$out.err"
+        $null = $p.Handle # keeps the exit code readable after the wait
+        $code = if ($p.WaitForExit($using:TimeoutSec * 1000)) { $p.ExitCode } else { $p.Kill($true); $p.WaitForExit(); 'timeout' }
         $hash = ''
         if (Test-Path -LiteralPath $out) {
             $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $out).Hash.ToLowerInvariant()
             Remove-Item -LiteralPath $out
         }
         Remove-Item -LiteralPath "$out.err" -ErrorAction SilentlyContinue
-        [pscustomobject]@{ ExitCode = "$($p.ExitCode)"; Sha256 = $hash }
+        [pscustomobject]@{ ExitCode = "$code"; Sha256 = $hash }
     }
 
     $key = "$($c.Args)|$($c.Name)"
     if ($using:WriteTable) {
-        $r = Invoke-Encode $using:Lame ''
+        $r = Invoke-Encode $using:Oracle ''
         return [pscustomobject]@{ Key = $key; ExitCode = $r.ExitCode; Sha256 = $r.Sha256 }
     }
-    $expected = if ($c.Against -eq 'lame') { Invoke-Encode $using:Lame '' } else { ($using:reference)[$key] }
-    $actual = Invoke-Encode $using:CtLame $using:CtLameArgs
+    $expected = if ($c.Against -eq 'lame') { Invoke-Encode $using:Oracle '' } else { ($using:reference)[$key] }
+    $runs = @(foreach ($n in 1..$using:Repeat) { Invoke-Encode $using:Exe $using:ExtraArgs })
+    $actual = $runs[0]
+    $unstable = @($runs | ForEach-Object { "$($_.ExitCode)/$($_.Sha256)" } | Select-Object -Unique).Count -gt 1
     $problem = if (-not $expected) { 'not in the table' }
+               elseif ($unstable) { "output differs between the $($using:Repeat) runs" }
                elseif ($expected.ExitCode -ne $actual.ExitCode) { "exit code $($expected.ExitCode) -> $($actual.ExitCode)" }
                elseif ($expected.Sha256 -ne $actual.Sha256) { 'output differs' }
     $source = if ($c.Against -eq 'lame') { 'lame.exe' } else { 'table' }
@@ -153,9 +177,9 @@ $results = $cases | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 
 Write-Host ("Encoded in {0:mm\:ss}" -f $sw.Elapsed)
 if ($WriteTable) {
-    $results | Sort-Object Key | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $Table
+    $results | Sort-Object Key | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $HashFile
     $nonZero = @($results | Where-Object ExitCode -ne '0').Count
-    Write-Host "wrote $($results.Count) hashes to $Table ($nonZero non-zero exit codes)"
+    Write-Host "wrote $($results.Count) hashes to $HashFile ($nonZero non-zero exit codes)"
     return
 }
 $failed = @($results | Where-Object Problem)

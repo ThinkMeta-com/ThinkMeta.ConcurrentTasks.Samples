@@ -12,7 +12,7 @@
 #include "RangeEncoder.h"
 #include "ToneAnalysis.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     // Internal request numbers of libopus (celt.h, opus_private.h)
     constexpr std::int32_t CeltSetPredictionRequest = 10002;
@@ -21,17 +21,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     constexpr std::int32_t CeltSetEndBandRequest    = 10012;
     constexpr std::int32_t CeltSetSignallingRequest = 10016;
 
-    /// <summary>celt_preemphasis for the static mode: n frames of channel stride cc into inp, with the filter memory mem.</summary>
+    /// <summary>
+    /// libopus: celt_preemphasis() (celt/celt_encoder.c) for the static mode: n frames of channel
+    /// stride cc into inp, with the filter memory mem.
+    /// </summary>
     void CeltPreemphasis(const float* pcmp, float* inp, std::int32_t n, std::int32_t cc, std::int32_t upsample, const float* coef, float* mem,
                          bool clip) noexcept;
 
-    /// <summary>
-    /// Port of the CELT encoder of libopus 1.6.1 (celt/celt_encoder.c) for the static 48 kHz mode,
-    /// float, without QEXT, custom modes and resynthesis: the encoder state, its controls and
-    /// celt_encode_with_ec with the transient, tone, pitch pre-filter, TF, dynamic allocation,
-    /// trim, stereo and VBR decisions. The stages below it are the ports in CeltMdct, CeltBands,
-    /// CeltEnergy, CeltRate, CeltVq and CeltPitch.
-    /// </summary>
     struct CeltSignalFrame;
     struct CeltFrontFrame;
     struct QabInputs;
@@ -49,6 +45,38 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         const NextCeltFrame*   after; // the frame after it, or nullptr
     };
 
+    /// <summary>
+    /// Port of the CELT encoder of libopus 1.6.1 (celt/celt_encoder.c) for the static 48 kHz mode,
+    /// float, without QEXT, custom modes and resynthesis: the encoder state, its controls and
+    /// celt_encode_with_ec with the transient, tone, pitch pre-filter, TF, dynamic allocation,
+    /// trim, stereo and VBR decisions. The stages below it are the ports in CeltMdct, CeltBands,
+    /// CeltEnergy, CeltRate, CeltVq and CeltPitch.
+    /// </summary>
+    /// <remarks>
+    /// celt_encode_with_ec() is split into stages so that the parts that depend only on the input
+    /// can run ahead on other threads (the results are taken only if they were computed from
+    /// exactly the encoder's inputs and state, else they are computed in place):
+    /// <list type="bullet">
+    /// <item>Encode: the frame size, the bit budget and the VBR bounds (up to the constrained VBR
+    /// limit), then the stages below, then everything from the surround masking analysis on.</item>
+    /// <item>SignalStage (AnalyseSignal on a chain): the sample peak, celt_preemphasis(),
+    /// tone_detect(), transient_analysis() without weak transients and the pitch search of
+    /// run_prefilter() (pitch_downsample(), pitch_search()).</item>
+    /// <item>Front (on a chain, or in Encode): the silence decision, the weak-transient analysis
+    /// of hybrid frames, run_prefilter() with remove_doubling() and the comb filters, the
+    /// pre-filter symbols (EncodeFrontSymbols), compute_mdcts() (the second MDCT included),
+    /// compute_band_energies(), amp2Log2(), the temporal VBR; for frames of 5 ms and more without
+    /// surround masking also normalise_bands(), dynalloc_analysis(), tf_analysis() and
+    /// spreading_decision().</item>
+    /// <item>Encode again: the surround masking, patch_transient_decision() and the transient
+    /// flag; the extended front part unless a late transient changed the blocks; the energy error
+    /// bias, quant_coarse_energy(), tf_encode(), the spreading symbol, the dynalloc symbols,
+    /// stereo_analysis() and the intensity, alloc_trim_analysis(), compute_vbr() and the VBR
+    /// state, clt_compute_allocation(), quant_fine_energy(), quant_all_bands() (or the replay of a
+    /// speculation, see CeltSpeculation.h), the anti-collapse bit, quant_energy_finalise() and the
+    /// energy histories (FinishEnergies).</item>
+    /// </list>
+    /// </remarks>
     class CeltEncoder
     {
     public:
@@ -58,10 +86,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         static constexpr std::int32_t MinPeriod   = 15;   // COMBFILTER_MINPERIOD
         static constexpr std::int32_t MaxChannels = 2;
 
-        /// <summary>celt_encoder_init; returns an OPUS error code.</summary>
+        /// <summary>libopus: celt_encoder_init() (celt/celt_encoder.c); returns an OPUS error code.</summary>
         std::int32_t Init(std::int32_t fs, std::int32_t channels, std::int32_t arch) noexcept;
 
-        /// <summary>opus_custom_encoder_ctl for the requests with an int value, and OPUS_RESET_STATE.</summary>
+        /// <summary>libopus: opus_custom_encoder_ctl() (celt/celt_encoder.c) for the requests with an int value, and OPUS_RESET_STATE.</summary>
         std::int32_t Ctl(std::int32_t request, std::int32_t value) noexcept;
 
         /// <summary>OPUS_RESET_STATE.</summary>
@@ -82,14 +110,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         const float* ModeWindow() const noexcept { return mode_.window; }
 
         /// <summary>
-        /// celt_encode_with_ec: encodes frameSize interleaved frames into compressed, or into ec
-        /// (then compressed is not used). Returns the bytes or an OPUS error code.
-        /// </summary>
-        /// <summary>
-        /// celt_encode_with_ec. signal, if given, is the signal stage of this frame computed
-        /// elsewhere (AnalyseSignal); it is used only if its inputs (the input, the configuration
-        /// and the state it started from) are exactly those of this call, else it is computed here.
-        /// front likewise for the front part (Front), which also needs the signal stage used.
+        /// libopus: celt_encode_with_ec() (celt/celt_encoder.c): encodes frameSize interleaved
+        /// frames into compressed, or into ec (then compressed is not used). Returns the bytes or an
+        /// OPUS error code. signal, if given, is the signal stage of this frame computed elsewhere
+        /// (AnalyseSignal); it is used only if its inputs (the input, the configuration and the
+        /// state it started from) are exactly those of this call, else it is computed here. front
+        /// likewise for the front part (Front), which also needs the signal stage used.
         /// </summary>
         std::int32_t Encode(const float* pcm, std::int32_t frameSize, std::uint8_t* compressed, std::int32_t nbCompressedBytes, RangeEncoder* ec,
                             const CeltSignalFrame* signal = nullptr, const CeltFrontFrame* front = nullptr) noexcept;
@@ -203,10 +229,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         void AnalyseSignal(const SignalConfig& config, const float* pcm, std::int32_t frameSize, SignalState& state, CeltSignalFrame& frame) const noexcept;
 
     private:
-        // the signal stage on the given state (the prefilter memory is advanced only if advanceMem)
+        // the signal stage on the given state (the prefilter memory is not advanced): the first
+        // part of celt_encode_with_ec, from the sample peak to the pitch search of run_prefilter
         void SignalStage(const SignalConfig& config, const float* pcm, std::int32_t n, float* preemphMem, float& overlapMax, const float* prefilterMem,
                          CeltSignalFrame& frame) const noexcept;
 
+        // libopus: run_prefilter() (celt/celt_encoder.c), with the pitch search from the signal stage
         std::int32_t RunPrefilter(FrontState& fs, float* in, std::int32_t cc, std::int32_t n, std::int32_t prefilterTapset, std::int32_t& pitch, float& gain,
                                   std::int32_t& qgain, bool enabled, std::int32_t complexity, float tfEstimate, std::int32_t nbAvailableBytes, float toneFreq,
                                   float toneishness, const CeltSignalFrame& signal, std::int32_t lossRate, std::int32_t analysisValid,
@@ -229,10 +257,25 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         };
         void FinishEnergies(const EnergyTail& t, float* error, std::int32_t bitsLeft, RangeEncoder* enc) noexcept;
 
-        // the speculation of the next frame (B4): its state from this one before the residual
+        // --- the speculation (CeltSpeculation.cpp; the protocol is described in CeltSpeculation.h)
+
+        // the speculation of the next frame: its state from this one before the residual
         // quantisation, with a guessed number of bits left for the finalisation
-        void        BuildSpeculation(const EnergyTail& t, const float* error, bool transientGotDisabled, std::int32_t frameSize, std::int32_t nbCompressedBytes,
-                                     const RangeEncoder& entryEnc, std::int64_t frame) noexcept;
+        void BuildSpeculation(const EnergyTail& t, const float* error, bool transientGotDisabled, std::int32_t frameSize, std::int32_t nbCompressedBytes,
+                              const RangeEncoder& entryEnc, std::int64_t frame) noexcept;
+        // a speculative run: hands the residual quantisation over as the job and requests the
+        // speculation of the frame after (the cascade) if there is one to request
+        void PostQabJob(const QabInputs& in, const RangeEncoder& enc, const EnergyTail& t, const float* error, bool transientGotDisabled,
+                        std::int32_t frameSize, std::int32_t nbCompressedBytes, const RangeEncoder& entryEnc) noexcept;
+        // the speculations for this frame (this encoder's and the cascaded ones): replays a
+        // matching result into enc; true if it did (then the residual quantisation is done)
+        bool TakeSpeculation(std::int64_t frame, const QabInputs& in, RangeEncoder& enc) noexcept;
+        // the speculation of the next frame, if it can be requested: the pending ones are
+        // cancelled first; true if it was requested (then the seed is to be published)
+        bool SpeculateNext(const EnergyTail& t, const float* error, bool transientGotDisabled, std::int32_t frameSize, std::int32_t nbCompressedBytes,
+                           const RangeEncoder& entryEnc, std::int64_t frame) noexcept;
+        // publishes the seed of the speculation of the next frame: this frame's final range
+        void        PublishSeed(std::uint32_t seed) noexcept;
         friend void RunSpeculation(CeltSpeculation& spec) noexcept;
 
         CeltSpeculation*     spec_      = nullptr; // the speculation of this encoder (nullptr: none)
@@ -382,111 +425,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         CeltEncoder::FrontState after;
     };
 
-    /// <summary>
-    /// What QuantAllBands reads of a frame: if two runs have the same inputs (and the same seed),
-    /// they code the same symbols. Arrays beyond the coded bands are not compared.
-    /// </summary>
-    struct QabInputs {
-        std::int32_t  start;
-        std::int32_t  end;
-        std::int32_t  c;
-        std::int32_t  n;
-        std::int32_t  m;
-        std::int32_t  lm;
-        std::int32_t  shortBlocks;
-        std::int32_t  spread;
-        std::int32_t  dualStereo;
-        std::int32_t  intensity;
-        std::int32_t  totalBits;
-        std::int32_t  balance;
-        std::int32_t  codedBands;
-        std::int32_t  complexity;
-        std::int32_t  disableInv;
-        std::uint32_t range; // the coder (its tell state and size; the decisions read nothing else)
-        std::uint32_t tellFrac;
-        std::int32_t  tell;
-        std::uint32_t storage;
-        std::int32_t  pulses[CeltEncoder::NbEBands];
-        std::int32_t  tfRes[CeltEncoder::NbEBands];
-        bool          hasItheta;
-        std::int32_t  stereoItheta[CeltEncoder::NbEBands];
-        float         bandE[CeltEncoder::NbEBands * CeltEncoder::MaxChannels];
-        float         x[CeltEncoder::MaxChannels * 960];
-    };
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus
 
-    /// <summary>The inputs are the same as far as QuantAllBands reads them.</summary>
-    bool SameQabInputs(const QabInputs& a, const QabInputs& b) noexcept;
-
-    /// <summary>QuantAllBands of a frame elsewhere: its inputs, its coder and, once run, its coding operations.</summary>
-    struct QabJob {
-        static constexpr std::size_t MaxOps = 8192;
-        QabInputs                    in;
-        RangeEncoder                 enc; // the coder before (writing to bytes)
-        std::uint8_t                 bytes[1276];
-        float                        x[CeltEncoder::MaxChannels * 960]; // in.x as QuantAllBands leaves it (it works in place)
-        bool                         valid;                             // in and enc are set
-        bool                         cascaded;                          // the run also requested the speculation of the frame after
-        bool                         ran;                               // log holds the operations
-        SymbolLog                    log;
-        SymbolLog::Op                ops[MaxOps];
-    };
-
-    /// <summary>QuantAllBands of the job, its operations logged (the seed from seed, ended early by abort).</summary>
-    void RunQabJob(QabJob& job, ThetaTrialRunner* runner, SeedPromise* seed, const volatile long* abort) noexcept;
-
-    /// <summary>Runs the speculations elsewhere: RunSpeculation on another thread, in the order posted.</summary>
-    class SpeculationRunner
-    {
-    public:
-        virtual void Post(CeltSpeculation* spec) noexcept = 0;
-
-    protected:
-        ~SpeculationRunner() = default;
-    };
-
-    /// <summary>
-    /// The speculation of a stream's CELT encoder: before the residual quantisation
-    /// of frame N, the state of frame N+1 is built as if N left GuessBitsLeft bits for the
-    /// finalisation (the only part of N+1's state that depends on N's quantisation, apart from the
-    /// seed); frame N+1 runs on it up to its residual quantisation, which runs as a job. The real
-    /// frame N+1 takes the job's operations if the job's inputs are its own.
-    /// </summary>
-    struct CeltSpeculation {
-        static constexpr std::int32_t GuessBitsLeft = 2;
-        // the states: Idle -> Queued (the encoder) -> Running -> Inputs -> Done or Off (the runner)
-        // -> Idle (the encoder, once it has taken or dropped the result); Queued -> Off (the
-        // encoder, before the runner starts it)
-        static constexpr long Idle    = 0;
-        static constexpr long Queued  = 1;
-        static constexpr long Running = 2;
-        static constexpr long Inputs  = 3; // job.in is set
-        static constexpr long Done    = 4; // job.log holds the operations
-        static constexpr long Off     = 5; // no usable result
-
-        CeltEncoder        clone; // the state for the next frame (the seed comes in seed)
-        QabJob             job;
-        SpeculationRunner* runner      = nullptr;
-        ThetaTrialRunner*  trialRunner = nullptr;
-        CeltSpeculation*   cascade     = nullptr; // the speculation of the frame after, requested by this one's run
-        // the request: the frame (the encoder's count) and its expected inputs
-        std::int64_t                  frame             = -1;
-        const float*                  pcm               = nullptr;
-        const CeltSignalFrame*        signal            = nullptr;
-        const CeltFrontFrame*         front             = nullptr;
-        std::int32_t                  frameSize         = 0;
-        std::int32_t                  nbCompressedBytes = 0;
-        RangeEncoder                  entryEnc;
-        static constexpr std::int32_t MaxAfter        = 3;
-        NextCeltFrame                 after[MaxAfter] = {}; // the expected inputs of the frames after (for the cascade)
-        std::int32_t                  afterCount      = 0;
-        alignas(64) volatile long state               = Idle;
-        alignas(64) volatile long cancel              = 0;
-        alignas(64) SeedPromise seed;
-        long long frames = 0; // statistics: frames with a speculation, and taken
-        long long hits   = 0;
-    };
-
-    /// <summary>The speculation as requested (on the runner's thread).</summary>
-    void RunSpeculation(CeltSpeculation& spec) noexcept;
-
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+// The speculation (QabInputs, QabJob, CeltSpeculation, SpeculationRunner, RunSpeculation) is
+// declared in CeltSpeculation.h; included here for the callers that include only this header.
+#include "CeltSpeculation.h"

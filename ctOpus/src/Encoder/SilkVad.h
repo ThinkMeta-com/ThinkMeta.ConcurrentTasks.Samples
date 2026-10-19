@@ -9,7 +9,7 @@
 
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // Port of the voice activity detector of SILK (libopus 1.6.1 silk/VAD.c; the SSE4.1 variant
     // of libopus computes the same).
@@ -20,4 +20,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     /// </summary>
     void VadGetSaQ8(SilkEncoderState* enc, const std::int16_t in[]) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

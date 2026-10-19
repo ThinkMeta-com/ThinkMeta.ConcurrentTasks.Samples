@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>
     /// The static 48 kHz CELT mode of libopus 1.6.1 (mode48000_960_120, static_modes_float.h):
@@ -56,4 +56,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace CeltMode
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

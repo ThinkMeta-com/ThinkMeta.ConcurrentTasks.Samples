@@ -7,7 +7,7 @@
 
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // Port of the noise shape analysis of the SILK encoder (libopus 1.6.1
     // silk/float/noise_shape_analysis_FLP.c).
@@ -18,4 +18,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     /// </summary>
     void NoiseShapeAnalysis(SilkEncoderStateFlp* enc, SilkEncoderControlFlp* ctrl, const float* pitchRes, const float* x) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

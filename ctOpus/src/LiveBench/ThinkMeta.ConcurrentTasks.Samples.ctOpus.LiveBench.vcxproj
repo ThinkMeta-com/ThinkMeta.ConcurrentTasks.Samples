@@ -23,26 +23,29 @@
   <Import Project="$(CT_ApiDir)Core\ThinkMeta.ConcurrentTasks.Core.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);$(MSBuildThisFileDirectory)..\Encoder;$(MSBuildThisFileDirectory)..\Tasks;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\Shared\src\Shared;$(MSBuildThisFileDirectory);$(MSBuildThisFileDirectory)..\Encoder;$(MSBuildThisFileDirectory)..\Tasks;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\Shared\src\Shared;$(MSBuildThisFileDirectory)..\Encoder;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
   </ItemDefinitionGroup>
-  <!-- CpuCheckEntry.cpp: checks for AVX2 and the rest of /arch:AVX2 before the C runtime starts -->
   <ItemDefinitionGroup>
     <Link>
-      <EntryPointSymbol>CtCpuCheckEntry</EntryPointSymbol>
+      <!-- Shared\CpuCheck: checks the instruction sets of /arch:AVX2 before the C runtime starts -->
+      <EntryPointSymbol>CpuCheckedConsoleStartup</EntryPointSymbol>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\Encoder\CpuCheckEntry.cpp">
-      <PreprocessorDefinitions>CT_CPUCHECK_CRT_ENTRY=wmainCRTStartup;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ctOpusLiveBench.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\src\Shared\ThinkMeta.ConcurrentTasks.Samples.Shared.vcxproj">
+      <Project>{5a4ed000-0001-4000-8000-000000000001}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(CT_ApiDir)Library\ThinkMeta.ConcurrentTasks\ThinkMeta.ConcurrentTasks.vcxproj">
       <Project>{8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2}</Project>
     </ProjectReference>

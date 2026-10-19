@@ -8,10 +8,11 @@
 #include <cstdint>
 #include <cstring>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     namespace {
 
+        // libopusenc: write_uint32() (src/opus_header.c)
         void WriteLe32(std::uint8_t* p, std::uint32_t value) noexcept
         {
             p[0] = static_cast<std::uint8_t>(value & 0xff);
@@ -64,6 +65,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopusenc: opeint_opus_header_to_packet() (src/opus_header.c)
     std::int32_t OpusHead::ToPacket(std::uint8_t* packet, std::int32_t length) const noexcept
     {
         PacketWriter p{packet, length, 0};
@@ -83,6 +85,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return p.pos;
     }
 
+    // libopusenc: opeint_comment_init() (src/opus_header.c)
     bool OpusTags::Initialize(const char* vendor) noexcept
     {
         const auto         vendorLength = static_cast<std::int32_t>(std::strlen(vendor));
@@ -99,6 +102,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
+    // libopusenc: ope_comments_copy() (src/opusenc.c)
     bool OpusTags::CopyFrom(const OpusTags& other) noexcept
     {
         if (!data_.Allocate(static_cast<std::size_t>(other.length_)))
@@ -108,6 +112,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
+    // libopusenc: ope_comments_add() (src/opusenc.c)
     bool OpusTags::Add(const char* tag, const char* value) noexcept
     {
         if (tag == nullptr || value == nullptr || std::strchr(tag, '=') != nullptr)
@@ -115,6 +120,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return AddEntry(tag, value);
     }
 
+    // libopusenc: ope_comments_add_string() (src/opusenc.c)
     bool OpusTags::AddString(const char* tagAndValue) noexcept
     {
         if (std::strchr(tagAndValue, '=') == nullptr)
@@ -122,7 +128,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return AddEntry(nullptr, tagAndValue);
     }
 
-    // opeint_comment_add
+    // libopusenc: opeint_comment_add() (src/opus_header.c)
     bool OpusTags::AddEntry(const char* tag, const char* value) noexcept
     {
         std::uint8_t*       p            = data_.Data();
@@ -145,6 +151,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
+    // libopusenc: opeint_comment_pad() (src/opus_header.c)
     bool OpusTags::Pad(std::int32_t amount) noexcept
     {
         if (amount <= 0)
@@ -157,4 +164,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

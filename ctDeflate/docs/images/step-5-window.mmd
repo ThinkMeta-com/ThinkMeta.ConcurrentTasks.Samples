@@ -4,5 +4,6 @@ flowchart LR
     V -- "block ring" --> E["Huffman coding<br/>×N"]
     E --> S["Assemble<br/>in order"]
     S -- "output window" --> W["Write"]
-    V -. "parse window,<br/>read allowance" .-> P
+    V -. "parse window" .-> P
+    V -. "read allowance" .-> R
     P ~~~ V

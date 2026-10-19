@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>
     /// opus_get_version_string of the libopus float build that ctOpus reproduces; opusenc writes it
@@ -52,4 +52,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     /// <summary>opus_packet_pad: pads a packet in place from len to newLen bytes; an OPUS error code.</summary>
     std::int32_t PacketPad(std::uint8_t* data, std::int32_t len, std::int32_t newLen) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

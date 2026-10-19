@@ -7,12 +7,12 @@
 
 #include <cstdarg>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>Receives printf-style messages of the library (the frontend writes them to stderr).</summary>
-    using ReportFunction = void (*)(const char* format, std::va_list args);
+    using ReportFunction = void (*)(const wchar_t* format, std::va_list args);
 
-    inline void Report(ReportFunction report, const char* format, ...)
+    inline void Report(ReportFunction report, const wchar_t* format, ...)
     {
         if (report == nullptr)
             return;
@@ -22,4 +22,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         va_end(args);
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

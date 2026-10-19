@@ -20,7 +20,7 @@
 
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>Called by the Encode node after every block (or every frame of the sequential graph).</summary>
     struct EncodeProgress {
@@ -54,7 +54,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     /// <summary>
     /// The node Resample (compute scheduler, one task per thread): computes the dispatched blocks of
-    /// 48 kHz output, any block on any worker.
+    /// 48 kHz output, any block on any worker (input at 48 kHz: copies them).
     /// </summary>
     class ResampleTask : public Tasks::Task
     {
@@ -200,4 +200,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::int32_t         result_ = OpeOk;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

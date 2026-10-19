@@ -1,0 +1,19 @@
+// ctLame, a port of the LAME 4.0 MP3 encoder (MPEG-1 Layer III, VBR) to ThinkMeta.ConcurrentTasks.
+// Copyright (c) 2026 ThinkMeta Software GmbH for the port; LAME's copyrights for the original:
+// Copyright (c) 1999-2011 The LAME Project and the authors named in the LAME sources.
+// Licensed under the GNU Library General Public License, version 2 or (at your option) any later
+// version; see COPYING and ctLame-LICENSE.md.
+
+// Version resource of ctLame.exe: the values; the resource itself is Shared/VersionInfo.rc2
+
+#include "ctLameVersion.h"
+
+#define CT_RC_VERSION_MAJOR  CTLAME_VERSION_MAJOR
+#define CT_RC_VERSION_MINOR  CTLAME_VERSION_MINOR
+#define CT_RC_VERSION_PATCH  CTLAME_VERSION_PATCH
+#define CT_RC_VERSION_STRING CTLAME_VERSION_STRING
+#define CT_RC_NAME           "ctLame"
+#define CT_RC_DESCRIPTION    "ctLame MP3 encoder (parallel port of LAME 4.0)"
+#define CT_RC_REFERENCE      "LAME: Copyright (c) 1999-2011 The LAME Project; LGPL"
+
+#include "VersionInfo.rc2"

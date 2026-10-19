@@ -18,6 +18,7 @@
 
 #include <immintrin.h>
 
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -27,6 +28,7 @@
 #include <new>
 
 #include "CeltBands.h"
+#include "EncodeHelpers.h"
 #include "HeapArray.h"
 #include "OpusDefines.h"
 #include "OpusStreamEncoder.h"
@@ -38,7 +40,8 @@ import ThinkMeta.ConcurrentTasks.Synchronization.AutoResetEvent;
 import ThinkMeta.ConcurrentTasks.Synchronization.TaskGroup;
 
 using namespace ThinkMeta::ConcurrentTasks;
-using namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus;
+using namespace ThinkMeta::ConcurrentTasks::Samples::Opus;
+using ThinkMeta::ConcurrentTasks::Samples::Shared::SchedulerHandle;
 
 namespace {
 
@@ -104,83 +107,7 @@ namespace {
         return false;
     }
 
-    // The theta RDO helper (as in the encode pipeline): the encoder hands over a trial and waits
-    // for it a few microseconds later; both sides spin first.
-    class ThetaHelper final : public ThetaTrialRunner
-    {
-    public:
-        ThetaHelper() noexcept : storage_(NewThetaTrial()) {}
-        ~ThetaHelper() { DeleteThetaTrial(storage_); }
-        ThetaHelper(const ThetaHelper&)            = delete;
-        ThetaHelper& operator=(const ThetaHelper&) = delete;
-
-        ThetaTrial* Trial() noexcept override { return storage_; }
-
-        void Start(ThetaTrial* trial) noexcept override
-        {
-            trial_ = trial;
-            InterlockedIncrement64(&posted_);
-            if (sleeping_ != 0)
-                wake_.Set();
-        }
-
-        void Finish() noexcept override
-        {
-            const std::int64_t ticket = posted_;
-            for (std::int32_t spin = 0; done_ != ticket; ++spin) {
-                if (spin < (1 << 14)) {
-                    _mm_pause();
-                    continue;
-                }
-                InterlockedExchange(&waiting_, 1);
-                if (done_ != ticket)
-                    finished_.Wait();
-                InterlockedExchange(&waiting_, 0);
-            }
-        }
-
-        void Stop() noexcept
-        {
-            InterlockedExchange(&stop_, 1);
-            wake_.Set();
-        }
-
-        void Run() noexcept
-        {
-            for (;;) {
-                const std::int64_t seen = done_;
-                for (std::int32_t spin = 0; posted_ == seen && stop_ == 0; ++spin) {
-                    if (spin < (1 << 12)) {
-                        _mm_pause();
-                        continue;
-                    }
-                    InterlockedExchange(&sleeping_, 1);
-                    if (posted_ == seen && stop_ == 0)
-                        wake_.Wait();
-                    InterlockedExchange(&sleeping_, 0);
-                    spin = 0;
-                }
-                if (posted_ == seen)
-                    return;
-                RunThetaTrial(trial_);
-                InterlockedExchange64(&done_, seen + 1);
-                if (waiting_ != 0)
-                    finished_.Set();
-            }
-        }
-
-    private:
-        ThetaTrial* const storage_;
-        ThetaTrial* volatile trial_               = nullptr;
-        alignas(64) volatile std::int64_t posted_ = 0;
-        alignas(64) volatile std::int64_t done_   = 0;
-        alignas(64) volatile long sleeping_       = 0;
-        alignas(64) volatile long waiting_        = 0;
-        alignas(64) volatile long stop_           = 0;
-        Synchronization::AutoResetEvent_s wake_;
-        Synchronization::AutoResetEvent_s finished_;
-    };
-
+    // the theta RDO helper: ThetaHelper of the encode graph (EncodeHelpers.h), here on a task of its own
     class HelperTask : public Tasks::Task
     {
     public:
@@ -200,11 +127,11 @@ namespace {
         std::int32_t            frames     = 0;
         std::int32_t            frameSize  = 0;
         std::uint8_t            packet[1276 * 3];
-        HeapArray<std::int64_t> arrival;                   // per frame: when the dispatcher handed it over
-        HeapArray<float>        latencyMs;                 // per frame: handed over -> encoded
-        HeapArray<float>        lateMs;                    // per frame: scheduled -> handed over (the timer's lateness)
-        HeapArray<float>        encodeUs;                  // per frame: the encoding alone
-        alignas(64) volatile std::int64_t due         = 0; // frames arrived
+        HeapArray<std::int64_t> arrival;              // per frame: when the dispatcher handed it over
+        HeapArray<float>        latencyMs;            // per frame: handed over -> encoded
+        HeapArray<float>        lateMs;               // per frame: scheduled -> handed over (the timer's lateness)
+        HeapArray<float>        encodeUs;             // per frame: the encoding alone
+        alignas(64) std::atomic<std::int64_t> due{0}; // frames arrived
         std::int64_t                      done        = 0;
         HANDLE                            threadEvent = nullptr;
         Synchronization::AutoResetEvent_s taskEvent;
@@ -259,7 +186,7 @@ namespace {
                     set = true;
                 }
                 if (set) {
-                    InterlockedExchange64(&st.due, issued[s]);
+                    st.due.store(issued[s]);
                     if (tasks)
                         st.taskEvent.Set();
                     else
@@ -292,12 +219,12 @@ namespace {
             if (g_spinMs >= 0) {
                 // block until shortly before the frame is due, then spin (the core stays awake)
                 const std::int64_t spinFrom = s.Scheduled(s.done) - static_cast<std::int64_t>(g_spinMs * g_ticksPerMs);
-                while (s.done >= s.due && Now() < spinFrom)
+                while (s.done >= s.due.load(std::memory_order_acquire) && Now() < spinFrom)
                     WaitForSingleObject(s.threadEvent, 1);
-                while (s.done >= s.due)
+                while (s.done >= s.due.load(std::memory_order_acquire))
                     _mm_pause();
             }
-            while (s.done >= s.due)
+            while (s.done >= s.due.load(std::memory_order_acquire))
                 WaitForSingleObject(s.threadEvent, INFINITE);
             s.EncodeFrame();
         }
@@ -312,7 +239,7 @@ namespace {
         void Run() noexcept override
         {
             while (s_.done < s_.frames) {
-                while (s_.done >= s_.due)
+                while (s_.done >= s_.due.load(std::memory_order_acquire))
                     s_.taskEvent.Wait();
                 s_.EncodeFrame();
             }

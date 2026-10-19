@@ -10,7 +10,7 @@
 #include "RangeEncoder.h"
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // Port of the frame level of the SILK encoder (libopus 1.6.1 silk/float/encode_frame_FLP.c,
     // process_gains_FLP.c).
@@ -25,4 +25,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     std::int32_t EncodeFrame(SilkEncoderStateFlp* enc, std::int32_t* nBytesOut, RangeEncoder* rangeEnc, std::int32_t condCoding, std::int32_t maxBits,
                              bool useCbr) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

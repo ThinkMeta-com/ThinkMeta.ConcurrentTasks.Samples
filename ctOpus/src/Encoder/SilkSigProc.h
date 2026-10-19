@@ -12,7 +12,7 @@
 // Port of the small fixed-point signal processing functions of SILK (libopus 1.6.1 silk/*.c)
 // that several parts of the encoder share.
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     /// <summary>silk_lin2log: approximately 128 * log2(inLin).</summary>
     std::int32_t Lin2Log(std::int32_t inLin) noexcept;
@@ -39,4 +39,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     /// <summary>silk_LP_variable_cutoff: the low-pass filter of the bandwidth transitions, in place.</summary>
     void LpVariableCutoff(SilkLpState* lp, std::int16_t* frame, std::int32_t frameLength) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

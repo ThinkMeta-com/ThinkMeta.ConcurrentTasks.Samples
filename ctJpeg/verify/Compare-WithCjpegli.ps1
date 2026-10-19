@@ -27,7 +27,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 # defaults here, not in param(): $PSScriptRoot may be empty there under Windows PowerShell 5.1
-if (-not $Exe) { $Exe = Join-Path $PSScriptRoot '..\src\build\Release\bin\ctJpeg.exe' }
+if (-not $Exe) { $Exe = Join-Path $PSScriptRoot '..\build\Release\bin\ctJpeg.exe' }
 if (-not $Cjpegli) { $Cjpegli = Join-Path $PSScriptRoot '..\bin\cjpegli.exe' }
 foreach ($p in $Exe, $Cjpegli) { if (-not (Test-Path -LiteralPath $p)) { Write-Host "not found: $p" -ForegroundColor Red; exit 1 } }
 $images = @(Get-ChildItem -LiteralPath $ImageDir -File | Where-Object { $_.Extension -match '^\.(ppm|pgm|pnm)$' } | Sort-Object Name)

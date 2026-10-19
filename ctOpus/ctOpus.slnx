@@ -3,17 +3,24 @@
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/ctOpus/">
-    <Project Path="src/ctOpus/ThinkMeta.ConcurrentTasks.Samples.ctOpus.vcxproj" Id="4f707573-0002-4000-8000-000000000003" />
-    <Project Path="src/Gui/ThinkMeta.ConcurrentTasks.Samples.ctOpus.Gui.vcxproj" Id="4f707573-0002-4000-8000-000000000004" />
-    <Project Path="src/LiveBench/ThinkMeta.ConcurrentTasks.Samples.ctOpus.LiveBench.vcxproj" Id="4f707573-0002-4000-8000-000000000005" />
+    <Project Path="src/App/ThinkMeta.ConcurrentTasks.Samples.ctOpus.vcxproj" Id="4f707573-0002-4000-8000-000000000003" />
     <Project Path="src/Encoder/ThinkMeta.ConcurrentTasks.Samples.ctOpus.Encoder.vcxproj" Id="4f707573-0002-4000-8000-000000000001" />
     <Project Path="src/Tasks/ThinkMeta.ConcurrentTasks.Samples.ctOpus.Tasks.vcxproj" Id="4f707573-0002-4000-8000-000000000002" />
+    <Project Path="src/Tests/ThinkMeta.ConcurrentTasks.Samples.ctOpus.Tests.vcxproj" Id="4f707573-0002-4000-8000-000000000006" />
+  </Folder>
+  <Folder Name="/Extras/">
+    <Project Path="src/Gui/ThinkMeta.ConcurrentTasks.Samples.ctOpus.Gui.vcxproj" Id="4f707573-0002-4000-8000-000000000004" />
+    <Project Path="src/LiveBench/ThinkMeta.ConcurrentTasks.Samples.ctOpus.LiveBench.vcxproj" Id="4f707573-0002-4000-8000-000000000005" />
   </Folder>
   <Folder Name="/opusenc/">
     <Project Path="opus/opus-tools-0.2/opusenc.vcxproj" Id="4f707573-0001-4000-8000-000000000005" />
     <Project Path="opus/libopusenc-0.2.1/libopusenc.vcxproj" Id="4f707573-0001-4000-8000-000000000004" />
     <Project Path="opus/libogg-1.3.6/libogg.vcxproj" Id="aff27a26-c088-444b-bc2a-0ba94a02afa7" />
     <Project Path="opus/opus-1.6.1/libopus.vcxproj" Id="4f707573-0001-4000-8000-000000000001" />
+  </Folder>
+  <Folder Name="/Shared/">
+    <Project Path="../Shared/src/Shared/ThinkMeta.ConcurrentTasks.Samples.Shared.vcxproj" Id="5a4ed000-0001-4000-8000-000000000001" />
+    <Project Path="../Shared/src/Tests/ThinkMeta.ConcurrentTasks.Samples.Shared.Tests.vcxproj" Id="5a4ed000-0002-4000-8000-000000000002" />
   </Folder>
   <Folder Name="/ThinkMeta.ConcurrentTasks/">
     <Project Path="../ThinkMeta.ConcurrentTasks.API/Library/ThinkMeta.ConcurrentTasks/ThinkMeta.ConcurrentTasks.vcxproj" Id="8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2" />

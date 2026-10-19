@@ -19,22 +19,36 @@
 
     Exit code: 0 if every case is identical, 1 otherwise.
 
+    Parameters, the same in the Verify script of every sample:
+      -Mode Compare|Reference  Compare (default) checks -Exe; Reference writes the table with -Oracle.
+      -Matrix                  the test matrix; -HashFile the table (default: the one of the matrix here).
+      -Exe                     the program to check (default: build\Release\bin\ctDeflate.exe).
+      -Oracle                  the reference program (default: bin\gzip.exe).
+      -ExtraArgs               options for -Exe only (e.g. '--threads 4', '--sequential').
+      -Repeat n                every case n times; all outputs must match (catches thread-timing dependent output).
+      -ThrottleLimit, -WorkDir cases run at once and the folder of the temporary outputs.
+      -TimeoutSec              a run beyond it counts as a hang: killed, exit code 'timeout'.
+    -Jobs, the name of earlier versions for -ThrottleLimit, still works.
+
 .EXAMPLE
     pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe
-    pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe -Matrix Quick -ExtraArgs '--threads 2 --chunk 4096'
+    pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe -Matrix Quick -ExtraArgs '--threads 2 --chunk 4096' -Repeat 2
     pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe -Files D:\Data -Levels 1,6,9
 #>
 param(
-    [ValidateSet('Compare', 'Reference')] [string] $Mode = 'Compare',
-    [ValidateSet('Generated', 'Quick', 'Full')] [string] $Matrix = 'Generated',
-    [string] $Exe = '',
-    [string] $ExtraArgs = '',
-    [string[]] $Files = @(),
-    [string] $Levels = '1,6,9',
-    [string] $Corpus = '',
-    [string] $Oracle = '',
-    [int] $Jobs = 8,
-    [int] $TimeoutSec = 300
+    [ValidateSet('Reference', 'Compare')][string]$Mode = 'Compare',
+    [ValidateSet('Generated', 'Quick', 'Full')][string]$Matrix = 'Generated',
+    [string]$Exe = '',
+    [string]$Oracle = '',
+    [string]$HashFile = '',
+    [string]$ExtraArgs = '',
+    [ValidateRange(1, 100)][int]$Repeat = 1,
+    [Alias('Jobs')][int]$ThrottleLimit = 8, # ctDeflate itself runs on all logical processors
+    [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) 'ctDeflateVerify'),
+    [int]$TimeoutSec = 300,
+    [string[]]$Files = @(),
+    [string]$Levels = '1,6,9',
+    [string]$Corpus = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,9 +59,11 @@ if (-not $Oracle) { $Oracle = Join-Path $root 'bin\gzip.exe' }
 if (-not $Corpus) { $Corpus = Join-Path $PSScriptRoot 'corpus' }
 $Exe = (Resolve-Path -LiteralPath $Exe).Path
 $Oracle = (Resolve-Path -LiteralPath $Oracle).Path
+if (-not $HashFile) { $HashFile = Join-Path $PSScriptRoot "Reference-Hashes-$Matrix.csv" }
+if ($Mode -eq 'Reference' -and ($ExtraArgs -or $Repeat -gt 1)) { throw '-ExtraArgs and -Repeat are for compare runs only.' }
 
-$tmp = Join-Path ([IO.Path]::GetTempPath()) ('ctDeflateVerify-' + [guid]::NewGuid())
-New-Item -ItemType Directory $tmp | Out-Null
+$tmp = Join-Path $WorkDir ([guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Force $tmp | Out-Null
 
 # Deterministic synthetic inputs (xorshift64*), the same on every machine.
 function New-GeneratedInputs([string]$dir) {
@@ -118,7 +134,8 @@ try {
         $live = $false
     }
 
-    $results = $cases | ForEach-Object -ThrottleLimit $Jobs -Parallel {
+    $runs = foreach ($c in $cases) { for ($n = 0; $n -lt $Repeat; $n++) { [pscustomobject]@{ Path = $c.Path; Name = $c.Name; Level = $c.Level; Run = $n } } }
+    $results = $runs | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
         $case = $_
         function Invoke-Case([string]$exe, [string[]]$arguments, [int]$timeoutSec) {
             $psi = [Diagnostics.ProcessStartInfo]::new($exe)
@@ -127,14 +144,14 @@ try {
             $psi.RedirectStandardError = $true
             $proc = [Diagnostics.Process]::Start($psi)
             $null = $proc.StandardError.ReadToEndAsync()
-            if (-not $proc.WaitForExit($timeoutSec * 1000)) { $proc.Kill(); $proc.WaitForExit(); return 'HANG' }
+            if (-not $proc.WaitForExit($timeoutSec * 1000)) { $proc.Kill(); $proc.WaitForExit(); return 'timeout' }
             return $proc.ExitCode
         }
         function Get-Sha([string]$path) { if (Test-Path -LiteralPath $path) { (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash } else { '' } }
 
         $out = Join-Path $using:tmp ([guid]::NewGuid().ToString() + '.gz')
         $hash = ''; $size = 0; $code = 0; $ref = ''
-        if ($using:Mode -eq 'Reference' -or $using:live) {
+        if ($using:Mode -eq 'Reference' -or ($using:live -and $case.Run -eq 0)) {
             # gzip.exe -c writes to stdout; cmd redirection keeps the bytes unchanged
             $refOut = "$out.ref"
             cmd /c "`"$using:Oracle`" -c -$($case.Level) `"$($case.Path)`" > `"$refOut`""
@@ -151,27 +168,27 @@ try {
             $size = if (Test-Path -LiteralPath $out) { (Get-Item -LiteralPath $out).Length } else { 0 }
             Remove-Item -LiteralPath $out -ErrorAction SilentlyContinue
         }
-        [pscustomobject]@{ File = $case.Name; Level = $case.Level; ExitCode = $code; Size = $size; Sha256 = $hash; Oracle = $ref }
+        [pscustomobject]@{ File = $case.Name; Level = $case.Level; Run = $case.Run; ExitCode = $code; Size = $size; Sha256 = $hash; Oracle = $ref }
     }
 
     if ($Mode -eq 'Reference') {
-        $table = Join-Path $PSScriptRoot "Reference-Hashes-$Matrix.csv"
-        $results | Sort-Object File, Level | Select-Object File, Level, Size, Sha256 | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $table
-        Write-Host "reference: $($results.Count) cases -> $table"
+        $results | Sort-Object File, Level | Select-Object File, Level, Size, Sha256 | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $HashFile
+        Write-Host "reference: $($results.Count) cases -> $HashFile"
         exit 0
     }
 
     if ($live) {
         $expected = @{}
-        foreach ($r in $results) { $expected["$($r.File)|$($r.Level)"] = $r.Oracle }
+        foreach ($r in $results | Where-Object Run -EQ 0) { $expected["$($r.File)|$($r.Level)"] = $r.Oracle }
     } else {
         $expected = @{}
-        foreach ($r in Import-Csv -LiteralPath (Join-Path $PSScriptRoot "Reference-Hashes-$Matrix.csv")) { $expected["$($r.File)|$($r.Level)"] = $r.Sha256 }
+        foreach ($r in Import-Csv -LiteralPath $HashFile) { $expected["$($r.File)|$($r.Level)"] = $r.Sha256 }
     }
     $bad = @($results | Where-Object { $_.ExitCode -ne 0 -or -not $_.Sha256 -or $_.Sha256 -ne $expected["$($_.File)|$($_.Level)"] })
-    foreach ($b in $bad | Sort-Object File, Level) {
-        $why = if ($b.ExitCode -eq 'HANG') { 'hang' } elseif ($b.ExitCode -ne 0) { "exit code $($b.ExitCode)" } else { 'different bytes' }
-        Write-Host ("DIFFERENT {0} -{1}: {2}" -f $b.File, $b.Level, $why) -ForegroundColor Red
+    foreach ($b in $bad | Sort-Object File, Level, Run) {
+        $why = if ($b.ExitCode -eq 'timeout') { 'hang' } elseif ($b.ExitCode -ne 0) { "exit code $($b.ExitCode)" } else { 'different bytes' }
+        $run = if ($Repeat -gt 1) { " (run $($b.Run + 1))" } else { '' }
+        Write-Host ("DIFFERENT {0} -{1}: {2}{3}" -f $b.File, $b.Level, $why, $run) -ForegroundColor Red
     }
     $label = if ($live) { 'files' } else { $Matrix }
     Write-Host ("{0}/{1} identical ({2}{3})" -f ($results.Count - $bad.Count), $results.Count, $label, $(if ($ExtraArgs) { ", $ExtraArgs" }))

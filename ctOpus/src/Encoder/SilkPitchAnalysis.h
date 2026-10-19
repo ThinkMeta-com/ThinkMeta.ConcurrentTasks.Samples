@@ -9,7 +9,7 @@
 
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // Port of the pitch analysis of the SILK encoder (libopus 1.6.1 silk/float/find_pitch_lags_FLP.c,
     // pitch_analysis_core_FLP.c).
@@ -20,4 +20,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     /// </summary>
     void FindPitchLags(SilkEncoderStateFlp* enc, SilkEncoderControlFlp* ctrl, float res[], const float x[], std::int32_t arch) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

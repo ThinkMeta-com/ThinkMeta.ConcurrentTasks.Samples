@@ -39,6 +39,8 @@
     <ClInclude Include="OpusMultistreamEncoder.h" />
     <ClInclude Include="CeltMath.h" />
     <ClInclude Include="CeltEncoder.h" />
+    <ClInclude Include="CeltSpeculation.h" />
+    <ClInclude Include="IntMath.h" />
     <ClInclude Include="RangeEncoder.h" />
     <ClInclude Include="CeltMode.h" />
     <ClInclude Include="CeltMdct.h" />
@@ -86,6 +88,7 @@
     <ClCompile Include="OpusMultistreamEncoder.cpp" />
     <ClCompile Include="KissFft.cpp" />
     <ClCompile Include="CeltEncoder.cpp" />
+    <ClCompile Include="CeltSpeculation.cpp" />
     <ClCompile Include="RangeEncoder.cpp" />
     <ClCompile Include="CeltMode.cpp" />
     <ClCompile Include="CeltMdct.cpp" />

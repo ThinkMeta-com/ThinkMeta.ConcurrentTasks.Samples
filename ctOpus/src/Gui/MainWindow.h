@@ -12,7 +12,7 @@
 #include "LoadTest.h"
 #include "SignalSource.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     /// <summary>Options for unattended runs (smoke tests): start right away, stop after a while, write a summary.</summary>
     struct CommandLine {
@@ -152,4 +152,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         std::int32_t loadCount_               = 0;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

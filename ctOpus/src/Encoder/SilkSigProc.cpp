@@ -11,7 +11,7 @@
 #include "SilkMacros.h"
 #include "SilkTables.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     std::int32_t Lin2Log(std::int32_t inLin) noexcept
     {
@@ -190,4 +190,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
         BiquadAltStride1(frame, bQ28, aQ28, lp->In_LP_State, frame, frameLength);
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

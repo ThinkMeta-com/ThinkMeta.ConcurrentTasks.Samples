@@ -11,7 +11,7 @@
 
 // The constants of the SILK encoder (libopus 1.6.1 silk/define.h, silk/tuning_parameters.h).
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // define.h
     constexpr std::int32_t NbSpeechFramesBeforeDtx       = 10; // 200 ms
@@ -93,4 +93,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     constexpr float        LambdaCodingQuality                 = -0.2f;
     constexpr float        LambdaQuantOffset                   = 0.8f;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

@@ -19,7 +19,7 @@
 #include "FrameCodec.h"
 #include "MainWindow.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     namespace {
 
@@ -1360,4 +1360,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         Text(dc, x, y, TextColor, L"Clock thread worst lateness %.2f ms (included above)", s.pacerLateMs);
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

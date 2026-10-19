@@ -9,7 +9,7 @@
 
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // Port of the fixed-point LPC/NLSF functions of SILK (libopus 1.6.1 silk/A2NLSF.c, NLSF2A.c,
     // LPC_fit.c, bwexpander_32.c, LPC_inv_pred_gain.c, interpolate.c, process_NLSFs.c,
@@ -32,4 +32,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     void ProcessNlsfs(SilkEncoderState* enc, std::int16_t predCoefQ12[2][SilkMaxLpcOrder], std::int16_t nlsfQ15[SilkMaxLpcOrder],
                       const std::int16_t prevNlsfqQ15[SilkMaxLpcOrder]) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

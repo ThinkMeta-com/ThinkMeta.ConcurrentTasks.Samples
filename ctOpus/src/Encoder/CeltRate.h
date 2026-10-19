@@ -10,7 +10,7 @@
 #include "CeltMode.h"
 #include "RangeEncoder.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     // Port of the bit allocation of libopus 1.6.1 (celt/rate.c, celt/rate.h, init_caps of
     // celt/celt.c) for the static 48 kHz mode, encoder side.
@@ -62,4 +62,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                                    std::int32_t* ebits, std::int32_t* finePriority, std::int32_t c, std::int32_t lm, RangeEncoder* ec, std::int32_t prev,
                                    std::int32_t signalBandwidth) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

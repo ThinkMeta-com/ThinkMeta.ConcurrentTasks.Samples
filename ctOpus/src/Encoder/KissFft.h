@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     struct FftComplex {
         float r;
@@ -36,4 +36,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     /// <summary>opus_fft_impl: the butterflies on bit-reversed data in place.</summary>
     void FftImpl(const FftState& st, FftComplex* fout) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

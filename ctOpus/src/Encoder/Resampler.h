@@ -9,7 +9,7 @@
 
 #include "HeapArray.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>
     /// Port of the Speex resampler in libopusenc 0.2.1 (resample.c) as libopusenc uses it:
@@ -113,4 +113,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         HeapArray<std::uint32_t> sampFracNum_;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

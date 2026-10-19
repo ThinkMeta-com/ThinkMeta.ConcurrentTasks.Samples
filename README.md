@@ -17,6 +17,7 @@ to the reference, but the code itself has not yet been reviewed line by line.
 | [`ctOpus\`](ctOpus) | opusenc (opus-tools 0.2, libopus 1.6.1) | source code, prebuilt binaries, benchmark, live encoding |
 | [`ctDeflate\`](ctDeflate) | libdeflate 1.26 (gzip) | source code, prebuilt binaries, benchmark |
 | [`ctJpeg\`](ctJpeg) | jpegli (JPEG, google/jpegli @ 031a007) | source code, prebuilt binaries, benchmark |
+| [`Shared\`](Shared) | - | the code all four share (console output, version resource, CPU check, task setup, `--stats`), a static library |
 | [`ThinkMeta.ConcurrentTasks.API\`](https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.API) | - | the public API of the scheduler, as a submodule ([below](#thinkmetaconcurrenttasks-api)) |
 
 Clone with the submodule:

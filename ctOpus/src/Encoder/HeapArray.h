@@ -9,11 +9,15 @@
 
 #include <cstddef>
 #include <cstring>
+#include <type_traits>
 #include <utility>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
-    /// <summary>Array of trivially copyable elements on the process heap (HeapAlloc), zero-initialised.</summary>
+    /// <summary>
+    /// Array of trivially copyable elements on the process heap (HeapAlloc), zero-initialised: no
+    /// constructors or destructors run, and Grow moves the bytes.
+    /// </summary>
     template <typename T>
     class HeapArray
     {
@@ -39,6 +43,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         /// <summary>Replaces the contents by count zeroed elements; false if out of memory.</summary>
         bool Allocate(std::size_t count) noexcept
         {
+            static_assert(std::is_trivially_copyable_v<T>, "HeapArray runs no constructors or destructors");
             Free();
             if (count == 0)
                 return true;
@@ -52,6 +57,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         /// <summary>Grows to count elements, keeping the contents; new elements are zeroed.</summary>
         bool Grow(std::size_t count) noexcept
         {
+            static_assert(std::is_trivially_copyable_v<T>, "HeapArray moves the elements as bytes");
             if (count <= size_)
                 return true;
             if (data_ == nullptr)
@@ -83,4 +89,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::size_t size_ = 0;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

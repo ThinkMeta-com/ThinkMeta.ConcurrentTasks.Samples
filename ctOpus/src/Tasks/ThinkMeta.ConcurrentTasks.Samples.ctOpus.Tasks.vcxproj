@@ -21,7 +21,7 @@
   <Import Project="$(CT_ApiDir)Core\ThinkMeta.ConcurrentTasks.Core.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\Encoder;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\Shared\src\Shared;$(MSBuildThisFileDirectory)..\Encoder;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -30,7 +30,6 @@
     <ClInclude Include="EncodeTasks.h" />
     <ClInclude Include="FileIo.h" />
     <ClInclude Include="GraphEdges.h" />
-    <ClInclude Include="SchedulerHandle.h" />
     <ClInclude Include="ToneChain.h" />
   </ItemGroup>
   <ItemGroup>
@@ -42,9 +41,11 @@
   <ItemGroup>
     <ProjectReference Include="$(CT_ApiDir)Library\ThinkMeta.ConcurrentTasks\ThinkMeta.ConcurrentTasks.vcxproj">
       <Project>{8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
     <ProjectReference Include="..\Encoder\ThinkMeta.ConcurrentTasks.Samples.ctOpus.Encoder.vcxproj">
       <Project>{4f707573-0002-4000-8000-000000000001}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

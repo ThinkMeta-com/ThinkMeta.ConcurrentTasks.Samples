@@ -13,7 +13,7 @@
 #include "SilkState.h"
 #include "ToneAnalysis.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     // Internal request numbers of libopus (opus_private.h)
     constexpr std::int32_t OpusSetForceModeRequest  = 11002;
@@ -56,11 +56,6 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         float            dcRejected[2 * 960];
     };
 
-    /// <summary>
-    /// The tonality analysis of the streams, computed on a chain of its own ahead of the encoder:
-    /// the analysis state depends only on the input, the reads of the encoder only on their own
-    /// read position (ToneAnalysis::GetInfoFrom).
-    /// </summary>
     /// <summary>What a chain needs to compute the CELT front parts again from frame `call` on.</summary>
     struct FrontSync {
         CeltEncoder::FrontState  state;   // the CELT front state after the frame before
@@ -69,6 +64,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::int32_t             readSubframe;
     };
 
+    /// <summary>
+    /// The tonality analysis of the streams, computed on a chain of its own ahead of the encoder:
+    /// the analysis state depends only on the input, the reads of the encoder only on their own
+    /// read position (ToneAnalysis::GetInfoFrom).
+    /// </summary>
     class ToneAnalysisSource
     {
     public:
@@ -279,4 +279,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         float            delayBuffer_[MaxEncoderBuffer * 2] = {};
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

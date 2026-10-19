@@ -8,6 +8,7 @@
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 
@@ -20,7 +21,7 @@ import ThinkMeta.ConcurrentTasks.Synchronization.AutoResetEvent;
 import ThinkMeta.ConcurrentTasks.Synchronization.TaskGroup;
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>
     /// A bounded pipe of fixed-size blocks between one producer and one consumer, which may run on
@@ -74,16 +75,16 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::uint32_t  blockSize_  = 0;
 
         // producer side
-        std::int64_t writeAcquired_                  = 0;
-        alignas(64) volatile std::int64_t committed_ = 0;
+        std::int64_t writeAcquired_ = 0;
+        alignas(64) std::atomic<std::int64_t> committed_{0};
         // consumer side
-        std::int64_t readAcquired_                  = 0;
-        alignas(64) volatile std::int64_t released_ = 0;
-        alignas(64) volatile long endOfStream_      = 0;
-        volatile long closed_                       = 0;
+        std::int64_t readAcquired_ = 0;
+        alignas(64) std::atomic<std::int64_t> released_{0};
+        alignas(64) std::atomic<bool> endOfStream_{false};
+        std::atomic<bool>                 closed_{false};
 
-        Synchronization::AutoResetEvent_s dataAvailable_;
-        Synchronization::AutoResetEvent_s spaceAvailable_;
+        Synchronization::AutoResetEvent_s dataAvailable_;  // one waiter: the consumer
+        Synchronization::AutoResetEvent_s spaceAvailable_; // one waiter: the producer
     };
 
     /// <summary>
@@ -169,7 +170,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         bool HasOutput() const noexcept { return writer_ != nullptr; }
 
         /// <summary>Starts the attached nodes on the running I/O scheduler.</summary>
-        void Start(SchedulerHandle& io) noexcept;
+        void Start(ITaskScheduler& io) noexcept;
 
         /// <summary>Appends bytes to the output (the encoder's write callback); false after a failure.</summary>
         bool Write(const std::uint8_t* data, std::int32_t length) noexcept;
@@ -196,4 +197,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         Synchronization::TaskGroup group_;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

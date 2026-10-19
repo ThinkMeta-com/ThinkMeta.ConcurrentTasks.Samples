@@ -9,7 +9,7 @@
 
 #include "RangeEncoder.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     // Port of the pyramid vector quantiser of libopus 1.6.1 (celt/vq.c, celt/x86/vq_sse2.c,
     // celt/cwrs.c), float build, encoder side.
@@ -23,4 +23,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     /// <summary>stereo_itheta: the angle between mid and side (or X and Y) in Q30 of a quarter turn.</summary>
     std::int32_t StereoItheta(const float* x, const float* y, bool stereo, std::int32_t n) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

@@ -13,7 +13,7 @@
 #include "OpusMultistreamEncoder.h"
 #include "Resampler.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     // libopusenc error codes (opusenc.h)
     constexpr std::int32_t OpeOk            = 0;
@@ -188,4 +188,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         OpusTags     comment_;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

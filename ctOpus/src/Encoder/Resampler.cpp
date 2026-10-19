@@ -5,13 +5,15 @@
 
 #include "Resampler.h"
 
+#include "IntMath.h"
+
 #include <immintrin.h>
 
 #include <climits>
 #include <cmath>
 #include <cstdint>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     namespace {
 
@@ -30,7 +32,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         constexpr double Pi = 3.14159265358979323846;
 
-        // compute_func: cubic interpolation of the window table at x in [0, 1].
+        // libopusenc: compute_func() (src/resample.c): cubic interpolation of the window table at x in [0, 1].
         double WindowAt(float x) noexcept
         {
             const float        y    = x * Kaiser10Oversample;
@@ -45,7 +47,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 + interp[3] * Kaiser10Table[ind + 3];
         }
 
-        // sinc (floating point build): the windowed sinc tap at offset x of an n-tap filter.
+        // libopusenc: sinc() (src/resample.c) (floating point build): the windowed sinc tap at offset x of an n-tap filter.
         float Sinc(float cutoff, float x, std::int32_t n) noexcept
         {
             const float xx = x * cutoff;
@@ -56,7 +58,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return static_cast<float>(cutoff * std::sin(Pi * xx) / (Pi * xx) * WindowAt(static_cast<float>(std::fabs(2. * x / n))));
         }
 
-        // multiply_frac: value * num / den without 32-bit overflow; false on overflow.
+        // libopusenc: multiply_frac() (src/resample.c): value * num / den without 32-bit overflow; false on overflow.
         bool MultiplyFrac(std::uint32_t& result, std::uint32_t value, std::uint32_t num, std::uint32_t den) noexcept
         {
             const std::uint32_t major  = value / den;
@@ -67,17 +69,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return true;
         }
 
-        std::uint32_t Gcd(std::uint32_t a, std::uint32_t b) noexcept
-        {
-            while (b != 0) {
-                const std::uint32_t t = a;
-                a                     = b;
-                b                     = t % b;
-            }
-            return a;
-        }
-
-        // inner_product_single of resample_sse.h: four lanes over the taps, then (s0 + s2) + (s1 + s3).
+        // libopusenc: inner_product_single() (src/resample_sse.h): four lanes over the taps, then (s0 + s2) + (s1 + s3).
         float InnerProduct(const float* a, const float* b, std::uint32_t len) noexcept
         {
             __m128 sum = _mm_setzero_ps();
@@ -92,6 +84,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopusenc: speex_resampler_init() (src/resample.c) with speex_resampler_skip_zeros()
     bool Resampler::Initialize(std::int32_t channels, std::uint32_t inRate, std::uint32_t outRate) noexcept
     {
         if (channels <= 0 || inRate == 0 || outRate == 0)
@@ -111,7 +104,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
-    // update_filter for a fresh resampler.
+    // libopusenc: update_filter() (src/resample.c) for a fresh resampler.
     bool Resampler::BuildFilter() noexcept
     {
         intAdvance_  = static_cast<std::int32_t>(numRate_ / denRate_);
@@ -140,11 +133,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
+    // libopusenc: speex_resampler_get_output_latency() (src/resample.c)
     std::int32_t Resampler::OutputLatency() const noexcept
     {
         return static_cast<std::int32_t>(((filtLen_ / 2) * denRate_ + (numRate_ >> 1)) / numRate_);
     }
 
+    // libopusenc: speex_resampler_process_interleaved_float() (src/resample.c)
     void Resampler::ProcessInterleaved(const float* in, std::uint32_t& inLen, float* out, std::uint32_t& outLen) noexcept
     {
         const std::uint32_t inBackup  = inLen;
@@ -158,7 +153,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         stride_ = 1;
     }
 
-    // speex_resampler_process_float with speex_resampler_process_native (no magic samples).
+    // libopusenc: speex_resampler_process_float() (src/resample.c) with speex_resampler_process_native (no magic samples).
     void Resampler::ProcessChannel(std::int32_t channel, const float* in, std::uint32_t& inLen, float* out, std::uint32_t& outLen) noexcept
     {
         std::uint32_t       ilen     = inLen;
@@ -187,7 +182,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         outLen -= olen;
     }
 
-    // resampler_basic_direct_single with the SSE inner product.
+    // libopusenc: resampler_basic_direct_single() (src/resample.c) with the SSE inner product.
     std::uint32_t Resampler::Kernel(std::int32_t channel, const float* mem, std::uint32_t inLen, float* out, std::uint32_t outLen) noexcept
     {
         std::int32_t  lastSample  = lastSample_[channel];
@@ -211,7 +206,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     // --- LiveResampler ---------------------------------------------------------------------------
 
-    // speex_resampler_init + skip_zeros, update_filter with the interpolated table.
+    // libopusenc: speex_resampler_init() (src/resample.c) + skip_zeros, update_filter with the interpolated table.
     bool LiveResampler::Initialize(std::int32_t channels, std::uint32_t inRate, std::uint32_t outRate) noexcept
     {
         if (channels <= 0 || inRate == 0 || outRate == 0)
@@ -256,7 +251,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
-    // speex_resampler_set_rate_frac with the ratio in units of 1 / RatioDen; the table stays.
+    // libopusenc: speex_resampler_set_rate_frac() (src/resample.c) with the ratio in units of 1 / RatioDen; the table stays.
     void LiveResampler::SetRatio(double ratio) noexcept
     {
         if (!(ratio > 0) || ratio > 256)
@@ -275,11 +270,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         fracAdvance_ = static_cast<std::int32_t>(numRate_ % denRate_);
     }
 
+    // libopusenc: speex_resampler_get_output_latency() (src/resample.c)
     std::int32_t LiveResampler::OutputLatency() const noexcept
     {
         return static_cast<std::int32_t>(((filtLen_ / 2) / nominalRatio_) + .5);
     }
 
+    // libopusenc: speex_resampler_process_interleaved_float() (src/resample.c)
     void LiveResampler::ProcessInterleaved(const float* in, std::uint32_t& inLen, float* out, std::uint32_t& outLen) noexcept
     {
         const std::uint32_t inBackup  = inLen;
@@ -293,7 +290,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         stride_ = 1;
     }
 
-    // speex_resampler_process_float with speex_resampler_process_native (no magic samples).
+    // libopusenc: speex_resampler_process_float() (src/resample.c) with speex_resampler_process_native (no magic samples).
     void LiveResampler::ProcessChannel(std::int32_t channel, const float* in, std::uint32_t& inLen, float* out, std::uint32_t& outLen) noexcept
     {
         std::uint32_t       ilen     = inLen;
@@ -322,7 +319,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         outLen -= olen;
     }
 
-    // resampler_basic_interpolate_single (floating point build, generic inner loop).
+    // libopusenc: resampler_basic_interpolate_single() (src/resample.c) (floating point build, generic inner loop).
     std::uint32_t LiveResampler::Kernel(std::int32_t channel, const float* mem, std::uint32_t inLen, float* out, std::uint32_t outLen) noexcept
     {
         std::int32_t       lastSample  = lastSample_[channel];
@@ -366,4 +363,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return produced;
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

@@ -20,7 +20,7 @@ ctDeflate was created **AI-assisted**, using ThinkMeta.ConcurrentTasks: AI codin
 | Folder / file | Contents |
 |---|---|
 | `bin\` | `ctDeflate.exe` (the compressor), `gzip.exe` (the reference: the official libdeflate 1.26 Windows x64 release build), `ThinkMeta.ConcurrentTasks.Core.dll` (scheduler core) |
-| `src\` | The source code of ctDeflate: the engine (the port of libdeflate's compressor), the task graph, the program and the unit tests |
+| `src\` | The source code of ctDeflate: `App\` (the program), `Encoder\` (the port of libdeflate's compressor, without task code), `Tasks\` (the task graph) and `Tests\` (unit tests); the code all samples share (console output, version resource, CPU check, task setup, `--stats`) is in [`..\Shared`](../Shared/README.md); see [Reading the code](#reading-the-code) |
 | `ctDeflate.slnx` | Builds ctDeflate, its unit tests and `gzip.exe` with Visual Studio 2026 (see [Building](#building)) |
 | `verify\` | `Verify-Deflate.ps1` and its reference hashes: checks a ctDeflate.exe byte for byte against `gzip.exe` |
 | `libdeflate\` | The libdeflate 1.26 sources with Visual Studio projects for the library and `gzip.exe` |
@@ -143,7 +143,7 @@ ctDeflate reads and writes the files in streaming mode; only the chunks in fligh
 
 The 5.2 GB file takes 7.3 s at level 6 against 28.8 s for `gzip.exe` (4.0×), with the same output.
 
-<!-- BENCHMARK: peak working set (ctDeflate -v) for enwik9 -->
+<!-- BENCHMARK: peak working set (ctDeflate --stats) for enwik9 -->
 
 ---
 
@@ -167,7 +167,7 @@ flowchart LR
         E["Huffman coding ×N<br/>same workers"]
         S["Assemble<br/>in order"]
     end
-    subgraph own ["own thread"]
+    subgraph own ["the calling thread"]
         V["Resolve<br/>in order"]
     end
     subgraph io2 ["I/O scheduler"]
@@ -184,9 +184,9 @@ flowchart LR
 graph, with the reason and the measured gain of each step.
 
 1. **Speculative chunk parses:** worker tasks parse 1 MiB chunks of the input in parallel, each as if a block started there, with libdeflate's matchfinder rebuilt from the 32 KiB before the chunk. Where the minimum match length is uncertain, a chunk follows several parse paths at once; they share the match searches and split only where the decision differs.
-2. **Resolver:** one task replays libdeflate's block logic over the chunk parses in order. Where a chunk's parse meets the true parse (same position, same minimum match length) it takes over; where none does, the resolver re-parses exactly. The result is libdeflate's exact sequence of literals and matches and its exact block boundaries.
+2. **Resolver:** one serial stage, on the calling thread, replays libdeflate's block logic over the chunk parses in order. Where a chunk's parse meets the true parse (same position, same minimum match length) it takes over; where none does, the resolver re-parses exactly. The result is libdeflate's exact sequence of literals and matches and its exact block boundaries.
 3. **Encode and stitch:** resolved blocks are Huffman-coded in parallel while the resolver goes on, and appended to the output in order; an uncompressed block is chosen by the actual bit offset, as libdeflate does.
-4. **Streaming:** reading and writing are tasks of their own with overlapped file I/O on an I/O scheduler; only the chunks in flight are in memory (a 5.2 GB file compresses with less than 150 MB, enwik9 with 130 to 165 MB against 1.3 GB for `gzip.exe`).
+4. **Streaming:** reading and writing are tasks of their own with overlapped file I/O on an I/O scheduler; only the chunks in flight are in memory (a 5.2 GB file compresses with less than 150 MB, enwik9 with 130 to 165 MB against 1.3 GB for `gzip.exe`). Back-pressure keeps it so: Resolve waits when the ring of blocks is full, assembling waits when 16 MB of output are not yet written.
 5. **Bit identity:** every change is checked against the reference on a corpus of real files at all levels and with 1 to 16 threads.
 
 ---
@@ -203,7 +203,7 @@ What ctDeflate reproduces is the output of `libdeflate_gzip_compress()`, which `
 
 ## Building
 
-You need **Visual Studio 2026** with the workload "Desktop development with C++" (MSVC v145, x64). ctDeflate uses C++ modules, and the scheduler's library is consumed as C++ modules from the API submodule.
+You need **Visual Studio 2026** with the workload "Desktop development with C++" (MSVC v145, x64). ctDeflate's own code is classic headers and `.cpp` files; the scheduler's library is consumed as C++ modules from the API submodule.
 
 Clone to a short path such as `C:\src`; deeply nested folders can exceed the 260-character limit of the build tools.
 
@@ -223,7 +223,7 @@ Run `msbuild` from a "Developer Command Prompt for VS 2026", or open `ctDeflate.
 This build uses the DLL C runtime (part of Visual Studio). `bin\ctDeflate.exe` is linked with the static C runtime; to build it that way:
 
 ```cmd
-msbuild src\ThinkMeta.ConcurrentTasks.Samples.ctDeflate\ThinkMeta.ConcurrentTasks.Samples.ctDeflate.vcxproj /p:Configuration=Release /p:Platform=x64 /p:ForceImportAfterCppProps=%CD%\props\StaticCrt.props
+msbuild src\App\ThinkMeta.ConcurrentTasks.Samples.ctDeflate.vcxproj /p:Configuration=Release /p:Platform=x64 /p:ForceImportAfterCppProps=%CD%\props\StaticCrt.props
 ```
 
 (output in `build\ReleaseStatic\bin\`). A program you build yourself is not byte for byte the same file as `bin\ctDeflate.exe` (compiler version, paths, time stamps), but its **output must be bit-identical** to `gzip.exe`'s, like that of `bin\ctDeflate.exe`.
@@ -234,7 +234,7 @@ msbuild src\ThinkMeta.ConcurrentTasks.Samples.ctDeflate\ThinkMeta.ConcurrentTask
 
 ```cmd
 pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe
-pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe -ExtraArgs "--threads 2 --chunk 4096"
+pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe -ExtraArgs "--threads 2 --chunk 4096" -Repeat 2
 pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe -Files D:\Data -Levels 1,6,9
 ```
 
@@ -245,7 +245,7 @@ pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe -Files D:\Da
 | `Full` | Silesia and [enwik9](http://mattmahoney.net/dc/textdata.html) (`verify\corpus\enwik9`), levels 1 to 9 | `verify\Reference-Hashes-Full.csv` |
 | `-Files` | your own files or folders | `bin\gzip.exe`, run on the same files |
 
-The reference hashes were made with `bin\gzip.exe`. `-ExtraArgs` passes options to ctDeflate, so the same inputs can be checked with other thread counts and chunk sizes. The unit tests run in Visual Studio's Test Explorer or with `vstest.console build\Release\bin\ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests.dll`; two of them use files you name in the environment variables `CTDEFLATE_TEST_FILES` (paths separated by `;`) and `CTDEFLATE_SPEED_FILE`, and skip without them.
+The reference hashes were made with `bin\gzip.exe`. `-ExtraArgs` passes options to ctDeflate, so the same inputs can be checked with other thread counts and chunk sizes. The Verify scripts of all samples take the same parameters: `-Mode Compare` (default) or `Reference`, `-Matrix`, `-Exe` (the program to check, default: your Release build), `-Oracle` (the reference program), `-HashFile`, `-ExtraArgs` (options for `-Exe` only), `-Repeat n` (every case n times; all outputs must match), `-ThrottleLimit`, `-WorkDir` and `-TimeoutSec` (a run beyond it counts as a hang). The unit tests run in Visual Studio's Test Explorer or with `vstest.console build\Release\bin\ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests.dll`; two of them use files you name in the environment variables `CTDEFLATE_TEST_FILES` (paths separated by `;`) and `CTDEFLATE_BENCH_FILE`, and skip without them.
 
 ---
 
@@ -263,7 +263,9 @@ ctDeflate compresses one file to `FILE.gz` (or the file given with `-o`) and kee
 | `-o FILE` | output file; default: the input name plus `.gz`. An existing file is overwritten |
 | `--threads n` | worker threads; default: all logical processors |
 | `--sequential` | the plain port as one compressor task between asynchronous reading and writing (the single-threaded reference path, about 20 MB of memory for any file size) |
-| `-v` | print sizes, time, speed, peak memory and the counters of the parallel pipeline (below) |
+| `--stats` | print sizes, time, speed, peak memory and the counters of the parallel pipeline (below); also accepted: `-v` |
+| `-h`, `--help` | the usage text |
+| `--version` | the version |
 
 <details>
 <summary><b>Options for tuning and diagnosis</b></summary>
@@ -273,7 +275,6 @@ ctDeflate compresses one file to `FILE.gz` (or the file given with `-o`) and kee
 | `--in-memory` | parallel, but read the whole file first and write the output at the end, instead of streaming |
 | `--chunk n` | size of the speculative parse chunks in bytes; default 1048576 (1 MiB), at least 4096 |
 | `--ahead n` | how many chunks the parses may run ahead of the resolver; default threads + 4. More can be a few percent faster and costs memory |
-| `--repeat n` | compress n times (for profiling) |
 
 </details>
 
@@ -286,23 +287,42 @@ Differences from `gzip.exe`:
 | refuses to overwrite an existing `FILE.gz` unless `-f` | overwrites the output |
 | `-c` (to standard output), reading from standard input | files only |
 | `-d` (decompress, also as `gunzip`), `-t` (test) | compression only: decompress or test with `gzip.exe` |
-| `-S SUF`, `-q`, `-V`, `-h` | not supported (`-o` instead of `-S`) |
+| `-S SUF`, `-q`, `-V` | not supported (`-o` instead of `-S`) |
 | levels 1 to 12 | levels 0 to 9 |
 
-The exit code is 0 on success, 1 on an error (unknown option, a file that cannot be read or written) and 3 if the CPU lacks an instruction set ctDeflate needs; after an error in the default streaming mode ctDeflate deletes the incomplete output.
+The exit code is 0 on success, 1 on an error (unknown option, a file that cannot be read or written, the output being the input file itself) and 3 if the CPU lacks an instruction set ctDeflate needs; after an error in the default streaming mode ctDeflate deletes the incomplete output it created, and never a file it did not create.
 
 <details>
-<summary><b>Example of <code>-v</code></b></summary>
+<summary><b>Example of <code>--stats</code></b></summary>
 
 ```
-D:\silesia\dickens: 10192446 -> 3859454 bytes, 0.060 s, 170.9 MB/s, peak memory 66 MB
-  chunks 10, blocks 46, syncs 9, repairs 8 (32701 bytes), max sync distance 22; parse+resolve 0.050 s (resolver waited 0.034 s), encode 0.001 s, stitch 0.000 s
+stats: 0.072 s (start 0.009, setup 0.001, work 0.060, rest 0.002), 16 threads, peak memory 65 MB
+  dickens: 10192446 -> 3859454 bytes, 168.7 MB/s
+  chunks 10, blocks 46, syncs 9, repairs 8 (32701 bytes), max sync distance 22; parse+resolve 0.057 s (resolver waited 0.041 s), encode 0.002 s, stitch 0.000 s
   repairs by cause: minLen 6, parse ended 2; iterations by minLen: 3:6678/117KB 4:478/9816KB 5:2/19KB
 ```
 
-The first line: input and output size, the time including reading and writing the files, the speed and the peak working set. The second: the chunks of the speculative parse, the deflate blocks written, how often the resolver took over a chunk's parse (syncs) and how often and over how many bytes it had to re-parse on its own (repairs), the time until the last block was resolved and how much of it the resolver waited for chunk parses. The third: why it re-parsed (the chunk had no parse path for the true minimum match length, or its paths ended), and per minimum match length the iterations the resolver checked one by one and the input they covered. With `--sequential` only the first line is printed.
+The first line is the same in every sample: the time of the whole process (the start before the program's own code, the setup, the work of the task graph including reading and writing the files, the rest), the threads and the peak working set. The second: input and output size and the speed. The third: the chunks of the speculative parse, the deflate blocks written, how often the resolver took over a chunk's parse (syncs) and how often and over how many bytes it had to re-parse on its own (repairs), the time until the last block was resolved and how much of it the resolver waited for chunk parses. The fourth: why it re-parsed (the chunk had no parse path for the true minimum match length, or its paths ended), and per minimum match length the iterations the resolver checked one by one and the input they covered. With `--sequential` only the first two lines are printed.
 
 </details>
+
+---
+
+## Reading the code
+
+The parallel version adds a task layer around a port that does not know about tasks. Read it in this order:
+
+1. **`src\Tasks\DeflateGraph.h`**: the graph as a diagram, then `DeflateGraph::RunParallel` in `DeflateGraph.cpp`: it builds the edges, creates the nodes, starts them and waits for them. This is where ThinkMeta.ConcurrentTasks is used: `TaskGroup_s`, `ITaskScheduler::AddTask`, the main thread running Resolve.
+2. **The edges** (`src\Tasks\`): `InputWindow` (Read → Parse), `ChunkLogs` (Parse → Resolve), `BlockRing` (Resolve → Encode → Stitch), `OutputWindow` (Stitch → Write). Each class starts with the nodes it connects; its methods follow one vocabulary: `Acquire…` may wait and hands out the next piece of work, `TryAcquire…` claims one without waiting, `Complete…` hands the result on, `Await…` waits for a condition.
+3. **The nodes** (`DeflateNodes.h`): `ReadTask`, `WorkerTask` (Parse and Encode), `ResolveNode`, `Stitch`, `WriteTask`, `SequentialCompressTask`. Each is a plain loop that waits on an edge.
+4. **`src\App\Application.cpp`**: `Execute` sets up ThinkMeta.ConcurrentTasks with `Shared::TaskRuntime` (`..\Shared\src\Shared\TaskRuntime.h`), the same in every sample: convert the thread, enable async I/O, an I/O scheduler (two threads here), and a `RunningScheduler` as the compute scheduler.
+5. **The encoder** (`src\Encoder\`), which has no task code: the port of libdeflate (`Compressor`, `Matchfinder.h`, `BlockWriter`, `Huffman`, `BlockRules.h`, `Gzip.h`, `Checksums`) and, new in ctDeflate, the speculative parse and its resolver (`Parser`, `MultiParser`, `OrderedMatchfinder.h`, `BlockTracker`, `Resolver`, `ChunkedDeflate`). Each ported function names its libdeflate original in a comment; [docs/porting.md](docs/porting.md) maps them all.
+
+Why the edges are classes of their own and not the library's `StreamedFileReader` and `OrderedFileWriter`: the input is read only as far as Resolve allows (the read allowance), it wakes the parse of each chunk separately, the bit stream is written in place into the output window without a copy, and both windows release memory behind the slowest stage. The library's readers and writers stream through fixed blocks in order; they have neither the allowance nor the per-chunk wake-up.
+
+### Error handling
+
+ctDeflate stops at the first error and reports it; it does not try to recover. A read or write error ends the graph normally (every node finishes with what it has) and the program reports the Windows error and deletes the output it created. If memory runs out where the graph cannot go on (committing the output window), the process ends at once; the sample does not unwind its graph for that case.
 
 ---
 
@@ -344,7 +364,7 @@ The library's API (headers, C++ modules and the scheduler core) is in [ThinkMeta
 
 ## License
 
-* **ctDeflate** (the source code in `src\`, `bin\ctDeflate.exe`, the scripts in `verify\` and `benchmark\`, `New-BenchPackage.ps1`, the project files): MIT License, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE.txt`](LICENSE.txt)). The engine contains code ported from libdeflate, whose MIT notice is in [`COPYING`](COPYING).
+* **ctDeflate** (the source code in `src\`, `bin\ctDeflate.exe`, the scripts in `verify\` and `benchmark\`, `New-BenchPackage.ps1`, the project files): MIT License, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE.txt`](LICENSE.txt)). The encoder (`src\Encoder\`) contains code ported from libdeflate, whose MIT notice is in [`COPYING`](COPYING).
 * **libdeflate sources and `bin\gzip.exe`** (`libdeflate\`): MIT License, Copyright 2016 Eric Biggers and 2024 Google LLC ([`COPYING`](COPYING)).
 * **Scheduler core** (`bin\ThinkMeta.ConcurrentTasks.Core.dll`, and the core in the API submodule): proprietary, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE-Core.txt`](LICENSE-Core.txt)): free for private and non-commercial use, commercial use requires a license from ThinkMeta Software GmbH.
 

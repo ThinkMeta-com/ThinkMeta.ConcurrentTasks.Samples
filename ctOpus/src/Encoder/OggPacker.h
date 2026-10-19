@@ -10,7 +10,7 @@
 
 #include "HeapArray.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>
     /// Port of libopusenc's Ogg page writer (ogg_packer.c): packets are collected into pages, which
@@ -70,4 +70,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::size_t             pageNumber_  = 0;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

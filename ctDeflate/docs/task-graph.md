@@ -73,8 +73,12 @@ flowchart LR
 block boundaries, Huffman coding, bit stream, CRC-32. Reading and writing become tasks with
 overlapped I/O on an I/O scheduler of their own; the compressor is one task on the compute scheduler.
 Before each block it tells Read how far it needs the input, after each block it hands the finished
-output to Write. Both windows are bounded: Read runs at most 8 MB ahead, and the input behind the
-32 KB match window is released.
+output to Write. Both windows are bounded: Read runs at most 8 MB ahead, and the input more than
+64 KB behind the block (more than the 32 KB match window) is released in 1 MB segments.
+
+In the code: `SequentialCompressTask` in `src\Tasks\DeflateNodes.h`, the port itself in
+`src\Encoder\Compressor.cpp`; the graph is `DeflateGraph::RunSequential`. The same graph also runs
+for level 0 and for inputs too small to split.
 
 **Why:** nothing may run in parallel before the port writes exactly libdeflate's bytes, at every
 level, on a corpus of real files, and its speed on one core is what every later factor builds on.
@@ -111,6 +115,10 @@ replayed in order.
 **Result** (in memory): on the 163 MB database 3.6× libdeflate at level 6 and 8.2× at level 9. But
 where the minimum match length differs from the chunk's guess, Resolve has to search again alone
 (19 % of the log file at level 6), and Huffman coding only starts after Resolve.
+
+In the code: the speculative parse is `ChunkParser` (`ChunkedDeflate.h`, with `Parser`), Resolve is
+`Resolver::Run` (`Resolver.cpp`). `CompressGzipChunked` runs the same steps one after the other
+without a scheduler; the unit tests check the algorithm with it.
 
 ---
 
@@ -162,19 +170,24 @@ fast that this end decided the run.
 **Result** (in memory): level 1 13 to 24 % faster (the database 1828 MB/s); after Resolve almost
 nothing is left to do.
 
+In the code: `WorkerTask` (`DeflateNodes.h`) is the one kind of worker; the workers sleep on one
+semaphore that Resolve releases whenever there is new work. Assembling is `Stitch`: the worker that
+completes a block calls `Stitch::TryStitch`, which a flag lets one caller run at a time. The same
+workers also compute the CRC-32 of each chunk while they parse it; the CRCs are combined at the end.
+
 ---
 
 ## 5 · A bounded window: memory no longer grows with the file
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/step-5-window-dark.svg">
-  <img alt="Read feeds the input window to Match search ×N; the chunk parses go to Resolve, in order; the block ring to Huffman coding ×N; then Assemble, in order, and the output window to Write. A dotted arrow runs from Resolve back to the match search: the parse window and how far Read may go." src="images/step-5-window-light.svg">
+  <img alt="Read feeds the input window to Match search ×N; the chunk parses go to Resolve, in order; the block ring to Huffman coding ×N; then Assemble, in order, and the output window to Write. Dotted arrows run from Resolve back to the match search (the parse window) and back to Read (how far it may read)." src="images/step-5-window-light.svg">
 </picture>
 
 <sub>Rendered with Mermaid's ELK layout; source: [images/step-5-window.mmd](images/step-5-window.mmd).</sub>
 
-**Change:** chunks are searched only a few ahead of the chunk Resolve waits for, and Read reads only
-as far as that window can need. Behind the bit stream, input and chunk parses are released, and Write
+**Change:** chunks are searched only a few ahead of the chunk Resolve waits for (the parse window),
+and Resolve tells Read how far that window can need the input (the read allowance). Behind the bit stream, input and chunk parses are released, and Write
 releases what it has written. New here is the bounded window and the releasing, not the asynchronous
 I/O itself (that came with step 1; in development the parallel graph got it together with this
 step, which is why steps 2 to 4 were measured in memory).
@@ -184,7 +197,11 @@ the file. With it, memory is bounded by the chunks in flight.
 
 **Result:** peak memory for the database at levels 1/6/9 fell from 224/246/225 MB (whole file in
 memory) to 58/84/80 MB. A 5.2 GB file compresses at level 6 with 144 MB in 7.3 s, against 28.8 s for
-`gzip.exe`.
+`gzip.exe`. (Since 2026-10-18 the logs of Resolve's own re-parses are freed behind the bit stream
+too; before, they stayed until the end, so files with many re-parses still grew.)
+
+In the code: the edges are classes of their own, each with a comment naming its producer and
+consumer: `InputWindow`, `ChunkLogs`, `BlockRing`, `OutputWindow` (`src\Tasks\`).
 
 ---
 
@@ -214,15 +231,25 @@ same output.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/step-7-today-dark.svg">
-  <img alt="Read on the I/O scheduler; Match search ×N on the compute scheduler; Resolve in order on a thread of its own; Huffman coding ×N on the same workers; Assemble in order; Write on the I/O scheduler. A dotted arrow from Resolve back to the match search carries the parse window and the feedback." src="images/step-7-today-light.svg">
+  <img alt="Read on the I/O scheduler; Match search ×N on the compute scheduler; Resolve in order on the calling thread; Huffman coding ×N on the same workers; Assemble in order; Write on the I/O scheduler. Dotted arrows against the flow: Resolve to the match search (parse window, feedback) and to Read (read allowance), Assemble to Resolve (free slots in the ring), Write to Assemble (at most 16 MB written behind)." src="images/step-7-today-light.svg">
 </picture>
 
 <sub>Rendered with Mermaid's ELK layout; source: [images/step-7-today.mmd](images/step-7-today.mmd).</sub>
 
-With 16 threads that is 19 tasks: Read and Write on the I/O scheduler, 16 workers that search and
-code on the compute scheduler, and Resolve on a thread of its own beside them, so the one serial
-stage never waits for a free thread. Assembling needs no task of its own: the worker that finishes
-the next block does it.
+With 16 threads that is 18 tasks and one more thread: Read and Write on the I/O scheduler, 16
+workers that search and code on the compute scheduler, and Resolve on the thread that runs the graph
+(the main thread, converted to a task), so the one serial stage never waits for a free thread; when
+it is done, it helps the workers code the last blocks. Assembling needs no task of its own: the
+worker that finishes the next block does it.
+
+Four edges run against the flow, and each is a wait: Read waits for Resolve's read allowance, the
+search for Resolve's parse window, Resolve for a free slot in the block ring (when assembling falls
+behind), and assembling for Write once 16 MB of finished output are not yet written. The last two
+bound the memory when a stage or the disk is slow.
+
+In the code: `DeflateGraph` (`src\Tasks\DeflateGraph.h`) builds the edges and nodes and starts
+them; its header has this graph as a diagram. The README's [Reading the code](../README.md#reading-the-code)
+gives an order to read the files in.
 
 **Why fibers matter here:** Resolve waits in the middle of its loop for the next chunk's search, a
 search waits for its input, Read and Write wait for the disk, Write waits for finished output. Such a

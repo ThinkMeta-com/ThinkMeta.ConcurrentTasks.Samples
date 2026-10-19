@@ -14,7 +14,7 @@
 // semantics of the float build: the operand order of the min/max macros and the rounding of the
 // conversions matter for bit-identical output.
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     constexpr float Min32(float a, float b) noexcept
     {
@@ -77,4 +77,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return x * y * (x2 + a * y2) / den + (y < 0 ? -e : e) - (x * y < 0 ? -e : e);
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

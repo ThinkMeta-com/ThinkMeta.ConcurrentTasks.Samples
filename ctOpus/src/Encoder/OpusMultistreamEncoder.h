@@ -10,7 +10,7 @@
 #include "HeapArray.h"
 #include "OpusStreamEncoder.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>
     /// Port of libopus' OpusMSEncoder (src/opus_multistream_encoder.c, src/opus_multistream.c)
@@ -82,4 +82,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     /// <summary>frame_size_select of opus_encoder.c.</summary>
     std::int32_t FrameSizeSelect(std::int32_t application, std::int32_t frameSize, std::int32_t variableDuration, std::int32_t fs) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

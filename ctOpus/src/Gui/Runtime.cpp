@@ -11,14 +11,14 @@
 
 #include "Runtime.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     namespace {
 
         // the MMCSS handle of a scheduler thread, from its Starting to its Exiting callback
         thread_local HANDLE schedulerThreadMmcss = nullptr;
 
-        void ProAudioThreadCallback(ITaskScheduler*, DWORD, HANDLE, void*, ThreadCallbackReason reason) noexcept
+        void ProAudioThreadCallback(ITaskScheduler*, std::uint32_t, HANDLE, void*, ThreadCallbackReason reason) noexcept
         {
             if (reason == ThreadCallbackReason::Starting) {
                 schedulerThreadMmcss = EnterProAudio();
@@ -47,13 +47,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
             AvRevertMmThreadCharacteristics(mmcss);
     }
 
-    SchedulerHandle CreateAudioScheduler(std::uint32_t threads, bool mmcss) noexcept
+    Shared::SchedulerHandle CreateAudioScheduler(std::uint32_t threads, bool mmcss) noexcept
     {
         SchedulerInfo info;
         info.numberOfThreads = threads;
         if (mmcss)
             info.threadCallback = ProAudioThreadCallback;
-        return SchedulerHandle(CreateTaskScheduler(SchedulerKind::Default, &info));
+        return Shared::SchedulerHandle(CreateTaskScheduler(SchedulerKind::Default, &info));
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui
