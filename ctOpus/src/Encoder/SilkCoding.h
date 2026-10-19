@@ -10,7 +10,7 @@
 #include "RangeEncoder.h"
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // Port of the entropy coding and the gain quantisation of the SILK encoder (libopus 1.6.1
     // silk/encode_indices.c, encode_pulses.c, shell_coder.c, code_signs.c, NLSF_unpack.c,
@@ -36,4 +36,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     /// <summary>silk_gains_ID: a unique identifier of the gain index vector.</summary>
     std::int32_t GainsId(const std::int8_t ind[SilkMaxNbSubfr], std::int32_t nbSubfr) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

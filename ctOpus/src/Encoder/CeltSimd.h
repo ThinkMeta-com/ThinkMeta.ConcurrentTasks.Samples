@@ -13,7 +13,7 @@
 // celt/x86/pitch_sse.c): their summation order differs from the C versions, so the port uses
 // exactly these.
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>celt_inner_prod_sse.</summary>
     inline float InnerProd(const float* x, const float* y, std::int32_t n) noexcept
@@ -105,4 +105,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>
     /// clt_mdct_forward of libopus 1.6.1 (celt/mdct.c) for the static 48 kHz mode: the windowed
@@ -16,4 +16,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     /// </summary>
     void MdctForward(const float* in, float* out, std::int32_t shift, std::int32_t stride) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

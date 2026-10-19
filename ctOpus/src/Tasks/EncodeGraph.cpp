@@ -8,19 +8,39 @@
 
 #include "OpusMultistreamEncoder.h"
 #include "OpusStreamEncoder.h"
+#include "TaskRuntime.h"
 
 import ThinkMeta.ConcurrentTasks.Synchronization.TaskGroup;
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     namespace {
+
+        // The block ring: two slots per compute thread and four more, at least 8 and at most 64 (a slot is
+        // BlockFrames frames of every channel).
+        constexpr std::int64_t MinRingSlots = 8;
+        constexpr std::int64_t MaxRingSlots = 64;
+
+        // Which helper nodes the graph gets, measured on 8 cores / 16 threads at --comp 10: the theta helper from 3
+        // threads (it spins and needs a thread to spare); the speculation of the frames ahead from 7 threads with one
+        // level and from 8 as a cascade of three levels (with fewer threads it costs more than it gains); the levels'
+        // own theta helpers from 12 threads (below, they cost more than they gain) or with a single level.
+        constexpr std::uint32_t ThetaHelperThreads    = 3;
+        constexpr std::uint32_t OneLevelThreads       = 7;
+        constexpr std::uint32_t CascadeThreads        = 8;
+        constexpr std::uint32_t LevelHelperThreads    = 12;
+        constexpr std::int32_t  ThetaTrialComplexity  = 8; // CELT tries a second theta only from this complexity (QuantAllBands)
+
+        // The input store's reservation for an input of unknown length (2^31 frames of address space, committed as
+        // the input arrives).
+        constexpr std::int64_t UnknownLengthFrames = 1ll << 31;
 
         // The input store's reservation: the samples (or a large reservation when the length is
         // unknown), the drain extension and zeros.
         std::int64_t Capacity(const WavInput& wav, std::int32_t filterLen, std::int32_t drainFrames) noexcept
         {
             const std::int64_t total   = wav.GetInfo().totalSamplesPerChannel;
-            const std::int64_t samples = total > 0 ? total + PcmFeed::ReadFrames : (1ll << 31);
+            const std::int64_t samples = total > 0 ? total + PcmFeed::ReadFrames : UnknownLengthFrames;
             return filterLen + samples + LpcExtensionLength + 4ll * drainFrames + 2ll * filterLen + PcmFeed::CommitMargin + BlockRing::BlockFrames;
         }
 
@@ -30,14 +50,18 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         : wav_(wav),
           encoder_(encoder),
           settings_(settings),
-          threads_(settings.threads > 0 ? settings.threads : GetActiveProcessorCount(ALL_PROCESSOR_GROUPS))
+          threads_(settings.threads > 0 ? settings.threads : Shared::TaskRuntime::LogicalProcessors())
     {}
 
     bool EncodeGraph::Initialize() noexcept
     {
         pcm_.channels    = wav_.GetInfo().channels;
         pcm_.drainFrames = encoder_.DrainFrames(settings_.lookahead);
-        if (!encoder_.Resamples() || !pcm_.resampler.Initialize(encoder_.GetResampler()))
+        // input at 48 kHz goes through the same graph, with a copy instead of the resampler
+        pcm_.resampled = encoder_.Resamples();
+        if (!pcm_.resampled)
+            pcm_.resampler.InitializeIdentity();
+        else if (!pcm_.resampler.Initialize(encoder_.GetResampler()))
             return false;
         pcm_.filterLen = pcm_.resampler.FilterLength();
         if (!pcm_.input.Initialize(pcm_.channels, Capacity(wav_, pcm_.filterLen, pcm_.drainFrames))
@@ -45,25 +69,20 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return false;
         // the analysis chain, if a stream analyses
         chained_ = chain_.Initialize(encoder_, settings_.lookahead);
-        return ring_.Initialize(MinI64(64, MaxI64(8, 2ll * threads_ + 4)), pcm_.channels, chained_);
+        return ring_.Initialize(MinI64(MaxRingSlots, MaxI64(MinRingSlots, 2ll * threads_ + 4)), pcm_.channels, chained_);
     }
 
-    std::int32_t EncodeGraph::Run(SchedulerHandle& io, SchedulerHandle& compute) noexcept
+    std::int32_t EncodeGraph::Run(ITaskScheduler& io, ITaskScheduler& compute) noexcept
     {
         const std::uint32_t     threads = threads_;
         OpusMultistreamEncoder& ms      = encoder_.Multistream();
         const std::int32_t      streams = ms.NbStreams();
 
-        // --- which nodes the graph has
-        // the theta trials in parallel only with threads to spare (the helper spins)
-        const bool helped = threads >= 3 && theta_.Valid();
-        const bool fronts = chained_ && chain_.HasFronts();
-        // the speculation of the frames ahead per stream, measured (comp 10, 8 cores /
-        // 16 threads): with fewer than 7 threads it costs more than it gains; with 7, one level; from
-        // 8 on, a cascade of 3, whose levels get theta helpers of their own only from 12 threads on
-        // (below that the helpers cost more than they gain)
-        const std::int32_t          levels     = threads >= 8 ? 3 : threads >= 7 ? 1 : 0;
-        const bool                  specHelped = helped && (threads >= 12 || levels == 1);
+        // --- which nodes the graph has (the thresholds above)
+        const bool         helped     = threads >= ThetaHelperThreads && settings_.complexity >= ThetaTrialComplexity && theta_.Valid();
+        const bool         fronts     = chained_ && chain_.HasFronts();
+        const std::int32_t levels     = threads >= CascadeThreads ? SpecLevels : threads >= OneLevelThreads ? 1 : 0;
+        const bool         specHelped = helped && (threads >= LevelHelperThreads || levels == 1);
         HeapArray<CeltSpeculation*> specs; // per level and stream
         const bool                  speculate = chained_ && levels >= 1 && levels <= SpecLevels && specs.Allocate(static_cast<std::size_t>(levels * streams));
 
@@ -141,26 +160,26 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         // Read waits only for tasks when FileRead delivers the input; synchronous reads (stdin) block
         // their thread and stay on the I/O scheduler
         if (settings_.asyncInput)
-            compute->AddTask(&*read_, TaskPriority::High);
+            compute.AddTask(&*read_, TaskPriority::High);
         else
-            io->AddTask(&*read_, TaskPriority::Normal);
-        compute->AddTask(&*encode_, TaskPriority::High);
+            io.AddTask(&*read_, TaskPriority::Normal);
+        compute.AddTask(&*encode_, TaskPriority::High);
         if (thetaTask_)
-            compute->AddTask(&*thetaTask_, TaskPriority::High);
+            compute.AddTask(&*thetaTask_, TaskPriority::High);
         for (std::int32_t l = 0; l < SpecLevels; ++l) {
             if (speculate_[l])
-                compute->AddTask(&*speculate_[l], TaskPriority::High);
+                compute.AddTask(&*speculate_[l], TaskPriority::High);
             if (specTheta_[l])
-                compute->AddTask(&*specTheta_[l], TaskPriority::High);
+                compute.AddTask(&*specTheta_[l], TaskPriority::High);
         }
         if (front_) {
-            compute->AddTask(&*front_, TaskPriority::High);
-            compute->AddTask(&*signal_, TaskPriority::High);
+            compute.AddTask(&*front_, TaskPriority::High);
+            compute.AddTask(&*signal_, TaskPriority::High);
         }
         if (analyse_)
-            compute->AddTask(&*analyse_, TaskPriority::High);
+            compute.AddTask(&*analyse_, TaskPriority::High);
         for (std::uint32_t i = 0; i < resamplerCount_; ++i)
-            compute->AddTask(&*resamplers_[i], TaskPriority::Normal);
+            compute.AddTask(&*resamplers_[i], TaskPriority::Normal);
         group.Wait();
 
         // --- the encoder without the graph again
@@ -177,13 +196,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return encode_->Result();
     }
 
-    std::int32_t SequentialGraph::Run(SchedulerHandle& compute) noexcept
+    std::int32_t SequentialGraph::Run(ITaskScheduler& compute) noexcept
     {
         Synchronization::TaskGroup group;
         group.AddTask(&encode_);
-        compute->AddTask(&encode_, TaskPriority::Normal);
+        compute.AddTask(&encode_, TaskPriority::Normal);
         group.Wait();
         return encode_.Result();
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

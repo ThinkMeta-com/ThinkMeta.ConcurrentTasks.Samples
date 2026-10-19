@@ -8,7 +8,7 @@
 // The codecs behind one interface, so that the ctOpus constants (OpusDefines.h) and the libopus
 // macros (opus.h) never meet in one translation unit.
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     enum class EncoderKind { CtOpus, Libopus };
 
@@ -67,4 +67,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
     /// <summary>The version string of the linked libopus.</summary>
     const char* LibopusVersion() noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

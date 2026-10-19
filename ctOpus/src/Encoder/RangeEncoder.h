@@ -9,7 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     constexpr std::int32_t BitRes = 3; // 1/8 bit resolution of ec_tell_frac
 
@@ -149,4 +149,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         friend struct RangeEncoderLayout;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

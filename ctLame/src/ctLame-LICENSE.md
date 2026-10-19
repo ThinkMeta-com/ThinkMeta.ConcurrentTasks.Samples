@@ -10,4 +10,5 @@ Copyright (c) 2026 ThinkMeta Software GmbH, for the port.
 
 ctLame does not link LAME. It is a port that produces the same output; only constant tables are
 taken over from LAME as data and are marked as such in the source (`MdctTables.inc`,
-`HuffmanTables.inc` and the tables in `Psy.cpp`, `BitCount.cpp`, `VbrQuantize.cpp`).
+`HuffmanTables.inc` and the tables in `PsyInit.cpp`, `PsyPrepare.cpp`, `PsyResolve.cpp`,
+`BitCount.cpp`, `VbrQuantize.cpp`).

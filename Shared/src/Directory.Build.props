@@ -1,0 +1,8 @@
+<Project>
+    <!--
+        The build settings of ThinkMeta.ConcurrentTasks for the Shared projects: they come from the API submodule of
+        the Samples repository (..\..\ThinkMeta.ConcurrentTasks.API). Output in build\ next to the solution that builds
+        them: build\<Configuration>\bin.
+    -->
+    <Import Project="$(MSBuildThisFileDirectory)..\..\ThinkMeta.ConcurrentTasks.API\ThinkMeta.SolutionFiles\ThinkMeta.Build.props" />
+</Project>

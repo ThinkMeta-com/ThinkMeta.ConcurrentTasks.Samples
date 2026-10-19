@@ -9,7 +9,7 @@
 
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // Port of the linear prediction analysis of the SILK encoder (libopus 1.6.1
     // silk/float/find_pred_coefs_FLP.c, find_LTP_FLP.c, corrMatrix_FLP.c, LTP_scale_ctrl_FLP.c,
@@ -23,4 +23,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     /// </summary>
     void FindPredCoefs(SilkEncoderStateFlp* enc, SilkEncoderControlFlp* ctrl, const float resPitch[], const float x[], std::int32_t condCoding) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

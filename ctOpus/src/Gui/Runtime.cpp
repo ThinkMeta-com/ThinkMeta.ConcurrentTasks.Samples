@@ -11,7 +11,7 @@
 
 #include "Runtime.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     namespace {
 
@@ -47,13 +47,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
             AvRevertMmThreadCharacteristics(mmcss);
     }
 
-    SchedulerHandle CreateAudioScheduler(std::uint32_t threads, bool mmcss) noexcept
+    Shared::SchedulerHandle CreateAudioScheduler(std::uint32_t threads, bool mmcss) noexcept
     {
         SchedulerInfo info;
         info.numberOfThreads = threads;
         if (mmcss)
             info.threadCallback = ProAudioThreadCallback;
-        return SchedulerHandle(CreateTaskScheduler(SchedulerKind::Default, &info));
+        return Shared::SchedulerHandle(CreateTaskScheduler(SchedulerKind::Default, &info));
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

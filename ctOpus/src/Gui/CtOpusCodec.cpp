@@ -8,7 +8,7 @@
 #include "OpusDefines.h"
 #include "OpusStreamEncoder.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     namespace {
 
@@ -70,4 +70,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         return encoder;
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

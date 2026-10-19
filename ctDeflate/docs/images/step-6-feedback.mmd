@@ -4,5 +4,6 @@ flowchart LR
     V -- "block ring" --> E["Huffman coding<br/>×N"]
     E --> S["Assemble"]
     S -- "output window" --> W["Write"]
-    V -. "which parse paths held" .-> P
+    V -. "parse window,<br/>which parse paths held" .-> P
+    V -. "read allowance" .-> R
     P ~~~ V

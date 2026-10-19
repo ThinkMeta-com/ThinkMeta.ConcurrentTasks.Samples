@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4a504547-0002-4000-8000-000000000001}</ProjectGuid>
+    <RootNamespace>ThinkMetaConcurrentTasksSamplesctJpegEncoder</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\Shared\src\Shared;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="BitPacking.h" />
+    <ClInclude Include="BitWriter.h" />
+    <ClInclude Include="ByteBuffer.h" />
+    <ClInclude Include="Coefficients.h" />
+    <ClInclude Include="Encoder.h" />
+    <ClInclude Include="EncoderOptions.h" />
+    <ClInclude Include="EncoderSetup.h" />
+    <ClInclude Include="Entropy.h" />
+    <ClInclude Include="HeapArray.h" />
+    <ClInclude Include="Image.h" />
+    <ClInclude Include="JpegTypes.h" />
+    <ClInclude Include="JpegFile.h" />
+    <ClInclude Include="JpegliTables.h" />
+    <ClInclude Include="LaneMath.h" />
+    <ClInclude Include="Markers.h" />
+    <ClInclude Include="PixelPhase.h" />
+    <ClInclude Include="ScanWriter.h" />
+    <ClInclude Include="SimdFeatures.h" />
+    <ClInclude Include="Tokenize.h" />
+    <ClInclude Include="VecMath.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="BandStitch.cpp" />
+    <ClCompile Include="BitWriter.cpp" />
+    <ClCompile Include="ByteBuffer.cpp" />
+    <ClCompile Include="ChunkSplice.cpp" />
+    <ClCompile Include="Coefficients.cpp" />
+    <ClCompile Include="Encoder.cpp" />
+    <ClCompile Include="EncoderSetup.cpp" />
+    <ClCompile Include="HuffmanCodes.cpp" />
+    <ClCompile Include="Image.cpp" />
+    <ClCompile Include="JpegliTables.cpp" />
+    <ClCompile Include="Markers.cpp" />
+    <ClCompile Include="PixelPhase.cpp" />
+    <ClCompile Include="PixelPhaseAvx2.cpp">
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <ClCompile Include="PixelPhaseSse2.cpp" />
+    <ClCompile Include="ScanWriter.cpp" />
+    <ClCompile Include="SimdFeatures.cpp" />
+    <ClCompile Include="Tokenize.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="PixelPhaseImpl.inc" />
+    <None Include="PixelPhaseReference.inc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

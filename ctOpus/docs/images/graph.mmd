@@ -1,29 +1,35 @@
 flowchart LR
     subgraph io ["I/O scheduler · 1 thread"]
-        FR["Read<br/>overlapped file reads"]
+        FR["FileRead<br/>overlapped file reads"]
     end
     subgraph cpu ["compute scheduler · one thread per logical processor"]
-        R["Distribute<br/>WAV samples, drain extension"]
-        W["Resample ×N<br/>any block"]
+        R["Read<br/>WAV samples, drain extension"]
+        W["Resample ×N<br/>any block (a copy at 48 kHz)"]
         A["Analyse<br/>tonality"]
         S["Signal<br/>input and CELT signal stage"]
         F["Front<br/>CELT front part"]
         E["Encode<br/>the serial backbone, frames in order<br/>Ogg pages"]
         T["Theta<br/>second rounding trial"]
         P["Speculate ×3<br/>next frames on cloned states"]
+        PT["Theta ×3<br/>of the levels"]
     end
     subgraph io2 ["I/O scheduler (the same one)"]
-        FW["Write<br/>overlapped file writes"]
+        FW["FileWrite<br/>overlapped file writes"]
     end
     FR -- "read buffer" --> R
     R -- "PCM" --> W
     W -- "blocks" --> E
     W -- "blocks" --> A
     A -- "calls" --> S
+    A -- "tonality" --> E
+    S -- "signal and input frames" --> E
     S -- "signal frames" --> F
     F -- "front frames" --> E
     E -. "resync" .-> F
     E <-- "trial" --> T
     E -- "clone" --> P
+    P -- "clone of the next frame" --> P
+    E -. "seed, cancel" .-> P
     P -- "symbol log" --> E
+    P <-- "trial" --> PT
     E -- "write buffer" --> FW

@@ -18,7 +18,7 @@
 // templates with auto results, so the integer promotions are exactly those of the C
 // expressions (an int16 + int16 stays an int, an int64 operand keeps the result 64 bit).
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     using std::int16_t;
     using std::int32_t;
@@ -553,12 +553,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     }
     inline int32_t Float2Int(float x) noexcept
     {
-        return ctOpus::Float2Int(x);
+        return Opus::Float2Int(x);
     }
     inline void Float2ShortArray(int16_t* out, const float* in, int32_t length) noexcept
     {
         for (int32_t k = length - 1; k >= 0; --k)
-            out[k] = static_cast<int16_t>(Sat16(ctOpus::Float2Int(in[k])));
+            out[k] = static_cast<int16_t>(Sat16(Opus::Float2Int(in[k])));
     }
     inline void Short2FloatArray(float* out, const int16_t* in, int32_t length) noexcept
     {
@@ -570,4 +570,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
         return static_cast<float>(3.32192809488736 * std::log10(x));
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

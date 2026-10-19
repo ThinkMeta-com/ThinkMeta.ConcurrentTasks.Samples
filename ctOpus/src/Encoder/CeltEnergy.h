@@ -9,7 +9,7 @@
 
 #include "RangeEncoder.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     // Port of the energy quantisation of libopus 1.6.1 (celt/quant_bands.c, celt/laplace.c) for
     // the static 48 kHz mode (encoder side).
@@ -35,4 +35,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     void QuantEnergyFinalise(std::int32_t start, std::int32_t end, float* oldEBands, float* error, const std::int32_t* fineQuant,
                              const std::int32_t* finePriority, std::int32_t bitsLeft, RangeEncoder* enc, std::int32_t c) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

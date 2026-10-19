@@ -8,7 +8,7 @@
 
 #include "FrameCodec.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     namespace {
 
@@ -119,4 +119,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         return opus_get_version_string();
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

@@ -9,7 +9,7 @@
 
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // Port of the noise shaping quantisation of the SILK encoder (libopus 1.6.1 silk/NSQ.c,
     // NSQ.h, NSQ_del_dec.c, LPC_analysis_filter.c, the NSQ wrapper of float/wrappers_FLP.c; the
@@ -22,4 +22,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     void NsqWrapper(SilkEncoderStateFlp* enc, SilkEncoderControlFlp* ctrl, SilkSideInfoIndices* indices, SilkNsqState* nsq, std::int8_t pulses[],
                     const float x[]) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

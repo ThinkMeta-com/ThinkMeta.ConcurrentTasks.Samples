@@ -12,9 +12,9 @@
 
 #include "HeapArray.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
-    using ctOpus::HeapArray;
+    using Opus::HeapArray;
 
     /// <summary>The sample rate everything in the GUI runs at (the Opus API rate).</summary>
     constexpr std::int32_t SampleRate = 48000;
@@ -236,4 +236,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         T* p_ = nullptr;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

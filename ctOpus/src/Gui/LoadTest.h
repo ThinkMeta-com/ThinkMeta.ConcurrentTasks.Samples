@@ -8,7 +8,7 @@
 
 #include "FrameCodec.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     class SignalBuffer;
 
@@ -92,4 +92,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         Impl* impl_ = nullptr;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

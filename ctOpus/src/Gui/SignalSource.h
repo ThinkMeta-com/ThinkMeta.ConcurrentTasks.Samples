@@ -8,7 +8,7 @@
 
 #include "Common.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     /// <summary>
     /// A looped 48 kHz stereo signal in memory: a WAV file (read with the ctOpus WAV reader and
@@ -41,4 +41,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         std::int32_t     sourceChannels_ = Channels;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

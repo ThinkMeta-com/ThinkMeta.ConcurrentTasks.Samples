@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     constexpr std::int32_t LeakBands = 19;
 
@@ -153,4 +153,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::int64_t entries_; // the entries written since the reset
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

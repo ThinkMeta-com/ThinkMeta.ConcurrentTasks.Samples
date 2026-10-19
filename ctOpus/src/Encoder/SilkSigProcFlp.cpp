@@ -12,7 +12,7 @@
 #include "SilkMacros.h"
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     namespace {
 
@@ -221,4 +221,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
         std::memset(rLpc, 0, order * sizeof(float));
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

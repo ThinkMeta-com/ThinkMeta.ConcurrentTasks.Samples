@@ -13,7 +13,7 @@
 
 #include "Common.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     struct AudioDevice {
         wchar_t id[256];
@@ -139,4 +139,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         HeapArray<float>            scratch_; // stereo frames of one buffer
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

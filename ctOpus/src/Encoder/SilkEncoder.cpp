@@ -17,7 +17,7 @@
 #include "SilkStereo.h"
 #include "SilkTables.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     namespace {
 
@@ -40,7 +40,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
             float x = a * 32768.f;
             x       = x > -32768 ? x : -32768;
             x       = x < 32767 ? x : 32767;
-            return static_cast<std::int16_t>(ctOpus::Float2Int(x));
+            return static_cast<std::int16_t>(Opus::Float2Int(x));
         }
 
         std::int32_t VadInit(SilkVadState* vad) noexcept
@@ -859,4 +859,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
         return ret;
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

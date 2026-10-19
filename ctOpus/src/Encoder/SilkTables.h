@@ -12,7 +12,7 @@
 
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // resampler_rom.h
     inline constexpr std::int16_t resampler_down2_0 = 9872;
@@ -132,4 +132,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     inline constexpr std::int16_t Resampler_2_3_COEFS_LQ[6] = { -2797, -6507, 4697, 10739, 1567, 8276, };
     inline constexpr std::int16_t resampler_frac_FIR_12[12][4] = { { 189, -600, 617, 30567 }, { 117, -159, -1070, 29704 }, { 52, 221, -2392, 28276 }, { -4, 529, -3350, 26341 }, { -48, 758, -3956, 23973 }, { -80, 905, -4235, 21254 }, { -99, 972, -4222, 18278 }, { -107, 967, -3957, 15143 }, { -103, 896, -3487, 11950 }, { -91, 773, -2865, 8798 }, { -71, 611, -2143, 5784 }, { -46, 425, -1375, 2996 }, };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

@@ -13,14 +13,14 @@
 #include "Common.h"
 #include "SchedulerHandle.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     /// <summary>Puts the calling thread into the MMCSS "Pro Audio" class (falls back to "Audio"); nullptr if neither works.</summary>
     HANDLE EnterProAudio() noexcept;
     void   LeaveProAudio(HANDLE mmcss) noexcept;
 
     /// <summary>A scheduler whose threads join MMCSS "Pro Audio" (plan 3.3: MMCSS through the thread callbacks) if mmcss is set.</summary>
-    SchedulerHandle CreateAudioScheduler(std::uint32_t threads, bool mmcss) noexcept;
+    Shared::SchedulerHandle CreateAudioScheduler(std::uint32_t threads, bool mmcss) noexcept;
 
     /// <summary>
     /// Counts the tasks that are still running and signals a Win32 event when the last one has
@@ -52,4 +52,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         Handle                    done_;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

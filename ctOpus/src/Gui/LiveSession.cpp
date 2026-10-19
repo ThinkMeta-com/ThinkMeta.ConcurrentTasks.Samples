@@ -26,7 +26,7 @@
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 import ThinkMeta.ConcurrentTasks.Synchronization.AutoResetEvent;
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     namespace {
 
@@ -114,18 +114,18 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         std::atomic<std::int32_t> pendingBitrate{0};
         std::atomic<std::int32_t> pendingComplexity{-1};
 
-        SchedulerHandle scheduler;
-        TaskExitCounter exits;
-        Handle          sourceThread;
-        Handle          renderThread;
-        Handle          sourceOpened;
-        Handle          renderOpened;
-        bool            sourceOk         = false;
-        bool            renderOk         = false;
-        wchar_t         sourceError[160] = {};
-        wchar_t         renderError[160] = {};
-        StreamSetup     captureSetup;
-        StreamSetup     renderSetup;
+        Shared::SchedulerHandle scheduler;
+        TaskExitCounter         exits;
+        Handle                  sourceThread;
+        Handle                  renderThread;
+        Handle                  sourceOpened;
+        Handle                  renderOpened;
+        bool                    sourceOk         = false;
+        bool                    renderOk         = false;
+        wchar_t                 sourceError[160] = {};
+        wchar_t                 renderError[160] = {};
+        StreamSetup             captureSetup;
+        StreamSetup             renderSetup;
 
         // the tasks
         class EncodeTask final : public Tasks::Task
@@ -717,4 +717,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
             impl_->pendingComplexity.store(complexity, std::memory_order_release);
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

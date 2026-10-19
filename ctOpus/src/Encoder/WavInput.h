@@ -13,7 +13,7 @@
 #include "HeapArray.h"
 #include "Report.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>
     /// Where an InputFile takes its bytes from once a source is attached (asynchronous reading by
@@ -122,4 +122,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         HeapArray<float>        downmixMatrix_;
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

@@ -18,9 +18,10 @@
 #include "CeltMdct.h"
 #include "CeltMode.h"
 #include "CeltSimd.h"
+#include "IntMath.h"
 #include "OpusPacket.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     namespace {
 
@@ -28,18 +29,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         constexpr std::int32_t MaxEncodingDepth  = 24;
         constexpr std::int32_t OpusSetLfeRequest = 10024;
 
-        constexpr std::int32_t ImaxI(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a > b ? a : b;
-        }
-        constexpr std::int32_t IminI(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a < b ? a : b;
-        }
+        // libopus: bits_to_bitrate() (celt/celt.h)
         constexpr std::int32_t BitsToBitrate(std::int32_t bits, std::int32_t fs, std::int32_t frameSize) noexcept
         {
             return bits * (6 * fs / frameSize) / 6;
         }
+        // libopus: bitrate_to_bits() (celt/celt.h)
         constexpr std::int32_t BitrateToBits(std::int32_t bitrate, std::int32_t fs, std::int32_t frameSize) noexcept
         {
             return bitrate * 6 / (6 * fs / frameSize);
@@ -63,6 +58,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             {5, 3, {0, 6, 1, 2, 3, 4, 5, 7}}, // 8: 7.1 surround
         };
 
+        // libopus: channel_pos() (src/opus_multistream_encoder.c)
         // the position in the mix: 0 not mixed, 1 left, 2 centre, 3 right
         void ChannelPos(std::int32_t channels, std::int32_t pos[8]) noexcept
         {
@@ -98,6 +94,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: logSum() (src/opus_multistream_encoder.c)
         // a rough approximation of log2(2^a + 2^b)
         float LogSum(float a, float b) noexcept
         {
@@ -120,6 +117,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopus: frame_size_select() (src/opus_encoder.c)
     std::int32_t FrameSizeSelect(std::int32_t application, std::int32_t frameSize, std::int32_t variableDuration, std::int32_t fs) noexcept
     {
         if (frameSize < fs / 400)
@@ -144,6 +142,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return newSize;
     }
 
+    // libopus: get_left_channel() (src/opus_multistream.c)
     std::int32_t OpusMultistreamEncoder::LeftChannel(std::int32_t streamId) const noexcept
     {
         for (std::int32_t i = 0; i < nbChannels_; ++i) {
@@ -153,6 +152,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return -1;
     }
 
+    // libopus: get_right_channel() (src/opus_multistream.c)
     std::int32_t OpusMultistreamEncoder::RightChannel(std::int32_t streamId) const noexcept
     {
         for (std::int32_t i = 0; i < nbChannels_; ++i) {
@@ -162,6 +162,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return -1;
     }
 
+    // libopus: get_mono_channel() (src/opus_multistream.c)
     std::int32_t OpusMultistreamEncoder::MonoChannel(std::int32_t streamId) const noexcept
     {
         for (std::int32_t i = 0; i < nbChannels_; ++i) {
@@ -171,6 +172,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return -1;
     }
 
+    // libopus: opus_multistream_surround_encoder_init() (src/opus_multistream_encoder.c)
     std::int32_t OpusMultistreamEncoder::InitSurround(std::int32_t fs, std::int32_t channels, std::int32_t mappingFamily, std::int32_t& streams,
                                                       std::int32_t& coupledStreams, std::uint8_t* mapping, std::int32_t application) noexcept
     {
@@ -240,6 +242,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return OPUS_OK;
     }
 
+    // libopus: opus_multistream_encoder_ctl() (src/opus_multistream_encoder.c), the SET requests
     std::int32_t OpusMultistreamEncoder::Ctl(std::int32_t request, std::int32_t value) noexcept
     {
         std::int32_t ret = OPUS_OK;
@@ -248,7 +251,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 if (value != OPUS_AUTO && value != OPUS_BITRATE_MAX) {
                     if (value <= 0)
                         return OPUS_BAD_ARG;
-                    value = IminI(750000 * nbChannels_, ImaxI(500 * nbChannels_, value));
+                    value = Imin(750000 * nbChannels_, Imax(500 * nbChannels_, value));
                 }
                 bitrateBps_ = value;
                 return OPUS_OK;
@@ -291,6 +294,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: opus_multistream_encoder_ctl() (src/opus_multistream_encoder.c), the GET requests
     std::int32_t OpusMultistreamEncoder::Get(std::int32_t request, std::int32_t& value) noexcept
     {
         switch (request) {
@@ -332,6 +336,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: surround_analysis() (src/opus_multistream_encoder.c)
     void OpusMultistreamEncoder::SurroundAnalysis(const float* pcm, float* bandLogE, std::int32_t len) noexcept
     {
         constexpr std::int32_t overlap   = CeltMode::Overlap;
@@ -422,6 +427,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: rate_allocation() (src/opus_multistream_encoder.c) with surround_rate_allocation()
     std::int32_t OpusMultistreamEncoder::RateAllocation(std::int32_t* rate, std::int32_t frameSize) noexcept
     {
         std::int32_t fs = 0;
@@ -434,7 +440,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         const std::int32_t nbNormal    = 2 * nbCoupled + nbUncoupled;
 
         // enough bits per non-LFE channel for the band energies
-        const std::int32_t channelOffset = 40 * ImaxI(50, fs / frameSize);
+        const std::int32_t channelOffset = 40 * Imax(50, fs / frameSize);
 
         std::int32_t bitrate = 0;
         if (bitrateBps_ == OPUS_AUTO)
@@ -446,11 +452,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         // a basic allocation for the LFE, never more than 1/20 of the total for the non-energy
         // part (against problems at really low rates)
-        const std::int32_t lfeOffset = IminI(bitrate / 20, 3000) + 15 * ImaxI(50, fs / frameSize);
+        const std::int32_t lfeOffset = Imin(bitrate / 20, 3000) + 15 * Imax(50, fs / frameSize);
 
         // a starting bitrate per stream (coupled or not): the main saving of coupling
         std::int32_t streamOffset = (bitrate - channelOffset * nbNormal - lfeOffset * nbLfe) / nbNormal / 2;
-        streamOffset              = ImaxI(0, IminI(20000, streamOffset));
+        streamOffset              = Imax(0, Imin(20000, streamOffset));
 
         // coupled streams get twice the mono rate after the offset; the LFE 1/8 (Q8)
         constexpr std::int32_t coupledRatio = 512;
@@ -462,21 +468,22 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         for (std::int32_t i = 0; i < nbStreams_; ++i) {
             if (i < nbCoupled_)
-                rate[i] = 2 * channelOffset + ImaxI(0, streamOffset + (channelRate * coupledRatio >> 8));
+                rate[i] = 2 * channelOffset + Imax(0, streamOffset + (channelRate * coupledRatio >> 8));
             else if (i != lfeStream_)
-                rate[i] = channelOffset + ImaxI(0, streamOffset + channelRate);
+                rate[i] = channelOffset + Imax(0, streamOffset + channelRate);
             else
-                rate[i] = ImaxI(0, lfeOffset + (channelRate * lfeRatio >> 8));
+                rate[i] = Imax(0, lfeOffset + (channelRate * lfeRatio >> 8));
         }
 
         std::int32_t rateSum = 0;
         for (std::int32_t i = 0; i < nbStreams_; ++i) {
-            rate[i] = ImaxI(rate[i], 500);
+            rate[i] = Imax(rate[i], 500);
             rateSum += rate[i];
         }
         return rateSum;
     }
 
+    // libopus: opus_multistream_encode_native() (src/opus_multistream_encoder.c) for opus_multistream_encode_float()
     std::int32_t OpusMultistreamEncoder::EncodeFloat(const float* pcm, std::int32_t analysisFrameSize, std::uint8_t* data, std::int32_t maxDataBytes) noexcept
     {
         std::int32_t fs  = 0;
@@ -510,9 +517,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         if (vbr == 0) {
             if (bitrateBps_ == OPUS_AUTO)
-                maxDataBytes = IminI(maxDataBytes, (BitrateToBits(rateSum, fs, frameSize) + 4) / 8);
+                maxDataBytes = Imin(maxDataBytes, (BitrateToBits(rateSum, fs, frameSize) + 4) / 8);
             else if (bitrateBps_ != OPUS_BITRATE_MAX)
-                maxDataBytes = IminI(maxDataBytes, ImaxI(smallestPacket, (BitrateToBits(bitrateBps_, fs, frameSize) + 4) / 8));
+                maxDataBytes = Imin(maxDataBytes, Imax(smallestPacket, (BitrateToBits(bitrateBps_, fs, frameSize) + 4) / 8));
         }
         for (std::int32_t s = 0; s < nbStreams_; ++s) {
             OpusStreamEncoder& enc = streams_[s];
@@ -581,11 +588,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 enc.SetEnergyMask(bandLogE);
             // bytes left (+ToC); one byte reserved for the last stream, two for the others
             std::int32_t currMax = maxDataBytes - tot_size;
-            currMax -= ImaxI(0, 2 * (nbStreams_ - s - 1) - 1);
+            currMax -= Imax(0, 2 * (nbStreams_ - s - 1) - 1);
             // 100 ms: an extra byte per stream for the ToC
             if (fs / frameSize == 10)
                 currMax -= nbStreams_ - s - 1;
-            currMax = IminI(currMax, MsFrameTmp);
+            currMax = Imin(currMax, MsFrameTmp);
             // the repacketizer adds one or two bytes for self-delimited frames
             if (s != nbStreams_ - 1)
                 currMax -= currMax > 253 ? 2 : 1;
@@ -607,4 +614,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return tot_size;
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

@@ -1,4 +1,4 @@
 <Project>
     <!-- The same build settings as the projects of the API submodule (output in build\). -->
-    <Import Project="$(MSBuildThisFileDirectory)ThinkMeta.SolutionFiles\ThinkMeta.Build.props" />
+    <Import Project="$(MSBuildThisFileDirectory)..\ThinkMeta.SolutionFiles\ThinkMeta.Build.props" />
 </Project>

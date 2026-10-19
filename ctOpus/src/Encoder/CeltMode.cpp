@@ -5,8 +5,8 @@
 
 #include "CeltMode.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::CeltMode {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::CeltMode {
 
 #include "CeltModeTables.inc"
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::CeltMode
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::CeltMode

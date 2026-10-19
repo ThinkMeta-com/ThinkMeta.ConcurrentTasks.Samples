@@ -20,7 +20,7 @@
 #include "SilkTables.h"
 #include "SilkVad.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     namespace {
 
@@ -367,4 +367,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
         return 0;
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

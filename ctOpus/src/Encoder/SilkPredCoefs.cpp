@@ -16,7 +16,7 @@
 #include "SilkSigProcFlp.h"
 #include "SilkTables.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     namespace {
 
@@ -564,4 +564,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
         std::memcpy(c->prev_NLSFq_Q15, nlsfQ15, sizeof(c->prev_NLSFq_Q15));
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

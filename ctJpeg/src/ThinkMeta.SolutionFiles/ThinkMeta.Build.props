@@ -1,6 +1,0 @@
-<Project>
-    <!-- The build settings come from the API submodule; this folder only forwards to them, so that
-         $(SolutionDir)ThinkMeta.SolutionFiles works for ctJpeg.slnx and for the library projects it
-         builds from the submodule. -->
-    <Import Project="$(MSBuildThisFileDirectory)..\..\..\ThinkMeta.ConcurrentTasks.API\ThinkMeta.SolutionFiles\ThinkMeta.Build.props" />
-</Project>

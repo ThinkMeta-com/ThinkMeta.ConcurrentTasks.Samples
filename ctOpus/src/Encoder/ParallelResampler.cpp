@@ -6,42 +6,13 @@
 #include "ParallelResampler.h"
 
 #include <immintrin.h>
-#include <intrin.h>
 
 #include <cstdint>
 
+#include "IntMath.h"
 #include "Resampler.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
-
-    namespace {
-
-        bool CpuHasAvx2() noexcept
-        {
-            int info[4];
-            __cpuid(info, 0);
-            if (info[0] < 7)
-                return false;
-            __cpuid(info, 1);
-            const bool osxsave = (info[2] & (1 << 27)) != 0;
-            const bool avx     = (info[2] & (1 << 28)) != 0;
-            if (!osxsave || !avx || (_xgetbv(0) & 0x6) != 0x6)
-                return false;
-            __cpuidex(info, 7, 0);
-            return (info[1] & (1 << 5)) != 0;
-        }
-
-        std::int64_t Gcd(std::int64_t a, std::int64_t b) noexcept
-        {
-            while (b != 0) {
-                const std::int64_t t = a % b;
-                a                    = b;
-                b                    = t;
-            }
-            return a;
-        }
-
-    } // namespace
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     bool ParallelResampler::Initialize(const Resampler& resampler) noexcept
     {
@@ -49,9 +20,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         n_      = resampler.FilterLength();
         den_    = resampler.DenRate();
         step_   = resampler.NumRate(); // int_advance * den + frac_advance
-        period_ = den_ / Gcd(den_, 8) * 8;
+        period_ = den_ / Gcd<std::int64_t>(den_, 8) * 8;
         avx2_   = false;
-        if (!CpuHasAvx2() || n_ % 4 != 0)
+        // no check of the CPU: the programs require AVX2 (CpuCheckEntry), and the encoder library
+        // is built for it anyway
+        if (n_ % 4 != 0)
             return true;
 
         const std::int64_t groups = period_ / 8;
@@ -74,6 +47,17 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
+    void ParallelResampler::InitializeIdentity() noexcept
+    {
+        table_    = nullptr;
+        n_        = 1;
+        den_      = 1;
+        step_     = 1;
+        period_   = 8;
+        avx2_     = false;
+        identity_ = true;
+    }
+
     std::int64_t ParallelResampler::OutputsFor(std::int64_t inputFrames) const noexcept
     {
         // outputs j with n/2 + floor(j * step / den) < inputFrames
@@ -85,6 +69,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     void ParallelResampler::Compute(const float* const* padded, std::int32_t channels, std::int64_t j0, std::int64_t j1, float* out) const noexcept
     {
+        if (identity_) { // 48 kHz: interleave the planar input
+            for (std::int32_t c = 0; c < channels; ++c)
+                for (std::int64_t j = j0; j < j1; ++j)
+                    out[(j - j0) * channels + c] = padded[c][j];
+            return;
+        }
         for (std::int32_t c = 0; c < channels; ++c) {
             if (avx2_)
                 ComputeAvx2(padded[c], j0, j1, out + c, channels);
@@ -156,4 +146,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         ComputeScalar(padded, j, j1, out + (j - j0) * stride, stride);
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

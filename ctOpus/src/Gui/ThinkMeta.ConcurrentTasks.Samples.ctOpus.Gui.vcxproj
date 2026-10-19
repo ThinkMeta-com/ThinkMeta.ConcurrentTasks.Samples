@@ -25,18 +25,21 @@
     <ClCompile>
       <!-- The encoder's headers (ctOpus), SchedulerHandle.h (header only, from the pipeline project) and opus.h (libopus as
            decoder and comparison engine). -->
-      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);$(MSBuildThisFileDirectory)..\Encoder;$(MSBuildThisFileDirectory)..\Tasks;$(MSBuildThisFileDirectory)..\..\opus\opus-1.6.1\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\Shared\src\Shared;$(MSBuildThisFileDirectory);$(MSBuildThisFileDirectory)..\Encoder;$(MSBuildThisFileDirectory)..\Tasks;$(MSBuildThisFileDirectory)..\..\opus\opus-1.6.1\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WINDOWS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>avrt.lib;comctl32.lib;comdlg32.lib;ole32.lib;propsys.lib;shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\Shared\src\Shared;$(MSBuildThisFileDirectory)..\Encoder;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
   </ItemDefinitionGroup>
-  <!-- CpuCheckEntry.cpp: checks for AVX2 and the rest of /arch:AVX2 before the C runtime starts -->
   <ItemDefinitionGroup>
     <Link>
-      <EntryPointSymbol>CtCpuCheckEntry</EntryPointSymbol>
+      <!-- Shared\CpuCheck: checks the instruction sets of /arch:AVX2 before the C runtime starts -->
+      <EntryPointSymbol>CpuCheckedWindowsStartup</EntryPointSymbol>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -55,9 +58,6 @@
     <ClCompile Include="LibopusCodec.cpp" />
     <ClCompile Include="LiveSession.cpp" />
     <ClCompile Include="LoadTest.cpp" />
-    <ClCompile Include="..\Encoder\CpuCheckEntry.cpp">
-      <PreprocessorDefinitions>CT_CPUCHECK_CRT_ENTRY=wWinMainCRTStartup;CT_CPUCHECK_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="Runtime.cpp" />
@@ -67,6 +67,9 @@
     <ResourceCompile Include="ctOpusGui.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\src\Shared\ThinkMeta.ConcurrentTasks.Samples.Shared.vcxproj">
+      <Project>{5a4ed000-0001-4000-8000-000000000001}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(CT_ApiDir)Library\ThinkMeta.ConcurrentTasks\ThinkMeta.ConcurrentTasks.vcxproj">
       <Project>{8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2}</Project>
     </ProjectReference>

@@ -27,7 +27,7 @@ This repository contains:
 | Folder | Contents |
 |---|---|
 | `bin\` | prebuilt Windows x64 binaries: `lame.exe` (the reduced LAME below), `ctLame.exe`, and `ThinkMeta.ConcurrentTasks.Core.dll` (the scheduler core ctLame runs on) |
-| `src\` | the source of **ctLame**: encoder, task graph, command line and unit tests |
+| `src\` | the source of **ctLame**: `App` (the program, LAME's command line), `Tasks` (the task graph), `Encoder` (the port of LAME's encoder, without task code) and `Tests` (unit tests); the code all samples share (console output, version resource, CPU check, task setup, `--stats`) is in [`..\Shared`](../Shared/README.md); see [Reading the code](#reading-the-code) |
 | `lame\` | the source of the **reduced LAME 4.0**, the reference ctLame is measured against |
 | `ctLame.slnx` | a Visual Studio solution that builds `ctLame.exe` and `lame.exe` ([Building](#building)) |
 | `verify\` | scripts that check a ctLame build byte for byte against `lame.exe`, with computed test signals and their reference hashes |
@@ -71,7 +71,9 @@ msbuild ctLame.slnx /p:Configuration=Release /p:Platform=x64
 modules, the ctLame projects and the reduced LAME. Everything lands in `build\Release\bin\`:
 `ctLame.exe` with `ThinkMeta.ConcurrentTasks.Core.dll` next to it, `lame.exe`, and the unit tests
 (`ThinkMeta.ConcurrentTasks.Samples.ctLame.Tests.dll`, run them in the Test Explorer or with
-`vstest.console`).
+`vstest.console`). The golden tests need the WAV files their checksums were recorded with and skip
+without them (environment variables `CTLAME_TEST_CORPUS` and `CTLAME_TEST_SYNTH`); the
+measurements run only with `CTLAME_BENCH_FILE` or `CTLAME_BENCH_EVENTS` set.
 
 Your build is not byte-identical to the published binaries: those are built with the static C
 runtime, without buffer security checks and with profile-guided optimization (PGO), which makes
@@ -95,11 +97,12 @@ pwsh verify\Compare-LameCli.ps1
   (and unmodified LAME 4.0 as well, see [the reduced LAME](#the-reduced-lame)).
 - `-WavDir` encodes WAV files of your own with your `lame.exe` and your `ctLame.exe` and compares
   the outputs. `-Matrix Smoke`, `Quick` or `Full` choose how many files and options;
-  `-CtLameArgs '--threads 1'` or `'--sequential'` check the other execution paths.
+  `-ExtraArgs '--threads 1'` or `'--sequential'` check the other execution paths, `-Repeat 3` output
+  that depends on thread timing.
 - `Compare-LameCli.ps1` runs both programs with 1012 command lines, including invalid ones, and
   compares exit codes, console output and the MP3 files.
 
-Every check must end with all cases identical.
+Every check must end with all cases identical. The Verify scripts of all samples take the same parameters: `-Mode Compare` (default) or `Reference`, `-Matrix`, `-Exe` (the program to check, default: your Release build), `-Oracle` (the reference program), `-HashFile`, `-ExtraArgs` (options for `-Exe` only), `-Repeat n` (every case n times; all outputs must match), `-ThrottleLimit`, `-WorkDir` and `-TimeoutSec` (a run beyond it counts as a hang).
 
 ## Benchmarks
 
@@ -194,7 +197,7 @@ sequential by design:
 ctLame splits the work of each frame (1152 samples) into the parts that need this state and the
 parts that do not. The stateless parts (FFTs, spreading, MDCT, the search for scalefactors and
 quantization, Huffman coding) run for many frames at once on all cores; the stateful parts run as
-thin links in frame order:
+thin links in frame order. Each frame passes five stages, numbered as in the code:
 
 ```mermaid
 flowchart LR
@@ -203,14 +206,14 @@ flowchart LR
         W["Write<br/>overlapped WriteFile"]
     end
     subgraph cpu ["compute scheduler · one thread per logical processor"]
-        D["Dispatch<br/>in order"]
-        P["Prepare ×N<br/>psychoacoustics without state"]
-        V["Resolve<br/>psychoacoustics with state<br/>in order"]
-        S["Search ×N<br/>MDCT, quantization search, Huffman"]
-        E["Encode<br/>bit reservoir, bit stream<br/>in order"]
+        D["1 Dispatch<br/>in order"]
+        P["2 Prepare ×N<br/>psychoacoustics without state<br/>(the workers)"]
+        V["3 Resolve<br/>psychoacoustics with state<br/>in order"]
+        S["4 Search ×N<br/>MDCT, quantization search, Huffman<br/>(the same workers)"]
+        E["5 Encode<br/>bit reservoir, bit stream<br/>in order"]
     end
     R -- "PCM pipe" --> D
-    D -- "frame ring" --> P
+    D -- "frame ring<br/>+ sample stream" --> P
     P -- "frame ring" --> V
     V -- "frame ring" --> S
     S -- "frame ring" --> E
@@ -220,12 +223,17 @@ flowchart LR
 **[How the graph grew, step by step →](docs/task-graph.md)** from LAME's single loop to this graph,
 with the reason and the measured gain of each step.
 
+Prepare and Search are not two groups of tasks: the same N worker tasks, one per compute thread,
+take whichever work is ready, searches first, since they belong to older frames and free slots
+sooner. Dispatch converts the WAV data into the sample stream, one float stream per channel in
+virtual memory; each frame in the ring points to its window there instead of copying it, and
+Encode releases the window when the frame is done.
+
 The frames in flight live in a ring of four slots per compute thread (16 to 128), the size that
 measured best: fewer slots leave threads waiting for the ordered stages, more cost cache. Every
-stage is a task on
-ThinkMeta.ConcurrentTasks: when a stage waits for the frame before it, its task is suspended, and
-the thread runs other work meanwhile. Handing a frame from one thread to another costs about
-0.4 µs, against about 200 µs of work per frame.
+node is a task on ThinkMeta.ConcurrentTasks: when a node waits for the frame before it, its task
+is suspended, and the thread runs other work meanwhile. Handing a frame from one thread to another
+costs about 0.4 µs, against about 200 µs of work per frame.
 
 Every change was checked against LAME's output: SHA-256 of 1372 encodings of 343 files and of
 about 1000 encodings with other settings and input formats (mono, 32/48 kHz, 8/24/32 bit, float),
@@ -282,6 +290,7 @@ Options of ctLame only:
 | `--sequential` | the whole encoder as one task on one thread (the reference path) |
 | `--simd level` | the highest SIMD level to use: `scalar`, `sse4.1` or `avx2`; default: the highest the CPU supports. All levels give the same bits |
 | `--features` | print the CPU features and the SIMD level in use |
+| `--stats` | print the time of each stage and the busy and idle time of each task after encoding (also: environment variable `CTLAME_PROFILE`) |
 
 <details>
 <summary><b>LAME's options</b>, all of which ctLame accepts</summary>
@@ -307,6 +316,91 @@ Options of ctLame only:
 
 </details>
 
+## Reading the code
+
+The parallel version adds a thin task layer (`src\Tasks\`) around an encoder that does not know
+about tasks (`src\Encoder\`). Read it in this order:
+
+1. **`src\App\Application.cpp`, `RunEncodeGraph`**: the setup of ThinkMeta.ConcurrentTasks, the same in
+   every sample: `Shared::TaskRuntime` (`..\Shared\src\Shared\TaskRuntime.h`) makes the main thread a
+   task with `ConvertThreadToTask`, because `EncodeGraph::Run` waits for the graph on it, starts the
+   core's completion port for the overlapped file I/O (`EnableAsyncIo`) and an I/O scheduler with one
+   thread for Read and Write. `EncodeGraph::Initialize` allocates the edges; a `RunningScheduler` is
+   the compute scheduler with one thread per worker (`--threads`, else one per logical processor).
+   The graph runs; on return the compute scheduler stops, the graph goes, and `TaskRuntime` undoes
+   its steps in reverse order. The rest of `src\App\` is
+   LAME's frontend: the command line (`CommandLine.cpp`), the WAV header (`WavFile`) and the
+   messages.
+2. **`src\Tasks\EncodeGraph.h`**: the graph as a diagram, then its members, the edges and the
+   nodes in the order the data flows. `EncodeGraph::Run` (`EncodeGraph.cpp`) creates the nodes,
+   puts all of them into one `TaskGroup_s` (one waiter: the caller), hands them to the schedulers
+   with `ITaskScheduler::AddTask` (Read and Write to the I/O scheduler; Encode and Resolve first and
+   with `High` priority, then Dispatch and the workers to the compute scheduler) and waits for the
+   group. The graph owns its edges and their events and destroys the nodes before the edges.
+3. **The edges**: `BlockPipe` (Read → Dispatch, the PCM pipe; Encode → Write, the MP3 pipe),
+   `PcmFeed` (WAV bytes into the sample stream), `SampleStream` (`src\Encoder\`: one float stream
+   per channel in reserved virtual memory, committed as it grows and decommitted behind the
+   finished frames) and `FrameRing` (the frames in flight through the five stages). Their methods
+   follow one vocabulary: `Acquire…` may wait and hands out the next piece of work, `TryAcquire…`
+   does not wait, `Complete…` or `Commit…` hands the result on, `Release…` gives a block or a frame
+   back.
+4. **The nodes** (`src\Tasks\`), each a plain loop that waits on an edge: `WavReaderTask` (Read),
+   `DispatchTask`, `WorkerTask` (Prepare and Search), `ResolveTask`, `EncodeTask` with
+   `FrameEncoder` (Encode) and `Mp3WriterTask` (Write). `SequentialEncodeTask` is the one compute
+   node of `--sequential`, with the same edges and the same encoder. `ProfiledRun` and `WhileIdle`
+   (`NodeProfile.h`) only measure the nodes with `--stats` (or the environment variable `CTLAME_PROFILE`);
+   read past them.
+5. **The encoder** (`src\Encoder\`): `Encoder.h` has the four calls a frame goes through, one for
+   each of the stages 2 to 5. `Prepare` and `Search` are `const`, so the compiler checks that they
+   keep no state and may run for many frames at once; `Resolve` and `Encode` take the frames in
+   order. `Stages.h` splits the stages further (2a to 5b), `FrameData.h` holds what belongs to one
+   frame, the `…StageState` structures what a stage carries from frame to frame. The other files
+   are the port of LAME; [docs/porting.md](docs/porting.md) maps LAME's functions to them.
+
+The five stages of a frame, with the same numbers in `FrameRing.h`, `Stages.h`, `Encoder.h` and
+[the history of the graph](docs/task-graph.md):
+
+| Stage | Frames | Node | Encoder call | Work (`Stages.h`) |
+|---|---|---|---|---|
+| 1 Dispatch | in order | `DispatchTask` | | the frame's window of the sample stream |
+| 2 Prepare | any order, N workers | `WorkerTask` | `Encoder::Prepare` | 2a input, 2b psychoacoustic model without state, 2c polyphase filterbank |
+| 3 Resolve | in order, `High` | `ResolveTask` | `Encoder::Resolve` | 3a psychoacoustic model with state, 3b filterbank carry |
+| 4 Search | any order, N workers | `WorkerTask` | `Encoder::Search` | 4a MDCT, 4b stereo decision, 4c quantization search and main data |
+| 5 Encode | in order, `High` | `EncodeTask`, `FrameEncoder` | `Encoder::Encode` | 5a quantization with the bit reservoir, 5b bit stream |
+
+"Encode" alone always means stage 5; `EncodeGraph` is the whole graph, and
+`Encoder::RunAllStages` runs the four calls on one frame after the other (for the unit tests).
+
+Why the frame ring is a class of its own and not the library's `Semaphore_s`: the stages need
+more than a count (which frame, which kind of work, searches before preparations), and a counter
+per stage plus an event costs one atomic operation per frame and stage. Three of its events have
+exactly one waiter (Dispatch, Resolve and Encode) and use the cheaper `AutoResetEvent_s`; the
+workers share one `AutoResetEvent`. `FrameRing.h` describes the protocol, and
+`src\Tests\FrameRingTests.cpp` runs the ring under load with stand-in stages on a real scheduler.
+`BlockPipe`, unlike the library's `SpscVirtualMemoryPipe`, holds back the producer when all blocks
+are full, and its fill level sets the priority of the I/O tasks (`IoPriority.h`).
+
+### Error handling
+
+ctLame reports errors with LAME's messages and exit codes and does not try to recover:
+
+- **A read error while encoding** ends the input there, like the end of the file: the frames read
+  so far are encoded, the encoder is flushed and the LAME tag is written. ctLame prints "Error
+  reading input file" and, like LAME, exits with 0.
+- **A write error** ends the writing, but Write keeps taking the blocks from the MP3 pipe, so
+  Encode never waits on a full pipe and the graph ends normally; then "Error writing mp3 output"
+  and exit code 1. A LAME tag that is written only in part counts as a write error.
+- **An error of the encoder** (LAME's "INTERNAL ERROR IN VBR NEW CODE", a frame too large for its
+  buffer): Encode stops encoding but keeps taking the frames from the ring, so the stages before it
+  finish; the message and the exit code are LAME's.
+- **Out of memory:** `EncodeGraph::Initialize` checks the allocations of the edges and the workers
+  before the graph starts ("ctLame: out of memory", exit code 1), and a scheduler or the
+  asynchronous I/O that cannot be created ends the program with "ctLame: cannot start the
+  schedulers" (exit code 1). If the sample stream (or the one frame of `--sequential`) gets no
+  memory while encoding, the input ends there and ctLame reports `mp3 internal error:  error
+  code=-3` (exit code 1). Allocations outside these checks, such as the encoder itself at the
+  start, end the process when they fail; the sample does not unwind its graph for that case.
+
 ## Room for improvement
 
 ctLame is fast, but not at the end; the measurements point to these limits and next steps:
@@ -322,12 +416,13 @@ ctLame is fast, but not at the end; the measurements point to these limits and n
   there, probably because the efficiency cores execute 256-bit instructions in two halves. A
   scheduler that knows the core types is part of the research project.
 * **The serial links:** at 16 threads ctLame finishes a frame every 13 µs. The in-order part of the
-  psychoacoustics (resolve: attack detection, block switching, pre-echo control) needed about as
-  much per frame before its pre-echo control was vectorized, so on this CPU it runs close to its
-  limit. Resolve is already split into two short serial parts (about 5 µs per frame together)
-  with a parallel part between them, bit-identical; on 8 cores that gave nothing, so it waits for
-  CPUs with more cores. The bit stream at the end takes about 4 µs per frame, since the Huffman
-  coding moved into the parallel search.
+  psychoacoustics (stage 3, Resolve: attack detection, block switching, pre-echo control) needed
+  about as much per frame before its pre-echo control was vectorized, so on this CPU it runs close
+  to its limit. A split of Resolve into two short serial parts (about 5 µs per frame together) with
+  a parallel part between them was tried and was bit-identical, but gave nothing on 8 cores, where
+  the workers are fully busy; it is not in this code and waits for CPUs with more cores. The bit
+  stream at the end (stage 5, Encode) takes about 4 µs per frame, since the Huffman coding moved
+  into the parallel search.
 * **Turbo clock and hyperthreading:** the same work costs more time the more threads run: about
   16 % more with 4 threads, 25 % with 8 (lower turbo clock, shared cache) and 50 % with 16, when
   two threads share a core. That is why 16 threads on 8 cores are 8 times as fast as one thread,
@@ -391,7 +486,7 @@ Windows on x64; the project takes it further:
 
 The same task model on every platform: code that waits stays as simple as sequential code, and
 fine-grained work (steps of a few microseconds, as in ctLame) is spread over every core.
-More reference applications follow ctLame: a FLAC encoder, a deflate archiver and an HTTP server.
+ctOpus, ctDeflate and ctJpeg in the same repository apply it to further reference encoders.
 
 Building a game engine, an industrial controller or another product that needs every core?
 Want to run your own benchmarks or work with us? [www.thinkmeta.com](https://www.thinkmeta.com)

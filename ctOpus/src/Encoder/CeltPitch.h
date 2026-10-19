@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     // Port of the pitch analysis and comb filter of libopus 1.6.1 (celt/pitch.c, celt/celt_lpc.c,
     // comb_filter of celt/celt.c, celt/x86/pitch_avx.c), float build. arch is the libopus x86
@@ -35,4 +35,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     void CombFilter(float* y, float* x, std::int32_t t0, std::int32_t t1, std::int32_t n, float g0, float g1, std::int32_t tapset0, std::int32_t tapset1,
                     const float* window, std::int32_t overlap) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

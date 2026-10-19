@@ -10,7 +10,7 @@
 #include "RangeEncoder.h"
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // Port of the stereo pre-processing of the SILK encoder (libopus 1.6.1 silk/stereo_LR_to_MS.c,
     // stereo_find_predictor.c, stereo_quant_pred.c, stereo_encode_pred.c).
@@ -30,4 +30,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     /// <summary>silk_stereo_encode_mid_only.</summary>
     void StereoEncodeMidOnly(RangeEncoder* rangeEnc, std::int8_t midOnlyFlag) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

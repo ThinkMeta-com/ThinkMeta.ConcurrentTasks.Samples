@@ -8,6 +8,7 @@
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
 
+#include <atomic>
 #include <cstdint>
 
 #include "HeapArray.h"
@@ -17,7 +18,7 @@
 // headers with imports last
 import ThinkMeta.ConcurrentTasks.Synchronization.AutoResetEvent;
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     inline std::int64_t MaxI64(std::int64_t a, std::int64_t b) noexcept
     {
@@ -31,7 +32,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     /// <summary>
     /// The edge Read → Resample: the input samples in a planar store (padded with filter length - 1
     /// zeros in front, the drain extension and zeros behind) and the parallel resampler that reads
-    /// them. Read writes and decommits, Resample reads; which blocks may be computed is the business
+    /// them (at 48 kHz a copy). Read writes and decommits, Resample reads; which blocks may be computed is the business
     /// of the block ring.
     /// </summary>
     class PcmFeed
@@ -45,6 +46,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::int32_t      channels    = 0;
         std::int32_t      filterLen   = 0;
         std::int32_t      drainFrames = 0;
+        bool              resampled   = true; // false: input at 48 kHz, the resampler copies (filter length 1)
     };
 
     /// <summary>
@@ -58,7 +60,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     /// </code>
     /// A slot is free again once both Encode and Analyse have completed its block. Read also publishes
     /// the end of the stream (PublishEnd), and any node can abort the run (Abort).
-    /// Created on a task: its events belong to the calling task.
+    /// <para>
+    /// How it is built: counters per stage (std::atomic, each on its own cache line; the stores are
+    /// sequentially consistent, as the stages re-check counters of other stages after them) and
+    /// four events. The slots are not counted with the library's Semaphore_s: a slot is free only
+    /// once two stages (Encode and Analyse) have its block, and Read needs the number of the
+    /// released block, not a count.
+    /// </para>
     /// </summary>
     class BlockRing
     {
@@ -90,19 +98,29 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             inputFrames_  = inputFrames;
             realOutputs_  = realOutputs;
             totalOutputs_ = totalOutputs;
-            InterlockedExchange(&endKnown_, 1);
+            endKnown_.store(true); // publishes the three values above
         }
 
         std::int64_t BlockEnd(std::int64_t b) const noexcept
         {
             const std::int64_t end = (b + 1) * BlockFrames;
-            return endKnown_ != 0 ? MinI64(end, totalOutputs_) : end;
+            return endKnown_.load(std::memory_order_acquire) ? MinI64(end, totalOutputs_) : end;
         }
 
         // --- abort (any node)
 
-        bool Aborted() const noexcept { return abort_ != 0; }
-        void Abort() noexcept { InterlockedExchange(&abort_, 1); }
+        bool Aborted() const noexcept { return abort_.load(std::memory_order_acquire); }
+
+        /// <summary>Ends the run early: every stage that waits on the ring wakes and sees it.</summary>
+        void Abort() noexcept
+        {
+            abort_.store(true);
+            slotFree_.Set();
+            resampleReady_.Set();
+            encodeReady_.Set();
+            analyseReady_.Set();
+        }
+
         bool MemoryError() const noexcept { return memoryError_; }
 
         // --- Read
@@ -110,8 +128,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         /// <summary>Waits until block b has a free slot; false if aborted.</summary>
         bool AcquireRead(std::int64_t b) noexcept
         {
-            while (b - released_ >= slotCount_) {
-                if (abort_ != 0)
+            while (b - released_.load(std::memory_order_acquire) >= slotCount_) {
+                if (Aborted())
                     return false;
                 slotFree_.Wait();
             }
@@ -121,30 +139,30 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         /// <summary>Block b may be computed.</summary>
         void CompleteRead(std::int64_t b) noexcept
         {
-            InterlockedExchange64(&dispatched_, b + 1);
+            dispatched_.store(b + 1);
             resampleReady_.Set();
         }
 
         /// <summary>No block follows: the stages that wait for blocks see the end.</summary>
         void EndRead() noexcept
         {
-            InterlockedExchange(&ended_, 1);
+            ended_.store(true);
             resampleReady_.Set();
             encodeReady_.Set();
-            analyseReady.Set();
+            analyseReady_.Set();
         }
 
         /// <summary>Read could not go on (out of memory): abort, the end is known, no block follows.</summary>
         void FailRead() noexcept
         {
             memoryError_ = true;
-            InterlockedExchange(&abort_, 1);
-            InterlockedExchange(&endKnown_, 1);
+            endKnown_.store(true);
+            Abort();
             EndRead();
         }
 
         /// <summary>The blocks before this one are released (Read decommits their input).</summary>
-        std::int64_t Released() const noexcept { return released_; }
+        std::int64_t Released() const noexcept { return released_.load(std::memory_order_acquire); }
 
         // --- Resample (any worker)
 
@@ -152,15 +170,15 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::int64_t AcquireResample() noexcept
         {
             for (;;) {
-                const std::int64_t c = claimed_;
-                if (c < dispatched_) {
-                    if (InterlockedCompareExchange64(&claimed_, c + 1, c) != c)
+                std::int64_t c = claimed_.load(std::memory_order_acquire);
+                if (c < dispatched_.load(std::memory_order_acquire)) {
+                    if (!claimed_.compare_exchange_strong(c, c + 1))
                         continue;
-                    if (c + 1 < dispatched_)
+                    if (c + 1 < dispatched_.load(std::memory_order_acquire))
                         resampleReady_.Set(); // more work: wake the next worker
                     return c;
                 }
-                if (ended_ != 0 && claimed_ >= dispatched_) {
+                if (ended_.load(std::memory_order_acquire) && claimed_.load(std::memory_order_acquire) >= dispatched_.load(std::memory_order_acquire)) {
                     resampleReady_.Set(); // let the other workers see the end too
                     return -1;
                 }
@@ -171,9 +189,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         /// <summary>Block b is in its slot.</summary>
         void CompleteResample(std::int64_t b) noexcept
         {
-            InterlockedExchange64(&slotBlock_[static_cast<std::size_t>(b % slotCount_)], b + 1);
+            SlotBlock(b).store(b + 1);
             encodeReady_.Set();
-            analyseReady.Set();
+            analyseReady_.Set();
         }
 
         // --- Encode (blocks in order)
@@ -181,8 +199,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         /// <summary>Waits for block b; false at the end of the blocks.</summary>
         bool AcquireEncode(std::int64_t b) noexcept
         {
-            while (slotBlock_[static_cast<std::size_t>(b % slotCount_)] != b + 1) {
-                if (ended_ != 0 && claimed_ >= dispatched_ && b >= dispatched_)
+            while (SlotBlock(b).load(std::memory_order_acquire) != b + 1) {
+                const std::int64_t dispatched = dispatched_.load(std::memory_order_acquire);
+                if (ended_.load(std::memory_order_acquire) && claimed_.load(std::memory_order_acquire) >= dispatched && b >= dispatched)
                     return false;
                 encodeReady_.Wait();
             }
@@ -191,52 +210,55 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         void CompleteEncode(std::int64_t b) noexcept
         {
-            InterlockedExchange64(&encodeReleased_, b + 1);
+            encodeReleased_.store(b + 1);
             UpdateReleased();
         }
 
         // --- Analyse (blocks in order; only with an analysis chain)
 
-        std::int64_t AnalyseNext() const noexcept { return analyseCopied_; }
+        std::int64_t AnalyseNext() const noexcept { return analyseCopied_.load(std::memory_order_acquire); }
 
         /// <summary>Waits for block b; false if aborted or at the end of the blocks.</summary>
         bool AcquireAnalyse(std::int64_t b) noexcept
         {
-            while (slotBlock_[static_cast<std::size_t>(b % slotCount_)] != b + 1) {
-                if (abort_ != 0 || (ended_ != 0 && b >= dispatched_))
+            while (SlotBlock(b).load(std::memory_order_acquire) != b + 1) {
+                if (Aborted() || (ended_.load(std::memory_order_acquire) && b >= dispatched_.load(std::memory_order_acquire)))
                     return false;
-                analyseReady.Wait();
+                analyseReady_.Wait();
             }
             return true;
         }
 
         void CompleteAnalyse(std::int64_t b) noexcept
         {
-            InterlockedExchange64(&analyseCopied_, b + 1);
+            analyseCopied_.store(b + 1);
             UpdateReleased();
         }
 
         /// <summary>The chain has ended: the remaining blocks are Encode's alone.</summary>
         void DetachAnalyse() noexcept
         {
-            InterlockedExchange64(&analyseCopied_, Never);
+            analyseCopied_.store(Never);
             UpdateReleased();
         }
 
-        Synchronization::AutoResetEvent_s analyseReady; // a block computed, the end, or an abort (for Analyse)
+        /// <summary>Wakes Analyse (after an abort the encoder sets it, so the chain sees the end).</summary>
+        void SignalAnalyse() noexcept { analyseReady_.Set(); }
 
     private:
         static constexpr std::int64_t Never = 1ll << 62;
 
+        std::atomic_ref<std::int64_t> SlotBlock(std::int64_t b) noexcept { return std::atomic_ref<std::int64_t>(slotBlock_[static_cast<std::size_t>(b % slotCount_)]); }
+
         // released = min(encodeReleased, analyseCopied), only upwards
         void UpdateReleased() noexcept
         {
+            std::int64_t old = released_.load(std::memory_order_acquire);
             for (;;) {
-                const std::int64_t old  = released_;
-                const std::int64_t next = MinI64(encodeReleased_, analyseCopied_);
+                const std::int64_t next = MinI64(encodeReleased_.load(std::memory_order_acquire), analyseCopied_.load(std::memory_order_acquire));
                 if (next <= old)
                     return;
-                if (InterlockedCompareExchange64(&released_, next, old) == old) {
+                if (released_.compare_exchange_strong(old, next)) {
                     slotFree_.Set();
                     return;
                 }
@@ -244,7 +266,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
 
         HeapArray<float>        slots_;     // slotCount blocks of interleaved output
-        HeapArray<std::int64_t> slotBlock_; // per slot: 1 + the block it holds, once computed
+        HeapArray<std::int64_t> slotBlock_; // per slot: 1 + the block it holds, once computed (accessed atomically: SlotBlock)
         std::int64_t            slotCount_ = 0;
         std::int32_t            channels_  = 0;
 
@@ -252,21 +274,22 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::int64_t inputFrames_                     = 0;
         std::int64_t realOutputs_                     = 0;
         std::int64_t totalOutputs_                    = 0;
-        alignas(64) volatile long endKnown_           = 0;
-        alignas(64) volatile std::int64_t dispatched_ = 0; // blocks Resample may compute
-        alignas(64) volatile long ended_              = 0; // dispatched is final
+        alignas(64) std::atomic<bool> endKnown_{false};
+        alignas(64) std::atomic<std::int64_t> dispatched_{0}; // blocks Resample may compute
+        alignas(64) std::atomic<bool> ended_{false};          // dispatched is final
         // Resample
-        alignas(64) volatile std::int64_t claimed_ = 0;
+        alignas(64) std::atomic<std::int64_t> claimed_{0};
         // Encode, Analyse -> Read: a slot is free once both have its block
-        alignas(64) volatile std::int64_t released_       = 0;
-        alignas(64) volatile std::int64_t encodeReleased_ = 0;
-        alignas(64) volatile std::int64_t analyseCopied_  = Never; // without a chain: never the limit
-        alignas(64) volatile long abort_                  = 0;
-        bool memoryError_                                 = false;
+        alignas(64) std::atomic<std::int64_t> released_{0};
+        alignas(64) std::atomic<std::int64_t> encodeReleased_{0};
+        alignas(64) std::atomic<std::int64_t> analyseCopied_{Never}; // without a chain: never the limit
+        alignas(64) std::atomic<bool> abort_{false};
+        bool memoryError_ = false;
 
-        Synchronization::AutoResetEvent   resampleReady_; // blocks to claim, or the end
-        Synchronization::AutoResetEvent_s encodeReady_;   // a block computed
-        Synchronization::AutoResetEvent_s slotFree_;      // a block released
+        Synchronization::AutoResetEvent   resampleReady_; // blocks to claim, or the end; many waiters: the Resample tasks
+        Synchronization::AutoResetEvent_s encodeReady_;   // a block computed; one waiter: Encode
+        Synchronization::AutoResetEvent_s analyseReady_;  // a block computed, the end, or an abort; one waiter: Analyse
+        Synchronization::AutoResetEvent_s slotFree_;      // a block released; one waiter: Read
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

@@ -11,7 +11,7 @@
 #include "SilkSigProc.h"
 #include "SilkTables.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     namespace {
 
@@ -272,4 +272,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
         rangeEnc->EncodeIcdf(midOnlyFlag, stereo_only_code_mid_iCDF, 8);
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

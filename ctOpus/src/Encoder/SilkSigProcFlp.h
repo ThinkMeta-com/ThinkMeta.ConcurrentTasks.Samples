@@ -10,7 +10,7 @@
 // Port of the float signal processing functions of SILK (libopus 1.6.1 silk/float/*_FLP.c,
 // float/x86/inner_product_FLP_avx2.c).
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     /// <summary>silk_inner_product_FLP: in double; the AVX2/FMA variant for arch >= ArchAvx2, as the libopus RTCD.</summary>
     double InnerProductFlp(const float* data1, const float* data2, std::int32_t dataSize, std::int32_t arch) noexcept;
@@ -42,4 +42,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     /// <summary>silk_LPC_analysis_filter_FLP: the LPC residual with zero start state (order 6, 8, 10, 12 or 16; the first order samples are zero).</summary>
     void LpcAnalysisFilterFlp(float rLpc[], const float predCoef[], const float s[], std::int32_t length, std::int32_t order) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

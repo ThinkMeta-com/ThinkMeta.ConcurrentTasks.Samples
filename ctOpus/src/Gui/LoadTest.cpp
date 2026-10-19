@@ -22,7 +22,7 @@
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 import ThinkMeta.ConcurrentTasks.Synchronization.AutoResetEvent;
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui {
 
     namespace {
 
@@ -104,11 +104,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         alignas(64) std::atomic<bool> stop{false};
         std::atomic<std::int64_t> pacerLate{0};
 
-        SchedulerHandle scheduler;
-        TaskExitCounter exits;
-        bool            tasksAdded = false;
-        Handle          pacer;
-        std::uint32_t   schedulerThreads = 0;
+        Shared::SchedulerHandle scheduler;
+        TaskExitCounter         exits;
+        bool                    tasksAdded = false;
+        Handle                  pacer;
+        std::uint32_t           schedulerThreads = 0;
 
         std::int64_t startWall  = 0; // for the CPU load since the start
         std::int64_t startCpu   = 0;
@@ -414,4 +414,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui {
         impl_->Poll(snapshot);
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::Gui
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::Gui

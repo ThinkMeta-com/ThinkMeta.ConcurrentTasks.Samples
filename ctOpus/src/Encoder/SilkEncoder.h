@@ -10,7 +10,7 @@
 #include "RangeEncoder.h"
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // Port of the API level of the SILK encoder (libopus 1.6.1 silk/enc_API.c, init_encoder.c,
     // control_codec.c, check_control_input.c, control_audio_bandwidth.c, control_SNR.c,
@@ -31,4 +31,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     std::int32_t Encode(SilkEncoder* enc, SilkEncControl* encControl, const float* samplesIn, std::int32_t nSamplesIn, RangeEncoder* rangeEnc,
                         std::int32_t* nBytesOut, std::int32_t prefillFlag, std::int32_t activity) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

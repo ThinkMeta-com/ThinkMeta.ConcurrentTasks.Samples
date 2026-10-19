@@ -9,7 +9,7 @@
 
 #include "SilkState.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     // Port of the SILK resampler of libopus 1.6.1 (silk/resampler.c, resampler_private_*.c,
     // resampler_down2.c, resampler_down2_3.c).
@@ -26,4 +26,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
     /// <summary>silk_resampler_down2_3: downsampling by 2/3, low quality (state [6]).</summary>
     void ResamplerDown2_3(std::int32_t* s, std::int16_t* out, const std::int16_t* in, std::int32_t inLen) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

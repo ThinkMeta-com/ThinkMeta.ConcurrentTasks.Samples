@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     namespace {
 
@@ -40,6 +40,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return static_cast<std::uint32_t>((p[1] << 8) | p[0]);
         }
 
+        // opus-tools: sanitize_fourcc() (src/audio-in.c)
         void SanitizeFourcc(std::uint8_t* p) noexcept
         {
             for (std::int32_t i = 0; i < 4; ++i)
@@ -47,7 +48,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                     p[i] = '?';
         }
 
-        // find_wav_chunk
+        // opus-tools: find_wav_chunk() (src/audio-in.c)
         bool FindWavChunk(InputFile& file, const char* type, std::uint32_t& length, ReportFunction report) noexcept
         {
             for (;;) {
@@ -57,7 +58,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 const std::uint32_t chunkLength = ReadU32(header + 4);
                 if (std::memcmp(header, type, 4) != 0) {
                     SanitizeFourcc(header);
-                    Report(report, "Skipping chunk of type \"%.4s\", length %u\n", reinterpret_cast<const char*>(header), chunkLength);
+                    Report(report, L"Skipping chunk of type \"%.4hs\", length %u\n", reinterpret_cast<const char*>(header), chunkLength);
                     if (!file.SeekForward(static_cast<std::int64_t>(chunkLength) + (chunkLength & 1)))
                         return false;
                 } else {
@@ -67,7 +68,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
-        // read_chunk
+        // opus-tools: read_chunk() (src/audio-in.c)
         bool ReadChunk(InputFile& file, std::uint8_t* buffer, std::uint32_t bufferSize, std::uint32_t& length) noexcept
         {
             const std::uint32_t chunkLength = length;
@@ -160,6 +161,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return bytes / itemSize;
     }
 
+    // opus-tools: seek_forward() (src/audio-in.c)
     bool InputFile::SeekForward(std::int64_t length) noexcept
     {
         if (length <= 0)
@@ -218,6 +220,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     // --- WavInput --------------------------------------------------------------------------------
 
+    // opus-tools: wav_open() (src/audio-in.c) with wav_id()
     bool WavInput::Open(InputFile& file, bool ignoreLength, ReportFunction report) noexcept
     {
         file_ = &file;
@@ -230,19 +233,19 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         // wav_open
         std::uint32_t length = 0;
         if (!FindWavChunk(file, "fmt ", length, report)) {
-            Report(report, "ERROR: No format chunk found in WAV file\n");
+            Report(report, L"ERROR: No format chunk found in WAV file\n");
             return false;
         }
         if (length < 16) {
-            Report(report, "ERROR: Unrecognised format chunk in WAV header\n");
+            Report(report, L"ERROR: Unrecognised format chunk in WAV header\n");
             return false;
         }
         if (length != 16 && length != 18 && length != 40)
-            Report(report, "Warning: INVALID format chunk in wav header.\n Trying to read anyway (may not work)...\n");
+            Report(report, L"Warning: INVALID format chunk in wav header.\n Trying to read anyway (may not work)...\n");
 
         std::uint8_t buf[40] = {};
         if (!ReadChunk(file, buf, sizeof(buf), length)) {
-            Report(report, "ERROR: Incomplete format chunk in WAV header\n");
+            Report(report, L"ERROR: Incomplete format chunk in WAV header\n");
             return false;
         }
         std::uint32_t       format     = ReadU16(buf);
@@ -252,12 +255,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         const std::uint32_t sampleBits = ReadU16(buf + 14);
         std::int32_t        validBits  = 0;
         if (channels == 0) {
-            Report(report, "ERROR: Zero channels in WAV header\n");
+            Report(report, L"ERROR: Zero channels in WAV header\n");
             return false;
         }
         if (format == 0xfffe) { // WAVE_FORMAT_EXTENSIBLE
             if (length < 40) {
-                Report(report, "ERROR: Extended WAV format header invalid (too small)\n");
+                Report(report, L"ERROR: Extended WAV format header invalid (too small)\n");
                 return false;
             }
             validBits = static_cast<std::int32_t>(ReadU16(buf + 18));
@@ -267,23 +270,23 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             switch (mask) {
                 case 1539:
                     Report(report,
-                           "WARNING: WAV file uses side surround instead of rear for quadraphonic;\n"
-                           "remapping side speakers to rear in encoding.\n");
+                           L"WARNING: WAV file uses side surround instead of rear for quadraphonic;\n"
+                           L"remapping side speakers to rear in encoding.\n");
                     break;
                 case 1551:
                     Report(report,
-                           "WARNING: WAV file uses side surround instead of rear for 5.1;\n"
-                           "remapping side speakers to rear in encoding.\n");
+                           L"WARNING: WAV file uses side surround instead of rear for 5.1;\n"
+                           L"remapping side speakers to rear in encoding.\n");
                     break;
                 case 319:
                     Report(report,
-                           "WARNING: WAV file uses rear surround instead of side for 6.1;\n"
-                           "remapping rear speakers to side in encoding.\n");
+                           L"WARNING: WAV file uses rear surround instead of side for 6.1;\n"
+                           L"remapping rear speakers to side in encoding.\n");
                     break;
                 case 255:
                     Report(report,
-                           "WARNING: WAV file is a 7.1 'Widescreen' channel mapping;\n"
-                           "remapping speakers to Vorbis 7.1 format.\n");
+                           L"WARNING: WAV file is a 7.1 'Widescreen' channel mapping;\n"
+                           L"remapping speakers to Vorbis 7.1 format.\n");
                     break;
                 case 0:
                 case 1:
@@ -296,8 +299,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 case 1599: break;
                 default:
                     Report(report,
-                           "WARNING: Unknown WAV surround channel mask: %u\n"
-                           "Blindly mapping speakers using default SMPTE/ITU ordering.\n",
+                           L"WARNING: Unknown WAV surround channel mask: %u\n"
+                           L"Blindly mapping speakers using default SMPTE/ITU ordering.\n",
                            mask);
                     break;
             }
@@ -316,29 +319,29 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             ieeeFloat_  = true;
         } else {
             Report(report,
-                   "ERROR: Unsupported WAV file type.\n"
-                   "Must be standard PCM or type 3 floating point PCM.\n");
+                   L"ERROR: Unsupported WAV file type.\n"
+                   L"Must be standard PCM or type 3 floating point PCM.\n");
             return false;
         }
         if (sampleRate > INT_MAX) {
-            Report(report, "ERROR: Preposterous sample rate in WAV header: %u Hz\n", sampleRate);
+            Report(report, L"ERROR: Preposterous sample rate in WAV header: %u Hz\n", sampleRate);
             return false;
         }
         if (!FindWavChunk(file, "data", length, report)) {
-            Report(report, "ERROR: No data chunk found in WAV file\n");
+            Report(report, L"ERROR: No data chunk found in WAV file\n");
             return false;
         }
         if (align != channels * static_cast<std::uint32_t>(sampleBytes))
             Report(report,
-                   "Warning: WAV 'block alignment' value is incorrect, ignoring.\n"
-                   "The software that created this file is incorrect.\n");
+                   L"Warning: WAV 'block alignment' value is incorrect, ignoring.\n"
+                   L"The software that created this file is incorrect.\n");
 
         const bool supported = sampleBits == static_cast<std::uint32_t>(sampleBytes) * 8
             && (sampleBits == 24 || sampleBits == 16 || sampleBits == 8 || (sampleBits == 32 && format == 3));
         if (!supported) {
             Report(report,
-                   "ERROR: Unsupported WAV sample size.\n"
-                   "Must be 8, 16, or 24 bit PCM or 32 bit floating point PCM.\n");
+                   L"ERROR: Unsupported WAV sample size.\n"
+                   L"Must be 8, 16, or 24 bit PCM or 32 bit floating point PCM.\n");
             return false;
         }
 
@@ -370,15 +373,16 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
+    // opus-tools: setup_downmix() (src/audio-in.c)
     std::int32_t WavInput::SetupDownmix(std::int32_t outChannels, ReportFunction report) noexcept
     {
         const std::int32_t inChannels = info_.channels;
         if (inChannels <= outChannels || outChannels > 2 || inChannels <= 0 || outChannels <= 0) {
-            Report(report, "Downmix must actually downmix and only knows mono/stereo out.\n");
+            Report(report, L"Downmix must actually downmix and only knows mono/stereo out.\n");
             return 0;
         }
         if (outChannels == 2 && inChannels > 8) {
-            Report(report, "Downmix only knows how to mix >8ch to mono.\n");
+            Report(report, L"Downmix only knows how to mix >8ch to mono.\n");
             return 0;
         }
         if (!downmixBuffer_.Allocate(static_cast<std::size_t>(inChannels) * 4096)
@@ -409,6 +413,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return outChannels;
     }
 
+    // opus-tools: read_downmix() (src/audio-in.c)
     std::int32_t WavInput::Read(float* buffer, std::int32_t samples) noexcept
     {
         if (!downmix_)
@@ -438,7 +443,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return total;
     }
 
-    // wav_read and wav_ieee_read
+    // opus-tools: wav_read() and wav_ieee_read() (src/audio-in.c)
     std::int32_t WavInput::ReadPcm(float* buffer, std::int32_t samples) noexcept
     {
         const std::int32_t sampleBytes = ieeeFloat_ ? 4 : sampleSizeBits_ / 8;
@@ -486,4 +491,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return realSamples;
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

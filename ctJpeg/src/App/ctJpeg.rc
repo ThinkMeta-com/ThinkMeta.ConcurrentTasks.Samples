@@ -1,0 +1,16 @@
+// Copyright (c) 2026 ThinkMeta Software GmbH
+// SPDX-License-Identifier: MIT (see LICENSE.txt)
+
+// Version resource of ctJpeg.exe: the values; the resource itself is Shared/VersionInfo.rc2
+
+#include "ctJpegVersion.h"
+
+#define CT_RC_VERSION_MAJOR  CTJPEG_VERSION_MAJOR
+#define CT_RC_VERSION_MINOR  CTJPEG_VERSION_MINOR
+#define CT_RC_VERSION_PATCH  CTJPEG_VERSION_PATCH
+#define CT_RC_VERSION_STRING CTJPEG_VERSION_STRING
+#define CT_RC_NAME           "ctJpeg"
+#define CT_RC_DESCRIPTION    "ctJpeg - parallel JPEG encoder (jpegli) on ThinkMeta.ConcurrentTasks"
+#define CT_RC_REFERENCE      "jpegli: Copyright (c) the JPEG XL Project Authors; BSD-3-Clause"
+
+#include "VersionInfo.rc2"

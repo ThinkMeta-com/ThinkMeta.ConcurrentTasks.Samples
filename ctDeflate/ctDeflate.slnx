@@ -3,14 +3,18 @@
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/ctDeflate/">
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctDeflate/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.vcxproj" Id="de71a7e0-0002-4000-8000-000000000002" />
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Engine/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Engine.vcxproj" Id="de71a7e0-0001-4000-8000-000000000001" />
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tasks/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tasks.vcxproj" Id="de71a7e0-0004-4000-8000-000000000004" />
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests.vcxproj" Id="de71a7e0-0003-4000-8000-000000000003" />
+    <Project Path="src/App/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.vcxproj" Id="de71a7e0-0002-4000-8000-000000000002" />
+    <Project Path="src/Encoder/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Encoder.vcxproj" Id="de71a7e0-0001-4000-8000-000000000001" />
+    <Project Path="src/Tasks/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tasks.vcxproj" Id="de71a7e0-0004-4000-8000-000000000004" />
+    <Project Path="src/Tests/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests.vcxproj" Id="de71a7e0-0003-4000-8000-000000000003" />
   </Folder>
   <Folder Name="/libdeflate/">
     <Project Path="libdeflate/libdeflate-1.26/gzip.vcxproj" Id="a281a489-0004-4000-8000-000000000005" />
     <Project Path="libdeflate/libdeflate-1.26/libdeflate.vcxproj" Id="a281a489-0004-4000-8000-000000000004" />
+  </Folder>
+  <Folder Name="/Shared/">
+    <Project Path="../Shared/src/Shared/ThinkMeta.ConcurrentTasks.Samples.Shared.vcxproj" Id="5a4ed000-0001-4000-8000-000000000001" />
+    <Project Path="../Shared/src/Tests/ThinkMeta.ConcurrentTasks.Samples.Shared.Tests.vcxproj" Id="5a4ed000-0002-4000-8000-000000000002" />
   </Folder>
   <Folder Name="/ThinkMeta.ConcurrentTasks.API/">
     <Project Path="../ThinkMeta.ConcurrentTasks.API/Library/ThinkMeta.ConcurrentTasks/ThinkMeta.ConcurrentTasks.vcxproj" Id="8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2" />

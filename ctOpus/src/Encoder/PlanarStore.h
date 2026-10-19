@@ -9,7 +9,7 @@
 
 #include "HeapArray.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>
     /// One float array per channel in reserved virtual memory: committed as it fills, decommitted
@@ -45,4 +45,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::int64_t      decommitted_ = 0; // frames decommitted from the start
     };
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

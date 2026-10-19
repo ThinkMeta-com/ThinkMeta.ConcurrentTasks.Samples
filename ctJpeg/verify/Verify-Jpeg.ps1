@@ -36,26 +36,44 @@
       Smoke  a subset of Quick (its table): 3 photos + edge + 1 gray x four cases. For paths
              besides the main one (Debug, --sequential, --threads).
 
+    Parameters, the same in the Verify script of every sample:
+      -Mode Compare|Reference  Compare (default) checks -Exe; Reference writes the table with -Oracle.
+      -Matrix                  the test matrix; -HashFile the table (default: the one of the matrix here).
+      -Exe                     the program to check (default: ..\build\Release\bin\ctJpeg.exe).
+      -Oracle                  the reference program (default: ..\bin\cjpegli.exe).
+      -ExtraArgs               options for -Exe only (e.g. '--threads 4', '--sequential').
+      -Repeat n                every case n times; all outputs must match (catches thread-timing dependent output).
+      -ThrottleLimit, -WorkDir cases run at once and the folder of the temporary outputs.
+      -TimeoutSec              a run beyond it counts as a hang: killed, exit code 'timeout'.
+
 .EXAMPLE
-    .\Verify-Jpeg.ps1 -Mode Compare -Matrix Quick -Simd avx2
-    .\Verify-Jpeg.ps1 -Mode Compare -Matrix Full -Simd sse2 -Exe ..\bin\ctJpeg.exe
-    .\Verify-Jpeg.ps1 -Mode Reference -Matrix Quick -Simd sse2 -Exe ..\bin\cjpegli.exe -HashFile my-table.csv
+    .\Verify-Jpeg.ps1 -Simd avx2
+    .\Verify-Jpeg.ps1 -Matrix Full -Simd sse2 -Exe ..\bin\ctJpeg.exe
+    .\Verify-Jpeg.ps1 -Mode Reference -Matrix Quick -Simd sse2 -HashFile my-table.csv
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('Reference', 'Compare')][string]$Mode,
-    [Parameter(Mandatory)][ValidateSet('Smoke', 'Quick', 'Full')][string]$Matrix,
-    [Parameter(Mandatory)][ValidateSet('sse2', 'avx2')][string]$Simd,
-    [string]$Exe = (Join-Path $PSScriptRoot '..\src\build\Release\bin\ctJpeg.exe'), # your build; ..\bin\ctJpeg.exe for the published one
+    [ValidateSet('Reference', 'Compare')][string]$Mode = 'Compare',
+    [ValidateSet('Smoke', 'Quick', 'Full')][string]$Matrix = 'Quick',
+    [string]$Exe = (Join-Path $PSScriptRoot '..\build\Release\bin\ctJpeg.exe'), # your build; ..\bin\ctJpeg.exe for the published one
+    [string]$Oracle = (Join-Path $PSScriptRoot '..\bin\cjpegli.exe'),
     [string]$HashFile,
-    [string]$InputRoot = (Join-Path $PSScriptRoot '..\testdata'),
     [string]$ExtraArgs = '',
-    [int]$Repeat = 1,
+    [ValidateRange(1, 100)][int]$Repeat = 1,
     [int]$ThrottleLimit = [Environment]::ProcessorCount,
-    [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) 'JpegVerify')
+    [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) 'JpegVerify'),
+    [int]$TimeoutSec = 300,
+    [Parameter(Mandatory)][ValidateSet('sse2', 'avx2')][string]$Simd,
+    [string]$InputRoot = (Join-Path $PSScriptRoot '..\testdata')
 )
 
 $ErrorActionPreference = 'Stop'
+# Reference runs the oracle; before -Oracle existed, -Exe named it
+if ($Mode -eq 'Reference' -and $PSBoundParameters.ContainsKey('Exe') -and -not $PSBoundParameters.ContainsKey('Oracle')) { $Oracle = $Exe }
+if ($Mode -eq 'Reference') {
+    if ($ExtraArgs -or $Repeat -gt 1) { throw '-ExtraArgs and -Repeat are for compare runs only.' }
+    $Exe = $Oracle
+}
 $Exe = (Resolve-Path $Exe).Path
 $isOracle = (Split-Path -Leaf $Exe) -like 'cjpegli*'
 if ($Mode -eq 'Reference' -and -not $isOracle) { throw 'Reference tables are written with cjpegli only.' }
@@ -125,8 +143,10 @@ $results = $cases | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
             $argList = @($c.Input, $out) + $caseArgs + @('--simd', $using:Simd) + @($using:ExtraArgs -split ' ' | Where-Object { $_ })
         }
         $p = Start-Process -FilePath $using:Exe -ArgumentList ($argList | ForEach-Object { '"' + $_ + '"' }) `
-            -NoNewWindow -Wait -PassThru -RedirectStandardError "$out.err" -RedirectStandardOutput "$out.log"
-        $r = [pscustomobject]@{ ExitCode = $p.ExitCode; Size = -1; Sha256 = '' }
+            -NoNewWindow -PassThru -RedirectStandardError "$out.err" -RedirectStandardOutput "$out.log"
+        $null = $p.Handle # keeps the exit code readable after the wait
+        $code = if ($p.WaitForExit($using:TimeoutSec * 1000)) { $p.ExitCode } else { $p.Kill($true); $p.WaitForExit(); 'timeout' }
+        $r = [pscustomobject]@{ ExitCode = $code; Size = -1; Sha256 = '' }
         if (Test-Path $out) {
             $r.Sha256 = (Get-FileHash -Algorithm SHA256 $out).Hash.ToLowerInvariant()
             $r.Size = (Get-Item $out).Length

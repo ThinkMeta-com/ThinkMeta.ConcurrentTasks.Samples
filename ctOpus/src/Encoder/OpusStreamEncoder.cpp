@@ -9,6 +9,7 @@
 #include "CeltMath.h"
 #include "CeltPitch.h"
 #include "CeltSimd.h"
+#include "IntMath.h"
 #include "OpusPacket.h"
 #include "SilkEncoder.h"
 #include "SilkSigProc.h"
@@ -19,7 +20,7 @@
 #include <cstdio>
 #include <cstring>
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     namespace {
 
@@ -44,19 +45,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         constexpr std::int32_t ModeThresholds[2][2]              = {{64000, 10000}, {44000, 10000}}; // [mono/stereo][voice/music]
         constexpr std::int32_t FecThresholds[]                   = {12000, 1000, 14000, 1000, 16000, 1000, 20000, 1000, 22000, 1000};
 
-        constexpr std::int32_t ImaxI(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a > b ? a : b;
-        }
-        constexpr std::int32_t IminI(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a < b ? a : b;
-        }
-
+        // libopus: bits_to_bitrate() (celt/celt.h)
         constexpr std::int32_t BitsToBitrate(std::int32_t bits, std::int32_t fs, std::int32_t frameSize) noexcept
         {
             return bits * (6 * fs / frameSize) / 6;
         }
+        // libopus: bitrate_to_bits() (celt/celt.h)
         constexpr std::int32_t BitrateToBits(std::int32_t bitrate, std::int32_t fs, std::int32_t frameSize) noexcept
         {
             return bitrate * 6 / (6 * fs / frameSize);
@@ -89,19 +83,23 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return static_cast<std::int32_t>(c * static_cast<double>(static_cast<std::int64_t>(1) << q) + 0.5);
         }
 
+        // libopus: celt_sqrt() (celt/mathops.h)
         float CeltSqrt(float x) noexcept
         {
             return static_cast<float>(std::sqrt(static_cast<double>(x)));
         }
+        // libopus: celt_exp2() (celt/mathops.h)
         float CeltExp2(float x) noexcept
         {
             return static_cast<float>(std::exp(0.6931471805599453094 * x));
         }
+        // libopus: ABS16() (celt/arch.h)
         float Abs16(float x) noexcept
         {
             return static_cast<float>(std::fabs(static_cast<double>(x)));
         }
 
+        // libopus: gen_toc() (src/opus_encoder.c)
         std::uint8_t GenToc(std::int32_t mode, std::int32_t framerate, std::int32_t bandwidth, std::int32_t channels) noexcept
         {
             std::int32_t period = 0;
@@ -129,7 +127,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return static_cast<std::uint8_t>(toc);
         }
 
-        // silk_biquad_res (float): second order ARMA filter, direct form II transposed
+        // libopus: silk_biquad_res() (src/opus_encoder.c) (float): second order ARMA filter, direct form II transposed
         void SilkBiquadRes(const float* in, const std::int32_t* bQ28, const std::int32_t* aQ28, float* s, float* out, std::int32_t len,
                            std::int32_t stride) noexcept
         {
@@ -147,6 +145,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: hp_cutoff() (src/opus_encoder.c)
         void HpCutoff(const float* in, std::int32_t cutoffHz, float* out, float* hpMem, std::int32_t len, std::int32_t channels, std::int32_t fs) noexcept
         {
             std::int32_t       bQ28[3], aQ28[2];
@@ -163,6 +162,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 SilkBiquadRes(in + 1, bQ28, aQ28, hpMem + 2, out + 1, len, channels);
         }
 
+        // libopus: dc_reject() (src/opus_encoder.c)
         void DcReject(const float* in, std::int32_t cutoffHz, float* out, float* hpMem, std::int32_t len, std::int32_t channels, std::int32_t fs) noexcept
         {
             const float coef  = 6.3f * cutoffHz / fs;
@@ -194,10 +194,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: stereo_fade() (src/opus_encoder.c)
         void StereoFade(const float* in, float* out, float g1, float g2, std::int32_t overlap48, std::int32_t frameSize, std::int32_t channels,
                         const float* window, std::int32_t fs) noexcept
         {
-            const std::int32_t inc     = ImaxI(1, 48000 / fs);
+            const std::int32_t inc     = Imax(1, 48000 / fs);
             const std::int32_t overlap = overlap48 / inc;
             g1                         = 1.0f - g1;
             g2                         = 1.0f - g2;
@@ -219,10 +220,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: gain_fade() (src/opus_encoder.c)
         void GainFade(const float* in, float* out, float g1, float g2, std::int32_t overlap48, std::int32_t frameSize, std::int32_t channels,
                       const float* window, std::int32_t fs) noexcept
         {
-            const std::int32_t inc     = ImaxI(1, 48000 / fs);
+            const std::int32_t inc     = Imax(1, 48000 / fs);
             const std::int32_t overlap = overlap48 / inc;
             if (channels == 1) {
                 for (std::int32_t i = 0; i < overlap; ++i) {
@@ -247,6 +249,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             } while (++c < channels);
         }
 
+        // libopus: decide_fec() (src/opus_encoder.c)
         std::int32_t DecideFec(std::int32_t useInBandFec, std::int32_t packetLossPerc, std::int32_t lastFec, std::int32_t mode, std::int32_t& bandwidth,
                                std::int32_t rate) noexcept
         {
@@ -260,7 +263,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                     lbrrRateThresBps -= hysteresis;
                 if (lastFec == 0)
                     lbrrRateThresBps += hysteresis;
-                lbrrRateThresBps = SilkSmulwb(lbrrRateThresBps * (125 - IminI(packetLossPerc, 25)), SilkFixConst(0.01, 16));
+                lbrrRateThresBps = SilkSmulwb(lbrrRateThresBps * (125 - Imin(packetLossPerc, 25)), SilkFixConst(0.01, 16));
                 // up to 5% loss: FEC if the rate allows; above: lower the bandwidth until it does
                 if (rate > lbrrRateThresBps)
                     return 1;
@@ -275,6 +278,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return 0;
         }
 
+        // libopus: compute_silk_rate_for_hybrid() (src/opus_encoder.c)
         std::int32_t ComputeSilkRateForHybrid(std::int32_t rate, std::int32_t bandwidth, std::int32_t frame20ms, std::int32_t vbr, std::int32_t fec,
                                               std::int32_t channels) noexcept
         {
@@ -313,6 +317,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return silkRate;
         }
 
+        // libopus: compute_equiv_rate() (src/opus_encoder.c)
         // the equivalent bitrate for 20 ms frames, complexity 10, VBR
         std::int32_t ComputeEquivRate(std::int32_t bitrate, std::int32_t channels, std::int32_t frameRate, std::int32_t vbr, std::int32_t mode,
                                       std::int32_t complexity, std::int32_t loss) noexcept
@@ -336,6 +341,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return equiv;
         }
 
+        // libopus: OPUS_GET_IN_DTX of opus_encoder_ctl() (src/opus_encoder.c)
         // the in-DTX state of the SILK encoder (OPUS_GET_IN_DTX for SILK and hybrid)
         std::int32_t SilkInDtx(const SilkEncoder* enc, std::int32_t nChannelsInternal) noexcept
         {
@@ -345,6 +351,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return value;
         }
 
+        // libopus: decide_dtx_mode() (src/opus_encoder.c)
         bool DecideDtxMode(std::int32_t activity, std::int32_t& nbNoActivityMsQ1, std::int32_t frameSizeMsQ1) noexcept
         {
             if (activity == 0) {
@@ -360,6 +367,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return false;
         }
 
+        // libopus: compute_redundancy_bytes() (src/opus_encoder.c)
         std::int32_t ComputeRedundancyBytes(std::int32_t maxDataBytes, std::int32_t bitrateBps, std::int32_t frameRate, std::int32_t channels) noexcept
         {
             const std::int32_t baseBits        = 40 * channels + 20;
@@ -368,9 +376,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             std::int32_t       redundancyBytes = redundancyRate / 1600;
             const std::int32_t availableBits   = maxDataBytes * 8 - 2 * baseBits;
             const std::int32_t cap             = (availableBits * 240 / (240 + 48000 / frameRate) + baseBits) / 8;
-            redundancyBytes                    = IminI(redundancyBytes, cap);
+            redundancyBytes                    = Imin(redundancyBytes, cap);
             if (redundancyBytes > 4 + 8 * channels)
-                redundancyBytes = IminI(257, redundancyBytes);
+                redundancyBytes = Imin(257, redundancyBytes);
             else
                 redundancyBytes = 0;
             return redundancyBytes;
@@ -378,6 +386,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopus: opus_encoder_init() (src/opus_encoder.c)
     std::int32_t OpusStreamEncoder::Init(std::int32_t fs, std::int32_t channels, std::int32_t application) noexcept
     {
         if ((fs != 48000 && fs != 24000 && fs != 16000 && fs != 12000 && fs != 8000) || (channels != 1 && channels != 2)
@@ -459,6 +468,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return OPUS_OK;
     }
 
+    // libopus: OPUS_RESET_STATE of opus_encoder_ctl() (src/opus_encoder.c)
     void OpusStreamEncoder::ResetState() noexcept
     {
         streamChannels_       = 0;
@@ -478,6 +488,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::memset(delayBuffer_, 0, sizeof(delayBuffer_));
     }
 
+    // libopus: user_bitrate_to_bitrate() (src/opus_encoder.c)
     std::int32_t OpusStreamEncoder::UserBitrateToBitrate(std::int32_t frameSize, std::int32_t maxDataBytes) const noexcept
     {
         if (frameSize == 0)
@@ -490,18 +501,20 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             userBitrate = 1500000;
         else
             userBitrate = userBitrateBps_;
-        return IminI(userBitrate, maxBitrate);
+        return Imin(userBitrate, maxBitrate);
     }
 
+    // libopus: compute_stereo_width() (src/opus_encoder.c)
     float OpusStreamEncoder::ComputeStereoWidth(const float* pcm, std::int32_t frameSize) noexcept
     {
         return StereoWidth(pcm, frameSize, fs_, widthMem_);
     }
 
+    // libopus: compute_stereo_width() (src/opus_encoder.c)
     float StereoWidth(const float* pcm, std::int32_t frameSize, std::int32_t fs, StereoWidthState& mem) noexcept
     {
         const std::int32_t frameRate  = fs / frameSize;
-        const float        shortAlpha = static_cast<float>(25) * 1.0f / ImaxI(50, frameRate);
+        const float        shortAlpha = static_cast<float>(25) * 1.0f / Imax(50, frameRate);
         float              xx = 0, xy = 0, yy = 0;
         // unrolled by 4; 2.5 ms frames at 12 kHz drop the last two samples
         for (std::int32_t i = 0; i < frameSize - 3; i += 4) {
@@ -559,6 +572,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return 1.0f < w ? 1.0f : w;
     }
 
+    // libopus: compute_frame_energy() (src/opus_encoder.c)
     float OpusStreamEncoder::ComputeFrameEnergy(const float* pcm, std::int32_t frameSize) const noexcept
     {
         const std::int32_t len = frameSize * channels_;
@@ -572,6 +586,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return ComputeFrameEnergy(pcm, frameSize);
     }
 
+    // libopus: OPUS_SET_ENERGY_MASK of opus_encoder_ctl() (src/opus_encoder.c)
     std::int32_t OpusStreamEncoder::SetEnergyMask(const float* mask) noexcept
     {
         energyMasking_ = mask;
@@ -580,6 +595,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return OPUS_OK;
     }
 
+    // libopus: opus_encoder_ctl() (src/opus_encoder.c), the SET requests and OPUS_RESET_STATE
     std::int32_t OpusStreamEncoder::Ctl(std::int32_t request, std::int32_t value) noexcept
     {
         std::int32_t ret = OPUS_OK;
@@ -726,6 +742,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return ret;
     }
 
+    // libopus: opus_encoder_ctl() (src/opus_encoder.c), the GET requests
     std::int32_t OpusStreamEncoder::Get(std::int32_t request, std::int32_t& value) noexcept
     {
         switch (request) {
@@ -783,11 +800,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         totalBuffer_ = application == OPUS_APPLICATION_RESTRICTED_LOWDELAY || application == OPUS_APPLICATION_RESTRICTED_CELT ? 0 : encoder.delayCompensation_;
         std::memcpy(hpMem_, encoder.hpMem_, sizeof(hpMem_));
         std::memcpy(delayBuffer_, encoder.delayBuffer_, sizeof(delayBuffer_));
-        lsbDepth_ = IminI(MaxEncodingDepth, encoder.lsbDepth_);
+        lsbDepth_ = Imin(MaxEncodingDepth, encoder.lsbDepth_);
         widthMem_ = encoder.widthMem_;
         return channels_ <= 2 && encoderBuffer_ <= 480;
     }
 
+    // libopus: opus_encode_frame_native() (src/opus_encoder.c), the delay buffer and dc_reject() of the CELT input
     const float* CeltInputChain::Next(const float* pcm, std::int32_t frameSize, StreamInputFrame* stage) noexcept
     {
         // the input stage as EncodeNative
@@ -836,6 +854,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return silkMode_.complexity >= 7 && fs_ >= 16000 && fs_ <= 48000 && application_ != OPUS_APPLICATION_RESTRICTED_SILK;
     }
 
+    // libopus: opus_encode_native() (src/opus_encoder.c)
     std::int32_t OpusStreamEncoder::EncodeNative(const float* pcm, std::int32_t frameSize, std::uint8_t* data, std::int32_t outDataBytes, std::int32_t lsbDepth,
                                                  const float* analysisPcm, std::int32_t analysisSize, std::int32_t c1, std::int32_t c2,
                                                  std::int32_t analysisChannels) noexcept
@@ -852,7 +871,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::int32_t           analysisReadSubframeBak = -1;
 
         // avoid insane packet sizes here; the real bounds come later
-        std::int32_t maxDataBytes = IminI(PacketSizeCap * 6, outDataBytes);
+        std::int32_t maxDataBytes = Imin(PacketSizeCap * 6, outDataBytes);
         rangeFinal_               = 0;
         if (frameSize <= 0 || maxDataBytes <= 0)
             return OPUS_BAD_ARG;
@@ -862,7 +881,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         const std::int64_t call = callIndex_++;
         currentCall_            = call;
-        lsbDepth                = IminI(lsbDepth, lsbDepth_);
+        lsbDepth                = Imin(lsbDepth, lsbDepth_);
         // the input stage from the chain, for exactly this input
         currentInput_ = nullptr;
         currentPcm_   = pcm;
@@ -938,9 +957,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         std::int32_t frameRate = fs_ / frameSize;
         if (useVbr_ == 0) {
-            cbrBytes     = IminI((BitrateToBits(bitrateBps_, fs_, frameSize) + 4) / 8, maxDataBytes);
+            cbrBytes     = Imin((BitrateToBits(bitrateBps_, fs_, frameSize) + 4) / 8, maxDataBytes);
             bitrateBps_  = BitsToBitrate(cbrBytes * 8, fs_, frameSize);
-            maxDataBytes = ImaxI(1, cbrBytes); // at least one byte
+            maxDataBytes = Imax(1, cbrBytes); // at least one byte
         }
         if (maxDataBytes < 3 || bitrateBps_ < 3 * frameRate * 8 || (frameRate < 50 && (maxDataBytes * frameRate < 300 || bitrateBps_ < 2400))) {
             // too little space to do something useful: a 'PLC' frame
@@ -978,7 +997,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             data[0] = GenToc(tocmode, frameRate, bw, streamChannels_);
             data[0] |= static_cast<std::uint8_t>(packetCode);
             ret          = packetCode <= 1 ? 1 : 2;
-            maxDataBytes = ImaxI(maxDataBytes, ret);
+            maxDataBytes = Imax(maxDataBytes, ret);
             if (packetCode == 3)
                 data[1] = static_cast<std::uint8_t>(numMultiframes);
             if (useVbr_ == 0) {
@@ -1000,7 +1019,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         else if (voiceRatio_ >= 0) {
             voiceEst = voiceRatio_ * 327 >> 8;
             if (application_ == OPUS_APPLICATION_AUDIO)
-                voiceEst = IminI(voiceEst, 115); // never more than 90% sure of speech
+                voiceEst = Imin(voiceEst, 115); // never more than 90% sure of speech
         } else if (application_ == OPUS_APPLICATION_VOIP)
             voiceEst = 115;
         else
@@ -1133,7 +1152,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             bandwidth_ = userBandwidth_;
         // no hybrid at unsafe CBR/max rates
         if (mode_ != ModeCeltOnly && maxRate < 15000)
-            bandwidth_ = IminI(bandwidth_, OPUS_BANDWIDTH_WIDEBAND);
+            bandwidth_ = Imin(bandwidth_, OPUS_BANDWIDTH_WIDEBAND);
         // no bits above the Nyquist rate of the input
         if (fs_ <= 24000 && bandwidth_ > OPUS_BANDWIDTH_SUPERWIDEBAND)
             bandwidth_ = OPUS_BANDWIDTH_SUPERWIDEBAND;
@@ -1156,8 +1175,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 minDetectedBandwidth = OPUS_BANDWIDTH_SUPERWIDEBAND;
             else
                 minDetectedBandwidth = OPUS_BANDWIDTH_FULLBAND;
-            detectedBandwidth_ = ImaxI(detectedBandwidth_, minDetectedBandwidth);
-            bandwidth_         = IminI(bandwidth_, detectedBandwidth_);
+            detectedBandwidth_ = Imax(detectedBandwidth_, minDetectedBandwidth);
+            bandwidth_         = Imin(bandwidth_, detectedBandwidth_);
         }
         silkMode_.LBRR_coded = DecideFec(silkMode_.useInBandFEC, silkMode_.packetLossPercentage, silkMode_.LBRR_coded, mode_, bandwidth_, equivRate);
         if (application_ != OPUS_APPLICATION_RESTRICTED_SILK)
@@ -1202,7 +1221,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             if (useVbr_ != 0 || userBitrateBps_ == OPUS_BITRATE_MAX)
                 repacketizeLen = outDataBytes;
             else
-                repacketizeLen = IminI(cbrBytes, outDataBytes);
+                repacketizeLen = Imin(cbrBytes, outDataBytes);
             const std::int32_t maxLenSum = nbFrames + repacketizeLen - maxHeaderBytes;
 
             HeapArray<std::uint8_t> tmpData;
@@ -1226,8 +1245,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 // from SILK/hybrid to CELT: ask for the switch only in the last frame
                 const bool   frameToCelt     = toCelt && i == nbFrames - 1;
                 const bool   frameRedundancy = redundancy && (frameToCelt || (!toCelt && i == 0));
-                std::int32_t currMax         = IminI(BitrateToBits(bitrateBps_, fs_, encFrameSize) / 8, maxLenSum / nbFrames);
-                currMax                      = IminI(maxLenSum - totSize, currMax);
+                std::int32_t currMax         = Imin(BitrateToBits(bitrateBps_, fs_, encFrameSize) / 8, maxLenSum / nbFrames);
+                currMax                      = Imin(maxLenSum - totSize, currMax);
                 if (analysisReadPosBak != -1) {
                     // the analysis of this frame
                     if (toneSource_ != nullptr)
@@ -1280,6 +1299,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return ret;
     }
 
+    // libopus: opus_encode_frame_native() (src/opus_encoder.c)
     std::int32_t OpusStreamEncoder::EncodeFrameNative(const float* pcm, std::int32_t frameSize, std::uint8_t* data, std::int32_t origMaxDataBytes,
                                                       const AnalysisInfo* analysisInfo, bool isSilence, bool redundancy, bool celtToSilk, std::int32_t prefill,
                                                       std::int32_t equivRate, bool toCelt) noexcept
@@ -1291,7 +1311,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         std::int32_t  activity        = VadNoDecision;
         std::int32_t  nBytes          = 0;
 
-        const std::int32_t maxDataBytes = IminI(origMaxDataBytes, 1276);
+        const std::int32_t maxDataBytes = Imin(origMaxDataBytes, 1276);
         rangeFinal_                     = 0;
         const CeltEncoder* celtMode     = nullptr;
         if (application_ != OPUS_APPLICATION_RESTRICTED_SILK)
@@ -1339,7 +1359,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             redundancyBytes = 0;
         }
 
-        const std::int32_t bitsTarget = IminI(8 * (maxDataBytes - redundancyBytes), BitrateToBits(bitrateBps_, fs_, frameSize)) - 8;
+        const std::int32_t bitsTarget = Imin(8 * (maxDataBytes - redundancyBytes), BitrateToBits(bitrateBps_, fs_, frameSize)) - 8;
 
         data += 1;
         RangeEncoder enc;
@@ -1449,11 +1469,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                     effectiveMaxRate = effectiveMaxRate * 2 / 3;
                 if (effectiveMaxRate < 8000) {
                     silkMode_.maxInternalSampleRate     = 12000;
-                    silkMode_.desiredInternalSampleRate = IminI(12000, silkMode_.desiredInternalSampleRate);
+                    silkMode_.desiredInternalSampleRate = Imin(12000, silkMode_.desiredInternalSampleRate);
                 }
                 if (effectiveMaxRate < 7000) {
                     silkMode_.maxInternalSampleRate     = 8000;
-                    silkMode_.desiredInternalSampleRate = IminI(8000, silkMode_.desiredInternalSampleRate);
+                    silkMode_.desiredInternalSampleRate = Imin(8000, silkMode_.desiredInternalSampleRate);
                 }
             }
             silkMode_.useCBR = useVbr_ == 0;
@@ -1469,8 +1489,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 // CBR with non-SILK data: SILK runs VBR with a cap; CELT absorbs the variation
                 if (mode_ == ModeHybrid) {
                     // SILK may steal up to 25% of the remaining bits
-                    const auto otherBits = static_cast<std::int16_t>(ImaxI(0, silkMode_.maxBits - silkMode_.bitRate * frameSize / fs_));
-                    silkMode_.maxBits    = ImaxI(0, silkMode_.maxBits - otherBits * 3 / 4);
+                    const auto otherBits = static_cast<std::int16_t>(Imax(0, silkMode_.maxBits - silkMode_.bitRate * frameSize / fs_));
+                    silkMode_.maxBits    = Imax(0, silkMode_.maxBits - otherBits * 3 / 4);
                     silkMode_.useCBR     = 0;
                 }
             } else if (mode_ == ModeHybrid) {
@@ -1593,8 +1613,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                     maxRedundancy = (maxDataBytes - 1) - ((enc.Tell() + 7) >> 3);
                 }
                 // the same rate for the redundancy as for the rest, up to 257 bytes
-                redundancyBytes = IminI(maxRedundancy, redundancyBytes);
-                redundancyBytes = IminI(257, ImaxI(2, redundancyBytes));
+                redundancyBytes = Imin(maxRedundancy, redundancyBytes);
+                redundancyBytes = Imin(257, Imax(2, redundancyBytes));
                 if (mode_ == ModeHybrid)
                     enc.EncodeUint(static_cast<std::uint32_t>(redundancyBytes - 2), 256);
             }
@@ -1763,4 +1783,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return ret;
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

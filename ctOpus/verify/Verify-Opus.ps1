@@ -10,7 +10,7 @@
 
     -Mode Compare    encodes the matrix with -Exe and reports every case whose hash, size or exit
                      code differs from the table. Exit code 1 on any difference.
-    -Mode Reference  writes the table with -Exe (default ..\bin\opusenc.exe), e.g. for a folder of
+    -Mode Reference  writes the table with -Oracle (default ..\bin\opusenc.exe), e.g. for a folder of
                      your own WAV files (-CorpusDir, with -HashFile).
 
     The inputs are the synthetic test files of New-TestWavs.ps1 (written on first use to inputs\):
@@ -19,7 +19,7 @@
     are not in the tables, so write your own table first:
 
       .\Verify-Opus.ps1 -Mode Reference -Matrix Full -CorpusDir D:\Music -HashFile my-Full.csv
-      .\Verify-Opus.ps1 -Mode Compare -Matrix Full -CorpusDir D:\Music -HashFile my-Full.csv -Exe ..\build\Release\bin\ctOpus.exe
+      .\Verify-Opus.ps1 -Matrix Full -CorpusDir D:\Music -HashFile my-Full.csv
 
     A case is keyed by its matrix arguments plus the input file name. -BaseArgs (default
     '--quiet --serial 1': opusenc otherwise picks a random Ogg serial number per run) and
@@ -37,28 +37,45 @@
                 complexity, bit rate, frame size, CBR/CVBR, downmix, speech and loss options
       Full      the files of -CorpusDir x (--comp 10 --bitrate 128, --comp 5 --bitrate 96, --comp 0 --bitrate 64)
 
+    Parameters, the same in the Verify script of every sample:
+      -Mode Compare|Reference  Compare (default) checks -Exe; Reference writes the table with -Oracle.
+      -Matrix                  the test matrix; -HashFile the table (default: the one of the matrix here).
+      -Exe                     the program to check (default: ..\build\Release\bin\ctOpus.exe).
+      -Oracle                  the reference program (default: ..\bin\opusenc.exe).
+      -ExtraArgs               options for -Exe only (e.g. '--threads 4', '--sequential').
+      -Repeat n                every case n times; all outputs must match (catches thread-timing dependent output).
+      -ThrottleLimit, -WorkDir cases run at once and the folder of the temporary outputs.
+      -TimeoutSec              a run beyond it counts as a hang: killed, exit code 'timeout'.
+
 .EXAMPLE
-    .\Verify-Opus.ps1 -Mode Compare -Matrix Quick -Exe ..\build\Release\bin\ctOpus.exe
-    .\Verify-Opus.ps1 -Mode Compare -Matrix Smoke -Exe ..\bin\ctOpus.exe -ExtraArgs '--threads 4' -Repeat 3
+    .\Verify-Opus.ps1
+    .\Verify-Opus.ps1 -Matrix Smoke -Exe ..\bin\ctOpus.exe -ExtraArgs '--threads 4' -Repeat 3
 #>
 param(
-    [Parameter(Mandatory)][ValidateSet('Reference', 'Compare')][string]$Mode,
-    [Parameter(Mandatory)][ValidateSet('Smoke', 'Quick', 'Full', 'Surround', 'Silk')][string]$Matrix,
-    [string]$Exe = (Join-Path $PSScriptRoot '..\bin\opusenc.exe'),
+    [ValidateSet('Reference', 'Compare')][string]$Mode = 'Compare',
+    [ValidateSet('Smoke', 'Quick', 'Full', 'Surround', 'Silk')][string]$Matrix = 'Quick',
+    [string]$Exe = (Join-Path $PSScriptRoot '..\build\Release\bin\ctOpus.exe'), # your build; ..\bin\ctOpus.exe for the published one
+    [string]$Oracle = (Join-Path $PSScriptRoot '..\bin\opusenc.exe'),
     [string]$HashFile,
-    [string]$CorpusDir = '',
-    [string]$SynthDir = (Join-Path $PSScriptRoot 'inputs\synth'),
-    [string]$SurroundDir = (Join-Path $PSScriptRoot 'inputs\surround'),
-    [string]$BaseArgs = '--quiet --serial 1',
     [string]$ExtraArgs = '',
     [ValidateRange(1, 100)][int]$Repeat = 1,
     [int]$ThrottleLimit = [Environment]::ProcessorCount,
-    [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) 'ctOpusVerify')
+    [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) 'ctOpusVerify'),
+    [int]$TimeoutSec = 300,
+    [string]$CorpusDir = '',
+    [string]$SynthDir = (Join-Path $PSScriptRoot 'inputs\synth'),
+    [string]$SurroundDir = (Join-Path $PSScriptRoot 'inputs\surround'),
+    [string]$BaseArgs = '--quiet --serial 1'
 )
 
 $ErrorActionPreference = 'Stop'
+# Reference runs the oracle; before -Oracle existed, -Exe named it
+if ($Mode -eq 'Reference' -and $PSBoundParameters.ContainsKey('Exe') -and -not $PSBoundParameters.ContainsKey('Oracle')) { $Oracle = $Exe }
+if ($Mode -eq 'Reference') {
+    if ($ExtraArgs -or $Repeat -gt 1) { throw '-ExtraArgs and -Repeat are for compare runs only.' }
+    $Exe = $Oracle
+}
 $Exe = (Resolve-Path $Exe).Path
-if ($Mode -eq 'Reference' -and ($ExtraArgs -or $Repeat -gt 1)) { throw '-ExtraArgs and -Repeat are for compare runs only.' }
 if ($Matrix -eq 'Full' -and -not $CorpusDir) { throw 'The Full matrix encodes the WAV files of -CorpusDir (with a table of your own, -HashFile).' }
 if (-not $HashFile) {
     if ($CorpusDir) { throw '-CorpusDir needs -HashFile: the tables here only hold the synthetic test files.' }
@@ -149,9 +166,11 @@ $results = $runs | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
     $argList = @($using:BaseArgs -split ' ' | Where-Object { $_ }) + @($using:ExtraArgs -split ' ' | Where-Object { $_ }) +
         @($c.Args -split ' ' | Where-Object { $_ }) + @($c.Input, $out)
     $p = Start-Process -FilePath $using:Exe -ArgumentList ($argList | ForEach-Object { '"' + $_ + '"' }) `
-        -NoNewWindow -Wait -PassThru -RedirectStandardError "$out.err" -RedirectStandardOutput "$out.out"
+        -NoNewWindow -PassThru -RedirectStandardError "$out.err" -RedirectStandardOutput "$out.out"
+    $null = $p.Handle # keeps the exit code readable after the wait
+    $code = if ($p.WaitForExit($using:TimeoutSec * 1000)) { $p.ExitCode } else { $p.Kill($true); $p.WaitForExit(); 'timeout' }
     $r = [pscustomobject]@{ Key = "$($c.Args)|$($c.Name)"; Args = $c.Args; Input = $c.Name; Run = $_.Run
-        ExitCode = $p.ExitCode; Size = -1; Sha256 = ''; InRate = $c.InRate; HeadRate = 0; Channels = 0 }
+        ExitCode = $code; Size = -1; Sha256 = ''; InRate = $c.InRate; HeadRate = 0; Channels = 0 }
     if (Test-Path $out) {
         $r.Sha256 = (Get-FileHash -Algorithm SHA256 $out).Hash.ToLowerInvariant()
         $r.Size = (Get-Item $out).Length

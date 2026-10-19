@@ -13,7 +13,7 @@
 #include "SilkMacros.h"
 #include "SilkSigProcFlp.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk {
 
     namespace {
 
@@ -243,4 +243,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk {
         }
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus::silk
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus::silk

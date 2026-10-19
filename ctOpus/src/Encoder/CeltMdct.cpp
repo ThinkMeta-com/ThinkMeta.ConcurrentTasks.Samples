@@ -8,8 +8,9 @@
 #include "CeltMode.h"
 #include "KissFft.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
+    // libopus: clt_mdct_forward_c() (celt/mdct.c)
     void MdctForward(const float* in, float* out, std::int32_t shift, std::int32_t stride) noexcept
     {
         constexpr std::int32_t overlap = CeltMode::Overlap;
@@ -106,4 +107,4 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus

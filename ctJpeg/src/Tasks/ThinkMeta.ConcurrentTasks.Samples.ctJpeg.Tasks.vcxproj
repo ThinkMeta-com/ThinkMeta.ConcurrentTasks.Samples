@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4a504547-0002-4000-8000-000000000002}</ProjectGuid>
+    <RootNamespace>ThinkMetaConcurrentTasksSamplesctJpegTasks</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!-- The core of the API submodule, relative to this project. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\..\ThinkMeta.ConcurrentTasks.API\Core\ThinkMeta.ConcurrentTasks.Core.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\Shared\src\Shared;$(MSBuildThisFileDirectory)..\Encoder;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="AsyncInput.h" />
+    <ClInclude Include="AsyncOutput.h" />
+    <ClInclude Include="EncodeGraph.h" />
+    <ClInclude Include="ScanChunks.h" />
+    <ClInclude Include="StageWorkers.h" />
+    <ClInclude Include="TokenBands.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="AsyncInput.cpp" />
+    <ClCompile Include="AsyncOutput.cpp" />
+    <ClCompile Include="EncodeGraph.cpp" />
+    <ClCompile Include="ScanChunks.cpp" />
+    <ClCompile Include="StageWorkers.cpp" />
+    <ClCompile Include="TokenBands.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\ThinkMeta.ConcurrentTasks.API\Library\ThinkMeta.ConcurrentTasks\ThinkMeta.ConcurrentTasks.vcxproj">
+      <Project>{8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="..\Encoder\ThinkMeta.ConcurrentTasks.Samples.ctJpeg.Encoder.vcxproj">
+      <Project>{4a504547-0002-4000-8000-000000000001}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

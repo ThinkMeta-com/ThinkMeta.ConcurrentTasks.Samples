@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <!-- the API submodule of the Samples repository: build settings -->
+    <CT_ApiDir>$(MSBuildThisFileDirectory)..\..\..\ThinkMeta.ConcurrentTasks.API\</CT_ApiDir>
+  </PropertyGroup>
+  <Import Project="$(CT_ApiDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{5a4ed000-0001-4000-8000-000000000001}</ProjectGuid>
+    <RootNamespace>ThinkMetaConcurrentTasksSamplesShared</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!-- Without the C runtime: no default library in the objects (the library links into programs with the static or the
+       DLL runtime, or none), and no compiler checks that call into it (security cookie, run-time checks, Just My Code), no exception tables. Stack
+       frames stay below 4 KB, so there is no stack probe (__chkstk). -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <OmitDefaultLibName>true</OmitDefaultLibName>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <SupportJustMyCode>false</SupportJustMyCode>
+      <ExceptionHandling>false</ExceptionHandling>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="Console.h" />
+    <ClInclude Include="CpuCheck.h" />
+    <ClInclude Include="CpuFeatures.h" />
+    <ClInclude Include="Diagnostics.h" />
+    <ClInclude Include="File.h" />
+    <ClInclude Include="DebugReports.h" />
+    <ClInclude Include="Formatter.h" />
+    <ClInclude Include="ParseResult.h" />
+    <ClInclude Include="RunStats.h" />
+    <ClInclude Include="SchedulerHandle.h" />
+    <ClInclude Include="TaskRuntime.h" />
+    <ClInclude Include="TestEnvironment.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Console.cpp" />
+    <ClCompile Include="File.cpp" />
+    <!-- the CPU check runs before the C runtime and before any /arch:AVX2 code: plain SSE2, no whole program optimization -->
+    <ClCompile Include="CpuCheck.cpp">
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+    </ClCompile>
+    <ClCompile Include="CpuCheckConsole.cpp">
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+    </ClCompile>
+    <ClCompile Include="CpuCheckWindows.cpp">
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+    </ClCompile>
+    <ClCompile Include="CpuFeatures.cpp">
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+    </ClCompile>
+    <ClCompile Include="Formatter.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

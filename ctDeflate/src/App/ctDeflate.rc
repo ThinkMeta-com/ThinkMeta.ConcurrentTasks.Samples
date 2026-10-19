@@ -1,0 +1,18 @@
+//
+// Copyright (c) 2026 ThinkMeta Software GmbH
+// Licensed under the MIT License: LICENSE.txt in the ctDeflate folder of ThinkMeta.ConcurrentTasks.Samples.
+//
+
+// Version resource of ctDeflate.exe: the values; the resource itself is Shared/VersionInfo.rc2
+
+#include "ctDeflateVersion.h"
+
+#define CT_RC_VERSION_MAJOR  CTDEFLATE_VERSION_MAJOR
+#define CT_RC_VERSION_MINOR  CTDEFLATE_VERSION_MINOR
+#define CT_RC_VERSION_PATCH  CTDEFLATE_VERSION_PATCH
+#define CT_RC_VERSION_STRING CTDEFLATE_VERSION_STRING
+#define CT_RC_NAME           "ctDeflate"
+#define CT_RC_DESCRIPTION    "ctDeflate - parallel gzip compressor (libdeflate) on ThinkMeta.ConcurrentTasks"
+#define CT_RC_REFERENCE      "libdeflate: Copyright 2016 Eric Biggers, 2024 Google LLC; MIT"
+
+#include "VersionInfo.rc2"

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <SolutionDir Condition="'$(SolutionDir)' == ''">$(MSBuildThisFileDirectory)..\..\</SolutionDir>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{de71a7e0-0001-4000-8000-000000000001}</ProjectGuid>
+    <RootNamespace>ThinkMetaConcurrentTasksSamplesctDeflateEncoder</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="BitWriter.h" />
+    <ClInclude Include="BlockWriter.h" />
+    <ClInclude Include="Checksums.h" />
+    <ClInclude Include="Compressor.h" />
+    <ClInclude Include="DeflateTables.h" />
+    <ClInclude Include="Gzip.h" />
+    <ClInclude Include="Huffman.h" />
+    <ClInclude Include="Matchfinder.h" />
+    <ClInclude Include="BlockRules.h" />
+    <ClInclude Include="BlockTracker.h" />
+    <ClInclude Include="ChunkedDeflate.h" />
+    <ClInclude Include="Parser.h" />
+    <ClInclude Include="ParseStep.h" />
+    <ClInclude Include="Resolver.h" />
+    <ClInclude Include="OrderedMatchfinder.h" />
+    <ClInclude Include="MultiParser.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="BlockWriter.cpp" />
+    <ClCompile Include="Checksums.cpp" />
+    <ClCompile Include="Compressor.cpp" />
+    <ClCompile Include="Huffman.cpp" />
+    <ClCompile Include="BlockTracker.cpp" />
+    <ClCompile Include="ChunkedDeflate.cpp" />
+    <ClCompile Include="Parser.cpp" />
+    <ClCompile Include="Resolver.cpp" />
+    <ClCompile Include="MultiParser.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

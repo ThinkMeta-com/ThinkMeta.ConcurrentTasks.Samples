@@ -5,11 +5,12 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 
 #include "RangeEncoder.h"
 
-namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
+namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     constexpr std::int32_t SpreadNone       = 0;
     constexpr std::int32_t SpreadLight      = 1;
@@ -40,11 +41,28 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     /// </summary>
     std::int32_t BandStereoItheta(const float* x, const float* y, std::int32_t n, float bandEx, float bandEy) noexcept;
 
-    /// <summary>A seed that is set later (by another thread): QuantAllBands waits for it at its first use.</summary>
+    /// <summary>
+    /// A seed that is set later (by another thread): QuantAllBands waits for it at its first use
+    /// (see CeltSpeculation.h).
+    /// </summary>
     struct SeedPromise {
-        volatile long          ready = 0;
-        volatile std::uint32_t value = 0;
-        volatile long          used  = 0; // waited for (the result depends on it)
+        std::atomic<std::int32_t>  ready = 0;
+        std::atomic<std::uint32_t> value = 0;
+        std::atomic<std::int32_t>  used  = 0; // waited for (the result depends on it)
+
+        /// <summary>Before a new request: no seed yet, none used.</summary>
+        void Reset() noexcept
+        {
+            ready.store(0, std::memory_order_release);
+            used.store(0, std::memory_order_release);
+        }
+
+        /// <summary>Publishes the seed.</summary>
+        void Fulfil(std::uint32_t seed) noexcept
+        {
+            value.store(seed, std::memory_order_release);
+            ready.store(1, std::memory_order_seq_cst);
+        }
     };
 
     /// <summary>One theta RDO trial of a stereo band (rounding up), see QuantAllBands.</summary>
@@ -86,6 +104,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                        const std::int32_t* pulses, std::int32_t shortBlocks, std::int32_t spread, std::int32_t dualStereo, std::int32_t intensity,
                        const std::int32_t* tfRes, std::int32_t totalBits, std::int32_t balance, RangeEncoder* ec, std::int32_t lm, std::int32_t codedBands,
                        std::uint32_t* seed, std::int32_t complexity, std::int32_t disableInv, ThetaTrialRunner* runner = nullptr,
-                       const std::int32_t* stereoItheta = nullptr, SeedPromise* seedPromise = nullptr, const volatile long* abort = nullptr) noexcept;
+                       const std::int32_t* stereoItheta = nullptr, SeedPromise* seedPromise = nullptr,
+                       const std::atomic<std::int32_t>* abort = nullptr) noexcept;
 
-} // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus
+} // namespace ThinkMeta::ConcurrentTasks::Samples::Opus
