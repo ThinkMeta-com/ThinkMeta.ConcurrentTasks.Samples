@@ -13,6 +13,7 @@
 
 #include "CeltBands.h"
 #include "CeltSimd.h"
+#include "IntMath.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
@@ -24,15 +25,6 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             = {PvqUData + 0,    PvqUData + 176,  PvqUData + 351,  PvqUData + 525,  PvqUData + 698,  PvqUData + 870,  PvqUData + 1041, PvqUData + 1131,
                PvqUData + 1178, PvqUData + 1207, PvqUData + 1226, PvqUData + 1240, PvqUData + 1248, PvqUData + 1254, PvqUData + 1257};
 
-        constexpr std::int32_t Imin(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a < b ? a : b;
-        }
-        constexpr std::int32_t Imax(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a > b ? a : b;
-        }
-
         // CELT_PVQ_U and CELT_PVQ_V of cwrs.c
         inline std::uint32_t PvqU(std::int32_t n, std::int32_t k) noexcept
         {
@@ -43,7 +35,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return PvqU(n, k) + PvqU(n, k + 1);
         }
 
-        // icwrs: the index of the pulse vector y
+        // libopus: icwrs() (celt/cwrs.c): the index of the pulse vector y
         std::uint32_t Icwrs(std::int32_t n, const std::int32_t* y) noexcept
         {
             std::int32_t  j = n - 1;
@@ -59,12 +51,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return i;
         }
 
+        // libopus: encode_pulses() (celt/cwrs.c)
         void EncodePulses(const std::int32_t* y, std::int32_t n, std::int32_t k, RangeEncoder* enc) noexcept
         {
             enc->EncodeUint(Icwrs(n, y), PvqV(n, k));
         }
 
-        // celt_cos_norm of the float build: cos(pi/2 * x) in double
+        // libopus: celt_cos_norm() (celt/mathops.c) of the float build: cos(pi/2 * x) in double
         inline float CosNorm(float x) noexcept
         {
             return static_cast<float>(std::cos((.5f * 3.1415926535897931) * x));
@@ -85,6 +78,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return twoOverPi * (x + x * xSq * (a03 + xSq * (a05 + xSq * (a07 + xSq * (a09 + xSq * (a11 + xSq * (a13 + xSq * (a15))))))));
         }
 
+        // libopus: celt_atan2p_norm() (celt/mathops.h)
         inline float Atan2pNorm(float y, float x) noexcept
         {
             // for very small values the answer does not matter
@@ -95,6 +89,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return 1.f - AtanNorm(x / y);
         }
 
+        // libopus: exp_rotation1() (celt/vq.c)
         void ExpRotation1(float* x, std::int32_t len, std::int32_t stride, float c, float s) noexcept
         {
             const float ms   = -s;
@@ -114,6 +109,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: exp_rotation() (celt/vq.c)
         void ExpRotation(float* x, std::int32_t len, std::int32_t dir, std::int32_t stride, std::int32_t k, std::int32_t spread) noexcept
         {
             static constexpr std::int32_t spreadFactor[3] = {15, 10, 5};
@@ -148,6 +144,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: normalise_residual() (celt/vq.c)
         // the integer codeword to unit norm (times gain)
         void NormaliseResidual(const std::int32_t* iy, float* x, std::int32_t n, float ryy, float gain) noexcept
         {
@@ -156,6 +153,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 x[i] = iy[i] * g;
         }
 
+        // libopus: extract_collapse_mask() (celt/vq.c)
         std::uint32_t ExtractCollapseMask(const std::int32_t* iy, std::int32_t n, std::int32_t b) noexcept
         {
             if (b <= 1)
@@ -171,7 +169,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return collapseMask;
         }
 
-        // op_pvq_search_sse2 (libopus uses it unconditionally on x64); iy has room for n + 3
+        // libopus: op_pvq_search_sse2() (celt/x86/vq_sse2.c) (libopus uses it unconditionally on x64); iy has room for n + 3
         float PvqSearch(const float* xIn, std::int32_t* iy, std::int32_t k, std::int32_t n) noexcept
         {
             float         y[176 + 3];
@@ -301,6 +299,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopus: alg_quant() (celt/vq.c)
     std::uint32_t AlgQuant(float* x, std::int32_t n, std::int32_t k, std::int32_t spread, std::int32_t b, RangeEncoder* enc, float gain, bool resynth) noexcept
     {
         // up to 4-way vectorisation
@@ -318,6 +317,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return collapseMask;
     }
 
+    // libopus: renormalise_vector() (celt/vq.c)
     void RenormaliseVector(float* x, std::int32_t n, float gain) noexcept
     {
         const float e = 1e-15f + InnerProd(x, x, n);
@@ -326,6 +326,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             x[i] = g * x[i];
     }
 
+    // libopus: stereo_itheta() (celt/vq.c)
     std::int32_t StereoItheta(const float* x, const float* y, bool stereo, std::int32_t n) noexcept
     {
         float emid  = 0;

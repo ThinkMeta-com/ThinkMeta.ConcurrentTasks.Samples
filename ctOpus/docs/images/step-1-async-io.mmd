@@ -1,12 +1,12 @@
 flowchart LR
     subgraph io ["I/O scheduler · 1 thread"]
-        R["Read<br/>overlapped, 5 requests in flight"]
+        R["FileRead<br/>overlapped, 5 requests in flight"]
     end
     subgraph cpu ["compute scheduler"]
-        E["Encode<br/>one task: WAV, resampler,<br/>encoder, Ogg pages"]
+        E["SequentialEncode<br/>one task: WAV, resampler,<br/>encoder, Ogg pages"]
     end
     subgraph io2 ["I/O scheduler (the same one)"]
-        W["Write<br/>overlapped, 2 requests in flight"]
+        W["FileWrite<br/>overlapped, 2 requests in flight"]
     end
     R -- "read buffer<br/>8 × 1 MB" --> E
     E -- "write buffer<br/>8 × 64 KB" --> W

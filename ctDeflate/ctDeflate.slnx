@@ -3,10 +3,10 @@
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/ctDeflate/">
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctDeflate/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.vcxproj" Id="de71a7e0-0002-4000-8000-000000000002" />
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Engine/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Engine.vcxproj" Id="de71a7e0-0001-4000-8000-000000000001" />
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tasks/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tasks.vcxproj" Id="de71a7e0-0004-4000-8000-000000000004" />
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests.vcxproj" Id="de71a7e0-0003-4000-8000-000000000003" />
+    <Project Path="src/App/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.vcxproj" Id="de71a7e0-0002-4000-8000-000000000002" />
+    <Project Path="src/Encoder/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Engine.vcxproj" Id="de71a7e0-0001-4000-8000-000000000001" />
+    <Project Path="src/Tasks/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tasks.vcxproj" Id="de71a7e0-0004-4000-8000-000000000004" />
+    <Project Path="src/Tests/ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests.vcxproj" Id="de71a7e0-0003-4000-8000-000000000003" />
   </Folder>
   <Folder Name="/libdeflate/">
     <Project Path="libdeflate/libdeflate-1.26/gzip.vcxproj" Id="a281a489-0004-4000-8000-000000000005" />

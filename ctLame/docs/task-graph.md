@@ -2,9 +2,14 @@
 
 ctLame did not start parallel. It started as a faithful copy of LAME's loop and was taken apart step
 by step, each step measured and checked byte for byte against LAME. This page shows the task graph
-after each step: what changed, why, and what it gave.
+after each step: what changed, why, what it gave, and where it is in the code.
 
 [← back to the README](../README.md)
+
+**Steps and stages.** The steps 0 to 8 on this page are the history. The stages a frame passes in
+the finished graph are numbered 1 to 5, the same as in the code (`FrameRing.h`, `Stages.h`,
+`Encoder.h`): **1 Dispatch, 2 Prepare, 3 Resolve, 4 Search, 5 Encode**. The diagrams from step 5 on
+carry these numbers; [Reading the code](../README.md#reading-the-code) has them as a table.
 
 **Two series of numbers.** Steps 2 to 5 were measured during development on one test file
 (254 seconds of music, 9744 frames, `-V 4`, Intel Core i9-11900K with 16 threads), as the time of the
@@ -14,8 +19,9 @@ corpus, as the time of the whole process. Only numbers within one series compare
 | Shape | Meaning |
 |---|---|
 | box | a task |
-| box ×N | one task per compute thread, all doing the same kind of work |
-| arrow | an edge: a pipe of bytes or the ring of frames |
+| box ×N | one task per compute thread; Prepare ×N and Search ×N are the same N worker tasks |
+| frame | a scheduler: the I/O scheduler or the compute scheduler |
+| arrow | an edge: a pipe of bytes, the sample stream or the ring of frames |
 | dotted loop | a stage that carries state from frame to frame |
 | **High** | a serial task that takes the frames in order, with high priority |
 
@@ -34,26 +40,28 @@ the one before it is done. One core works, the others wait.
 
 These bytes are the yardstick: every later step writes exactly the same MP3 file.
 
+In the code: `lame_encoder_loop` (`lame\frontend\lame_main.c`) reads, encodes and writes in turn;
+each frame goes through `lame_encode_mp3_frame` (`lame\libmp3lame\encoder.c`). ctLame's
+counterparts are named in [porting.md](porting.md).
+
 ---
 
 ## 1 · One encoder task between asynchronous reading and writing
 
 ```mermaid
 flowchart LR
-    subgraph io1 ["I/O scheduler"]
+    subgraph io ["I/O scheduler · 1 thread"]
         R["Read<br/>overlapped ReadFile"]
+        W["Write<br/>overlapped WriteFile"]
     end
     subgraph cpu ["compute scheduler"]
         E["Encode<br/>all stages"]
     end
-    subgraph io2 ["I/O scheduler"]
-        W["Write<br/>overlapped WriteFile"]
-    end
     R -- "PCM pipe" --> E -- "MP3 pipe" --> W
 ```
 
-**Change:** reading and writing become tasks with overlapped I/O on an I/O scheduler of their own;
-the whole encoder is one task on the compute scheduler.
+**Change:** reading and writing become tasks with overlapped I/O on an I/O scheduler of their own
+(one thread for both); the whole encoder is one task on the compute scheduler.
 
 **Why:** reading and writing now happen *while* the encoder works, not between its frames. The pipes
 are bounded; their fill levels raise and lower the priority of the I/O tasks, so the encoder never
@@ -62,6 +70,21 @@ last frame, so Write puts it there at the end. The I/O chain manages about 600 M
 the encoder will ever need.
 
 **Result:** about as fast as LAME, bit-identical. This graph is still in ctLame today: `--sequential`.
+
+Later, measured cold (a fresh copy of the WAV file that is not in the file cache, NVMe): what counts
+is the amount of data in flight. Reads of 256 KB with five in flight were among the fastest shapes,
+3 to 4 % faster than the first setting of 64 KB with four in flight; beyond about 1 MB in flight
+nothing changed. The conversion into samples takes each block in pieces of 64 KB, whatever the read
+size, so the frames go out evenly.
+
+In the code: `EncodeGraph` (`src\Tasks\EncodeGraph.h`) with `--sequential`: `WavReaderTask` (Read)
+→ PCM pipe → `SequentialEncodeTask` → MP3 pipe → `Mp3WriterTask` (Write). Both pipes are
+`BlockPipe`s of 16 blocks, 256 KB each for the PCM pipe (the read size, `EncodeGraph::Settings`)
+and 64 KB for the MP3 pipe; the I/O tasks keep up to five reads and four writes in flight with
+`WaitableAsyncFileIoRequest_s`. `FillLevelPolicy` (`IoPriority.h`) sets their priority: the reader
+runs with `High` while its pipe is less than 25 % full and with `Normal` again from 50 %, the writer
+the other way round. `FrameEncoder::Finish` hands the LAME tag to the writer
+(`Mp3WriterTask::SetFinalHeader`).
 
 ---
 
@@ -84,6 +107,14 @@ stream of frame N leaves to the quantization of frame N+1.
 **Result:** the same speed (about 2 s for the test file), bit-identical, and a map of where the time goes:
 mostly the quantization and the psychoacoustic model.
 
+In the code: the frame record is `FrameData` (`src\Encoder\FrameData.h`); the stage functions in
+`Stages.h` take the configuration, the state of their stage and the frame, and the state structures
+`PsyStageState`, `MdctStageState`, `QuantizeStageState` and `BitstreamStageState` are the loops of
+the picture. The six stages of the picture are today's sub-stages: input 2a, psychoacoustics 2b and
+3a, MDCT 2c, 3b and 4a, stereo 4b, quantization 4c and 5a, bit stream 5b. The bit reservoir belongs
+to `QuantizeStageState`: `BitstreamStage` of frame N sets the `main_data_begin` that
+`QuantizeStage` of frame N+1 drains.
+
 ---
 
 ## 3 · Two tasks and a ring of frames
@@ -91,7 +122,7 @@ mostly the quantization and the psychoacoustic model.
 ```mermaid
 flowchart LR
     R["Read"] -- "PCM" --> A["Analysis<br/>psychoacoustics, MDCT, stereo"]
-    A -- "frame ring" --> E["Encode<br/>quantization, bit stream<br/>High"]
+    A -- "frame ring<br/>+ sample stream" --> E["Encode<br/>quantization, bit stream<br/>High"]
     E -- "MP3" --> W["Write"]
 ```
 
@@ -105,6 +136,11 @@ analysis runs further ahead. Handing a frame to another thread costs about 0.4 �
 200 µs of work per frame, so every frame is handed over on its own.
 
 **Result:** 2122 → 1266 ms (1.68×). Now Encode is the bottleneck.
+
+In the code: the ring is `FrameRing` (`src\Tasks\FrameRing.h`), which today has five stages instead
+of two; the sample stream is `SampleStream` (`src\Encoder\SampleStream.h`), filled by `PcmFeed` and
+released frame by frame by Encode. `src\Tests\EventCostBenchmark.cpp` measures what a hand-over
+between two tasks costs (it runs only with the environment variable `CTLAME_BENCH_EVENTS` set).
 
 ---
 
@@ -129,17 +165,21 @@ fit?", the choice of the bitrate) takes a few microseconds.
 every new task; waking just one gave 1050 ms. Now the analysis, serial with its state, is the
 bottleneck.
 
+In the code: LAME's `VBR_new_iteration_loop` became two functions in `src\Encoder\Quantize.cpp`:
+`QuantSearch` (today stage 4c, with `VbrSearchFrame` in `VbrQuantize.cpp`) and `QuantCommit`
+(stage 5a, with `VbrFitFrame` and the reservoir functions of `Reservoir.cpp`).
+
 ---
 
 ## 5 · The psychoacoustic model is split: the graph takes its shape
 
 ```mermaid
 flowchart LR
-    R["Read"] -- "PCM" --> D["Dispatch"]
-    D -- "ring" --> P["Prepare ×N<br/>FFTs, spreading"]
-    P -- "ring" --> V["Resolve<br/>block types, pre-echo<br/>High"]
-    V -- "ring" --> S["Search ×N<br/>MDCT, stereo, quantization search"]
-    S -- "ring" --> E["Encode<br/>reservoir, bit stream<br/>High"]
+    R["Read"] -- "PCM" --> D["1 Dispatch"]
+    D -- "ring<br/>+ sample stream" --> P["2 Prepare ×N<br/>FFTs, spreading<br/>(the workers)"]
+    P -- "ring" --> V["3 Resolve<br/>block types, pre-echo<br/>High"]
+    V -- "ring" --> S["4 Search ×N<br/>MDCT, stereo, quantization search<br/>(the same workers)"]
+    S -- "ring" --> E["5 Encode<br/>reservoir, bit stream<br/>High"]
     E -- "MP3" --> W["Write"]
 ```
 
@@ -154,17 +194,24 @@ and free slots sooner. Serial are now only three short links: Dispatch, Resolve 
 
 **Result:** 1050 → **290 ms**, about 8 times as fast as `lame.exe` on the test file.
 
+In the code: the encoder has four calls, `Encoder::Prepare`, `Resolve`, `Search` and `Encode`
+(`src\Encoder\Encoder.h`), for the stages 2 to 5; the nodes are `DispatchTask`, `WorkerTask` (for
+both kinds of work), `ResolveTask` and `EncodeTask` (`src\Tasks\`). A worker takes its work with
+`FrameRing::AcquireWork`, which hands out searches before preparations. LAME's
+`L3psycho_anal_vbr` became `PsyPrepare` (`PsyPrepare.cpp`, stage 2b) and `PsyResolve`
+(`PsyResolve.cpp`, stage 3a).
+
 ---
 
 ## 6 · The serial links get thin
 
 ```mermaid
 flowchart LR
-    R["Read"] -- "PCM" --> D["Dispatch"]
-    D -- "ring" --> P["Prepare ×N<br/>+ filterbank"]
-    P -- "ring" --> V["Resolve<br/>+ filterbank carry<br/>High"]
-    V -- "ring" --> S["Search ×N<br/>+ Huffman coding"]
-    S -- "ring" --> E["Encode<br/>High"]
+    R["Read"] -- "PCM" --> D["1 Dispatch"]
+    D -- "ring<br/>+ sample stream" --> P["2 Prepare ×N<br/>+ filterbank"]
+    P -- "ring" --> V["3 Resolve<br/>+ filterbank carry<br/>High"]
+    V -- "ring" --> S["4 Search ×N<br/>+ Huffman coding"]
+    S -- "ring" --> E["5 Encode<br/>High"]
     E -- "MP3" --> W["Write"]
 ```
 
@@ -176,9 +223,16 @@ Resolve hands its state on in order.
 
 **Result:** the serial bit stream from 17 to 3.8 µs per frame; corpus 7.8× → 8.3× `lame.exe`.
 
-Tried and dropped: splitting Resolve further gave nothing on 8 cores, because the workers are fully
-busy (it waits for CPUs with more cores); other priorities, look-ahead or a bigger ring stayed
+Tried and dropped: splitting Resolve further (two short serial parts with a parallel part between
+them) was bit-identical but gave nothing on 8 cores, because the workers are fully busy; it is not
+in the code and waits for CPUs with more cores. Other priorities, look-ahead or a bigger ring stayed
 within the noise.
+
+In the code: the main data (scalefactors and Huffman codes) is coded ahead by `PrepareMainData`
+(`src\Encoder\Bitstream.cpp`) at the end of stage 4c; `FormatBitstream` (stage 5b) appends these bits
+while the frame's `mainDataValid` holds, which the quantization clears when it changes the
+granules. The filterbank is `MdctPolyphaseFrame` (stage 2c), the carry `MdctCarry` (stage 3b) and
+the MDCT `MdctFromPolyphase` (stage 4a), all in `Mdct.cpp`.
 
 ---
 
@@ -186,11 +240,11 @@ within the noise.
 
 ```mermaid
 flowchart LR
-    R["Read"] -- "PCM" --> D["Dispatch"]
-    D -- "ring: 4 slots per thread" --> P["Prepare ×N<br/>SSE4.1 / AVX2"]
-    P --> V["Resolve<br/>High"]
-    V --> S["Search ×N<br/>SSE4.1 / AVX2"]
-    S --> E["Encode<br/>High"]
+    R["Read"] -- "PCM" --> D["1 Dispatch"]
+    D -- "ring: 4 slots per thread<br/>+ sample stream" --> P["2 Prepare ×N<br/>SSE4.1 / AVX2"]
+    P --> V["3 Resolve<br/>High"]
+    V --> S["4 Search ×N<br/>SSE4.1 / AVX2"]
+    S --> E["5 Encode<br/>High"]
     E -- "MP3" --> W["Write"]
 ```
 
@@ -203,6 +257,13 @@ less work per frame; with a fixed ring of 32 slots, 16 threads ran out of frames
 **Result:** corpus 8.3× → 12.8× (SIMD) → 14.2× (ring). Even on one thread ctLame is now 1.7 times as
 fast as LAME.
 
+In the code: the SIMD level is chosen once (`ChooseSimdLevel`, `--simd`), and
+`Encoder::Initialize` picks the kernels of that level (`FhtFor`, `AttackPrepFor`, `MaskChainsFor`,
+`MaskingLongFor`, `QuantizeKernelsFor`, `MdctKernels::WindowSubbandFor`). Each kernel is written
+once in a `.inc` file (`FhtSimd.inc`, `MdctSimd.inc`, `PsySimd.inc`, `QuantizeSimd.inc`) and
+compiled per level (`…Sse41.cpp`, `…Avx2.cpp`); `src\Tests\SimdTests.cpp` compares each with the
+scalar code. The ring size is `FrameRing::SlotsFor`: four slots per thread, 16 to 128.
+
 ---
 
 ## 8 · The complete graph
@@ -214,14 +275,14 @@ flowchart LR
         W["Write<br/>overlapped WriteFile<br/>+ LAME tag at offset 0"]
     end
     subgraph cpu ["compute scheduler · one thread per logical processor"]
-        D["Dispatch<br/>serial"]
-        P["Prepare ×N<br/>parallel"]
-        V["Resolve<br/>serial · High"]
-        S["Search ×N<br/>parallel"]
-        E["Encode<br/>serial · High"]
+        D["1 Dispatch<br/>serial"]
+        P["2 Prepare ×N<br/>parallel<br/>(the workers)"]
+        V["3 Resolve<br/>serial · High"]
+        S["4 Search ×N<br/>parallel<br/>(the same workers)"]
+        E["5 Encode<br/>serial · High"]
     end
     R -- "PCM pipe" --> D
-    D -- "frame ring" --> P
+    D -- "frame ring<br/>+ sample stream" --> P
     P -- "frame ring" --> V
     V -- "frame ring" --> S
     S -- "frame ring" --> E
@@ -233,8 +294,22 @@ finished about every 13 µs. The serial tasks wait in the middle of their work (
 slot, Resolve for the frame before, Encode for the bits it left over); on ConcurrentTasks such a wait
 suspends only the task, and its thread meanwhile runs the search of other frames.
 
+| Edge | Carries | Bounded by |
+|---|---|---|
+| PCM pipe | the bytes of the WAV data | 16 blocks of 256 KB |
+| sample stream | one float stream per channel in reserved virtual memory | only the windows of the frames in flight are committed |
+| frame ring | one `FrameData` per frame, through the five stages | 4 slots per compute thread, 16 to 128 |
+| MP3 pipe | the MP3 bytes in frame order | 16 blocks of 64 KB |
+
 **Result**, 343 files, 45 hours of music, whole process: **14.02×** `lame.exe` on the Core i9-11900K,
 7.98× on a 4-core Xeon E3, 7.36× on a Core Ultra 7 155H notebook. Every file bit-identical to LAME.
 Details in the [benchmarks](../README.md#benchmarks).
+
+In the code: `EncodeGraph` (`src\Tasks\EncodeGraph.h`) owns the edges and the nodes and has this
+graph as a diagram in its header; `EncodeGraph::Run` starts all nodes in one `TaskGroup_s` and waits
+for them. The ring's events: Dispatch, Resolve and Encode each wait on an `AutoResetEvent_s` of their
+own (one waiter), the workers share one `AutoResetEvent`; `FrameRing.h` explains why the ring does not
+use the library's `Semaphore_s`, and `src\Tests\FrameRingTests.cpp` runs it under load. The README's
+[Reading the code](../README.md#reading-the-code) gives an order to read the files in.
 
 [← back to the README](../README.md)

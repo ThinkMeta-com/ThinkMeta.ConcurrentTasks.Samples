@@ -11,6 +11,7 @@
 
 #include "CeltMath.h"
 #include "CeltMode.h"
+#include "IntMath.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
@@ -56,21 +57,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         constexpr std::uint8_t SmallEnergyIcdf[3] = {2, 1, 0};
 
-        constexpr std::int32_t Imin(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a < b ? a : b;
-        }
-        constexpr std::int32_t Imax(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a > b ? a : b;
-        }
-
         // --- laplace.c ----------------------------------------------------------------------
 
         constexpr std::uint32_t LaplaceLogMinp = 0;
         constexpr std::uint32_t LaplaceMinp    = 1U << LaplaceLogMinp;
         constexpr std::uint32_t LaplaceNmin    = 16; // guaranteed representable deltas in one direction
 
+        // libopus: ec_laplace_get_freq1() (celt/laplace.c)
         // decay is positive and at most 11456
         std::uint32_t LaplaceGetFreq1(std::uint32_t fs0, std::int32_t decay) noexcept
         {
@@ -78,6 +71,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return ft * static_cast<std::uint32_t>(16384 - decay) >> 15;
         }
 
+        // libopus: ec_laplace_encode() (celt/laplace.c)
         void LaplaceEncode(RangeEncoder* enc, std::int32_t* value, std::uint32_t fs, std::int32_t decay) noexcept
         {
             std::uint32_t fl  = 0;
@@ -110,6 +104,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             enc->EncodeBin(fl, fl + fs, 15);
         }
 
+        // libopus: loss_distortion() (celt/quant_bands.c)
         float LossDistortion(const float* eBands, const float* oldEBands, std::int32_t start, std::int32_t end, std::int32_t len, std::int32_t c) noexcept
         {
             float dist = 0;
@@ -122,6 +117,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return Min32(200, dist);
         }
 
+        // libopus: quant_coarse_energy_impl() (celt/quant_bands.c)
         std::int32_t QuantCoarseEnergyImpl(std::int32_t start, std::int32_t end, const float* eBands, float* oldEBands, std::int32_t budget, std::int32_t tell,
                                            const std::uint8_t* probModel, float* error, RangeEncoder* enc, std::int32_t c, std::int32_t lm, bool intra,
                                            float maxDecay, std::int32_t lfe) noexcept
@@ -187,6 +183,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopus: amp2Log2() (celt/quant_bands.c)
     void Amp2Log2(std::int32_t effEnd, std::int32_t end, const float* bandE, float* bandLogE, std::int32_t c) noexcept
     {
         for (std::int32_t ch = 0; ch < c; ++ch) {
@@ -197,6 +194,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: quant_coarse_energy() (celt/quant_bands.c)
     void QuantCoarseEnergy(std::int32_t start, std::int32_t end, std::int32_t effEnd, const float* eBands, float* oldEBands, std::uint32_t budget, float* error,
                            RangeEncoder* enc, std::int32_t c, std::int32_t lm, std::int32_t nbAvailableBytes, std::int32_t forceIntra, float* delayedIntra,
                            bool twoPass, std::int32_t lossRate, std::int32_t lfe) noexcept
@@ -267,6 +265,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             *delayedIntra = (PredCoef[lm] * PredCoef[lm]) * *delayedIntra + newDistortion;
     }
 
+    // libopus: quant_fine_energy() (celt/quant_bands.c)
     void QuantFineEnergy(std::int32_t start, std::int32_t end, float* oldEBands, float* error, const std::int32_t* extraQuant, RangeEncoder* enc,
                          std::int32_t c) noexcept
     {
@@ -293,6 +292,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: quant_energy_finalise() (celt/quant_bands.c)
     void QuantEnergyFinalise(std::int32_t start, std::int32_t end, float* oldEBands, float* error, const std::int32_t* fineQuant,
                              const std::int32_t* finePriority, std::int32_t bitsLeft, RangeEncoder* enc, std::int32_t c) noexcept
     {

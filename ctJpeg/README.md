@@ -198,14 +198,14 @@ The encoder is a sequence of stages; a stage marked ×N hands its jobs to one wo
 
 ```mermaid
 flowchart LR
-    RD["Read<br/>I/O scheduler"] --> I[("image<br/>block by block")] --> S["Setup"] --> P["Pixel ×N<br/>tiles"] --> C[("coefficients")] --> T["Tokenize ×N<br/>scans, AC and DC bands"] --> TB[("tokens")]
-    TB --> ST["Stitch ×N"] --> H["Huffman<br/>code tables"]
-    TB --> CO["Count ×N"]
-    H --> W["Write ×N<br/>scans and chunks"]
-    CO --> W
+    RD["Read<br/>I/O scheduler"] --> I[("image<br/>in 1 MB steps")] --> S["Setup"] --> P["Pixel ×N<br/>tiles"] --> C[("coefficients")] --> T["Tokenize ×N<br/>scans, AC and DC bands"] --> TB[("tokens")]
+    TB --> ST["Stitch ×N"] --> H["Huffman<br/>code tables"] --> CO["Count ×N"] --> PC["PlaceCursors"] --> W["Write ×N<br/>scans and chunks"]
+    H -- "code tables" --> W
     W --> SP["Splice ×N"] --> A["Assemble"] --> J[("JPEG")] --> WF["Write file<br/>I/O scheduler"]
-    A --> RE["Release ×N"]
+    A --> RE["Release ×N<br/>meanwhile"]
 ```
+
+Count reads the tokens as Stitch left them and counts what each chunk of a refinement scan reads; the short serial PlaceCursors turns the counts into the place where each chunk starts. The file is written while Release frees the memory.
 
 **[How the graph grew, step by step →](docs/task-graph.md)** from jpegli's single thread to this graph, with the reason and the measured gain of each step.
 
@@ -265,7 +265,7 @@ Options of ctJpeg only:
 
 For measurements there are options that never change the output: `--times` prints the time of each phase and of the serial parts, `--band-rows n`, `--strip-width n` and `--scan-bands n` set the work split, and `--dump-coefficients file` writes the quantized coefficients instead of a JPEG.
 
-Errors go to the standard error output with exit code 1: an option that is not supported (`option '…' is not supported`), a value out of range, `--quality` together with `--distance`, an input file that is not binary 8-bit PPM or PGM, a feature set the CPU lacks. Success is exit code 0.
+Errors go to the standard error output with exit code 1: an option that is not supported (`option '…' is not supported`), a value out of range, `--quality` together with `--distance`, an input file that is not binary 8-bit PPM or PGM, an input file that cannot be read (`cannot read 'FILE' (error N)` with the Windows error code), an output file that cannot be written (`cannot write 'FILE'`), a feature set the CPU lacks. Success is exit code 0. See also [Error handling](#error-handling).
 
 </details>
 
@@ -280,20 +280,20 @@ Requirements: Windows 10 or 11 x64, **Visual Studio 2026** with the workload "De
 ```cmd
 git clone --recurse-submodules https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.Samples.git
 cd ThinkMeta.ConcurrentTasks.Samples\ctJpeg
-msbuild src\ctJpeg.slnx /p:Configuration=Release /p:Platform=x64
+msbuild ctJpeg.slnx /p:Configuration=Release /p:Platform=x64
 ```
 
-Clone to a short path such as `C:\src`; deeply nested folders can exceed the 260-character limit of the build tools. Run `msbuild` in a Developer Command Prompt or Developer PowerShell for Visual Studio 2026, or open `src\ctJpeg.slnx` in Visual Studio. The output goes to `src\build\Release\bin\`: `ctJpeg.exe` with `ThinkMeta.ConcurrentTasks.Core.dll` next to it, `GenTestImages.exe` (test images for `verify\`) and the unit tests `ThinkMeta.ConcurrentTasks.Samples.ctJpeg.Tests.dll` (Test Explorer, or `vstest.console.exe` with the DLL).
+Clone to a short path such as `C:\src`; deeply nested folders can exceed the 260-character limit of the build tools. Run `msbuild` in a Developer Command Prompt or Developer PowerShell for Visual Studio 2026, or open `ctJpeg.slnx` in Visual Studio. The output goes to `build\Release\bin\`: `ctJpeg.exe` with `ThinkMeta.ConcurrentTasks.Core.dll` next to it, `GenTestImages.exe` (test images for `verify\`) and the unit tests `ThinkMeta.ConcurrentTasks.Samples.ctJpeg.Tests.dll` (Test Explorer, or `vstest.console.exe` with the DLL).
 
 Your `ctJpeg.exe` is not byte for byte the file in `bin\` (that one links the C runtime statically and comes from our build machine), but every JPEG it writes must be byte for byte the one of jpegli: check it as below.
 
-The reference programs: `jpeg\jpegli-oracle\Build-Jpegli.cmd` builds `cjpegli.exe` with CMake, `jpeg.slnx` builds `cjpeg.exe` and `cjpeg-turbo.exe` (output in `jpeg\build\Release\bin`).
+The reference programs: `jpeg\jpegli-oracle\Build-Jpegli.cmd` builds `cjpegli.exe` with CMake, `jpeg\Reference.slnx` builds `cjpeg.exe` and `cjpeg-turbo.exe` (output in `jpeg\build\Release\bin`).
 
 ### Verifying
 
-`verify\` checks a ctJpeg build against jpegli. By default the scripts take your build in `src\build\Release\bin\`; `-Exe ..\bin\ctJpeg.exe` checks the published one.
+`verify\` checks a ctJpeg build against jpegli. By default the scripts take your build in `build\Release\bin\`; `-Exe ..\bin\ctJpeg.exe` checks the published one.
 
-1. **Test images.** Download the 8-bit RGB set of [imagecompression.info](https://imagecompression.info/test_images/) (`rgb8bit`, 14 photos as PPM) and unpack it, then build `src\ctJpeg.slnx` and run:
+1. **Test images.** Download the 8-bit RGB set of [imagecompression.info](https://imagecompression.info/test_images/) (`rgb8bit`, 14 photos as PPM) and unpack it, then build `ctJpeg.slnx` and run:
    ```cmd
    powershell -ExecutionPolicy Bypass -File verify\Prepare-Inputs.ps1 -Photos D:\Downloads\rgb8bit
    ```
@@ -315,16 +315,44 @@ The reference programs: `jpeg\jpegli-oracle\Build-Jpegli.cmd` builds `cjpegli.ex
 
 | Folder / file | Contents |
 |---|---|
-| `src\` | The ctJpeg sources (encoder, task graph, command line), the unit tests and `GenTestImages`, with `ctJpeg.slnx`; see [Building](#building) |
+| `src\` | The ctJpeg sources: `App\` (the program: command line and the setup of ThinkMeta.ConcurrentTasks), `Encoder\` (the port of jpegli, without task code), `Tasks\` (the task graph), `Tests\` (the unit tests), `GenTestImages\` (test images for `verify\`); see [Reading the code](#reading-the-code) |
+| `ctJpeg.slnx` | Builds ctJpeg, its unit tests and `GenTestImages` with Visual Studio 2026; see [Building](#building) |
+| `ThinkMeta.SolutionFiles\` | Shared build settings and the `.clang-format` of the sources |
+| `docs\` | [How the task graph grew](docs/task-graph.md), step by step, and [where each jpegli function went](docs/porting.md) |
 | `verify\` | Bit-compare scripts with the reference hashes of jpegli; see [Verifying](#verifying) |
 | `bin\` | `ctJpeg.exe` (encoder, same command line as cjpegli), `cjpegli.exe` (the reference: unmodified jpegli and cjpegli with `--target` to choose the SIMD target, built from `jpeg\`), `cjpeg.exe` (mozjpeg 4.1.5) and `cjpeg-turbo.exe` (libjpeg-turbo 3.2.0) for comparison and `ThinkMeta.ConcurrentTasks.Core.dll` (scheduler core), all with the static C runtime |
 | `jpeg\jpegli\` | Unmodified jpegli source (google/jpegli @ 031a007) with its bundled third-party libraries |
 | `jpeg\jpegli-oracle\` | The small wrapper that builds `cjpegli.exe` with `--target` (CMake), and `Build-Jpegli.cmd` |
 | `jpeg\mozjpeg-4.1.5\`, `jpeg\libjpeg-turbo-3.2.0\` | Unmodified sources with Visual Studio projects |
-| `jpeg.slnx` | Builds `cjpeg.exe` and `cjpeg-turbo.exe` from these sources (Visual Studio 2026, x64, needs [NASM](https://www.nasm.us); output in `jpeg\build\Release\bin`) |
+| `jpeg\Reference.slnx` | Builds `cjpeg.exe` and `cjpeg-turbo.exe` from these sources (Visual Studio 2026, x64, needs [NASM](https://www.nasm.us); output in `jpeg\build\Release\bin`) |
 | `benchmark\` | `Compare-Folder.ps1` and `run.cmd`: speed and bit identity on your own images |
 | `New-BenchPackage.ps1` | Packs `bin\` and the benchmark into a zip for other PCs |
 | `COPYING`, `LICENSE-Core.txt`, `LICENSE.txt`, `THIRD-PARTY-NOTICES.txt` | the licenses and the notices for the binaries, see [License](#license) |
+
+---
+
+## Reading the code
+
+The parallel version adds a small task layer (`src\Tasks\`) around a port that does not know about tasks (`src\Encoder\`). Read it in this order:
+
+1. **`src\App\main.cpp`**, `wmain`: the setup of ThinkMeta.ConcurrentTasks, the same in every sample and commented step by step there:
+   1. `ConvertThreadToTask`: the main thread becomes a task, so it can wait (for the image header, for the task groups of the graph);
+   2. `AsyncIo::EnableAsyncIo`: the completion port of the core, for the overlapped reads and writes;
+   3. two schedulers, each owned by a `SchedulerHandle`: an I/O scheduler of one thread for the nodes Read and Write file, and a compute scheduler for the graph (`--threads`, else one thread per logical processor; `--sequential` gets one);
+   4. `Start`, run the graph, `Stop` once every task has exited; then `DisableAsyncIo` and `ConvertTaskToThread`.
+
+   Between 3 and 4, `StartRead` starts Read on the I/O scheduler and parses the image header from the first megabyte that has arrived, before the rest of the file is in. Then `wmain` fills `EncodeGraph::Settings` and calls `EncodeGraph::Run`.
+2. **`src\Tasks\EncodeGraph.h`**: the graph as a diagram, its edges as members in data flow order (each with a comment naming the nodes it connects) and its nodes as member functions in the same order. In `EncodeGraph.cpp`, `RunStages` reads as the list of nodes: Setup, Pixel, Tokenize, Stitch, Huffman, Count, PlaceCursors, Write, Splice, Assemble, then Write file and Release. Each parallel node is one `RunStage` call with a lambda that does one job; the serial nodes run on the calling task. `RunSequential` is the graph of `--sequential`: one task, `SequentialEncodeTask`, that runs the sequential encoder `EncodeJpeg`.
+3. **`src\Tasks\StageWorkers.h`** and **`StageWorkers.cpp`**: the fork-join behind every parallel node. `RunStage` creates one `StageWorkerTask` per worker, adds them to a `TaskGroup_s` (only the calling task waits), hands them to the scheduler with `ITaskScheduler::AddTask` and waits with `TaskGroup_s::Wait`; each worker claims job indices from an atomic counter until none is left. `RunStageWithSideJobs` puts a few extra jobs first, which the graph uses to free large buffers while the stage works. The scratch memory of the pixel phase belongs to the worker task, not to the thread: a tile that waits for its rows suspends its task, and another task may run on that thread meanwhile.
+4. **The edges** (`src\Tasks\`): `TokenBands` (Tokenize → Stitch: how the scans are cut into jobs and what each band reports), `ScanChunks` (Count → PlaceCursors → Write → Splice → Assemble: the chunks of the large scans), and the I/O nodes `AsyncInput` (Read: `AsyncFile::ReadFile` into one buffer, one `ManualResetEvent` per 1 MB step, because many tiles wait for the same step) and `AsyncOutput` (Write file: `AsyncFile::WriteFile`). The edges inside the encoder, `Coefficients` and `ScanTokens`, are in `src\Encoder\`.
+5. **The encoder** (`src\Encoder\`), which has no task code. `Encoder.h` is its interface: `EncodeJpeg` is the whole sequential encoder, the graph calls the same parts one by one. The port of jpegli: `EncoderSetup` (parameters, quantization, scan script), `PixelPhase.h` with `PixelPhaseImpl.inc` (color, adaptive quantization, DCT, quantization; compiled once per feature set in `PixelPhaseSse2.cpp` and `PixelPhaseAvx2.cpp`, with the scalar references and the kernel self-test in `PixelPhaseReference.inc`), `Tokenize`, `HuffmanCodes`, `ScanWriter`, `BitWriter` and `BitPacking.h`, `Markers` and `JpegFile.h` (`AssembleJpeg`, the layout of the file, used by both the sequential encoder and the node Assemble). New in ctJpeg: `BandStitch.cpp` (a scan tokenized in bands, joined by Stitch) and `ChunkSplice.cpp` (a scan written in chunks, joined by Splice). Every ported function names its jpegli original in a comment; [docs/porting.md](docs/porting.md) maps them all.
+6. **`src\Tests\GraphTests.cpp`**: the graph against the sequential encoder. With 1 to 7 workers and extreme splits (bands of one iMCU row, whole scans only, 9 bands per AC scan, strips of 64 columns), with and without chroma subsampling, 14 variants must each write exactly the file `EncodeJpeg` writes: the bands joined by Stitch are the whole scan, the chunks joined by Splice are its bytes. The other tests cover the bit writer, the markers, PNM reading, the SIMD kernels against their references and the choice of the feature set.
+
+[How the graph grew](docs/task-graph.md) names, for each step, the classes and functions that implement it.
+
+### Error handling
+
+ctJpeg stops at the first error, reports it and ends with exit code 1; it does not try to recover. Memory is allocated without exceptions: when an allocation fails, the failing step returns an error and ctJpeg stops with `out of memory`. An input that cannot be opened is reported before the graph starts. If a read fails later, the tiles of the pixel phase that wait for the missing rows end without computing, the graph stops after the Pixel stage, and ctJpeg reports `cannot read 'FILE' (error N)` with the Windows error code (both cases). The output file is only created once the JPEG is complete (after Assemble), so after these errors no output file is written. A write error is reported as `cannot write 'FILE'`.
 
 ---
 
@@ -345,7 +373,7 @@ Every step keeps the output bit-identical to jpegli.
 
 ### Why fibers here
 
-At its core ctJpeg is fork-join: the encode is a fixed sequence of phases (pixel tiles, token bands, the stitches, write chunks, splicing, freeing), each a list of up to several hundred independent jobs that one task per worker claims from a shared counter, and no job waits for another in the middle of its work. The encoder itself runs as a task and waits for each phase on a task group, so it reads as plain sequential code, and its waiting suspends a fiber instead of blocking a thread. Reading and writing the files are tasks on an I/O scheduler of their own: the reader waits for its overlapped reads to complete, and a pixel job whose rows have not arrived yet waits on an event; both suspend a fiber, so the other workers keep encoding meanwhile. A thread pool with one barrier per phase and blocking file I/O could do the same work; we have not measured it against such a version.
+At its core ctJpeg is fork-join: the encode is a fixed sequence of phases (pixel tiles, token bands, the stitches, counting, write chunks, splicing, freeing), each a list of up to several hundred independent jobs that one task per worker claims from a shared counter, and no job waits for another job. The graph is run by the main thread, converted to a task: it runs the short serial steps itself and waits for each parallel phase on a task group, so the encoder reads as plain sequential code. That thread is not one of the compute scheduler's threads, so its waiting takes nothing from the workers. Reading and writing the files are tasks on an I/O scheduler of their own: the reader waits for its overlapped reads to complete, and a pixel job whose rows have not arrived yet waits on an event. Such a wait suspends only the fiber of the waiting task, not a thread of the scheduler, and the job goes on where it stopped once its rows are in. A thread pool with one barrier per phase and blocking file I/O could do the same work; we have not measured it against such a version.
 
 `ctJpeg` is a showcase for **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler and concurrency runtime by ThinkMeta Software GmbH. Tasks run on lightweight user-mode fibers: a task waiting for another yields without blocking its worker thread, and a task switch costs a few hundred nanoseconds.
 

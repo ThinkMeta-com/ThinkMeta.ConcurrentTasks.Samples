@@ -39,6 +39,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             res.i += a.i;
         }
 
+        // libopus: kf_bfly2() (celt/kiss_fft.c)
         // radix 2, always after a radix 4 (m == 4) in the static modes
         void Butterfly2(FftComplex* fout, std::int32_t n) noexcept
         {
@@ -67,6 +68,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: kf_bfly4() (celt/kiss_fft.c)
         void Butterfly4(FftComplex* fout, std::int32_t fstride, const FftState& st, std::int32_t m, std::int32_t n, std::int32_t mm) noexcept
         {
             if (m == 1) {
@@ -116,6 +118,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: kf_bfly3() (celt/kiss_fft.c)
         void Butterfly3(FftComplex* fout, std::int32_t fstride, const FftState& st, std::int32_t m, std::int32_t n, std::int32_t mm) noexcept
         {
             const std::int32_t m2       = 2 * m;
@@ -146,6 +149,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: kf_bfly5() (celt/kiss_fft.c)
         void Butterfly5(FftComplex* fout, std::int32_t fstride, const FftState& st, std::int32_t m, std::int32_t n, std::int32_t mm) noexcept
         {
             const FftComplex  ya       = st.twiddles[fstride * m];
@@ -206,6 +210,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return FftStates[shift];
     }
 
+    // libopus: opus_fft_impl() (celt/kiss_fft.c)
     void FftImpl(const FftState& st, FftComplex* fout) noexcept
     {
         // st.shift can be -1
@@ -235,6 +240,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: opus_fft_c() (celt/kiss_fft.c)
     void Fft(const FftState& st, const FftComplex* fin, FftComplex* fout) noexcept
     {
         // bit-reverse the input

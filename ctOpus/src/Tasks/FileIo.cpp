@@ -38,24 +38,24 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     std::byte* BlockPipe::AcquireWriteBlock() noexcept
     {
-        while (ReadAcquire(&closed_) == 0 && writeAcquired_ - ReadAcquire64(&released_) >= blockCount_)
+        while (!closed_.load(std::memory_order_acquire) && writeAcquired_ - released_.load(std::memory_order_acquire) >= blockCount_)
             spaceAvailable_.Wait();
-        if (ReadAcquire(&closed_) != 0)
+        if (closed_.load(std::memory_order_acquire))
             return nullptr;
         return memory_ + static_cast<std::size_t>(writeAcquired_++ % blockCount_) * blockSize_;
     }
 
     void BlockPipe::CommitWriteBlock(std::uint32_t size) noexcept
     {
-        const std::int64_t index    = committed_;
+        const std::int64_t index    = committed_.load(std::memory_order_relaxed); // only the producer moves it
         sizes_[index % blockCount_] = size;
-        WriteRelease64(&committed_, index + 1);
+        committed_.store(index + 1, std::memory_order_release);
         dataAvailable_.Set();
     }
 
     void BlockPipe::SetEndOfStream() noexcept
     {
-        WriteRelease(&endOfStream_, 1);
+        endOfStream_.store(true, std::memory_order_release);
         dataAvailable_.Set();
     }
 
@@ -63,8 +63,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     {
         for (;;) {
             // the end mark first: once it is set, every block has been committed before it
-            const bool ended = ReadAcquire(&endOfStream_) != 0;
-            if (ReadAcquire64(&committed_) > readAcquired_)
+            const bool ended = endOfStream_.load(std::memory_order_acquire);
+            if (committed_.load(std::memory_order_acquire) > readAcquired_)
                 break;
             if (ended)
                 return false;
@@ -78,13 +78,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     void BlockPipe::ReleaseReadBlock() noexcept
     {
-        WriteRelease64(&released_, released_ + 1);
+        released_.store(released_.load(std::memory_order_relaxed) + 1, std::memory_order_release); // only the consumer moves it
         spaceAvailable_.Set();
     }
 
     void BlockPipe::Close() noexcept
     {
-        WriteRelease(&closed_, 1);
+        closed_.store(true, std::memory_order_release);
         spaceAvailable_.Set();
     }
 

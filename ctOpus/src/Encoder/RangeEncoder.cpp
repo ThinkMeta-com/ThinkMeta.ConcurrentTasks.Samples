@@ -24,6 +24,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopus: ec_write_byte() (celt/entenc.c)
     std::int32_t RangeEncoder::WriteByte(std::uint32_t value) noexcept
     {
         if (offs_ + endOffs_ >= storage_)
@@ -32,6 +33,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return 0;
     }
 
+    // libopus: ec_write_byte_at_end() (celt/entenc.c)
     std::int32_t RangeEncoder::WriteByteAtEnd(std::uint32_t value) noexcept
     {
         if (offs_ + endOffs_ >= storage_)
@@ -40,6 +42,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return 0;
     }
 
+    // libopus: ec_enc_carry_out() (celt/entenc.c)
     // A symbol with a carry bit. Symbols that may propagate a carry are buffered until it is
     // known whether a carry occurs.
     void RangeEncoder::CarryOut(std::int32_t c) noexcept
@@ -62,6 +65,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: ec_enc_normalize() (celt/entenc.c)
     void RangeEncoder::Normalize() noexcept
     {
         // a range too small: output some bits and rescale it
@@ -74,6 +78,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: ec_enc_init() (celt/entenc.c)
     void RangeEncoder::Init(std::uint8_t* buffer, std::uint32_t size) noexcept
     {
         buf_       = buffer;
@@ -128,6 +133,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         enc.SetLog(saved);
     }
 
+    // libopus: ec_encode() (celt/entenc.c)
     void RangeEncoder::Encode(std::uint32_t fl, std::uint32_t fh, std::uint32_t ft) noexcept
     {
         if (log_ != nullptr)
@@ -142,6 +148,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         Normalize();
     }
 
+    // libopus: ec_encode_bin() (celt/entenc.c)
     void RangeEncoder::EncodeBin(std::uint32_t fl, std::uint32_t fh, std::uint32_t bits) noexcept
     {
         if (log_ != nullptr)
@@ -156,6 +163,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         Normalize();
     }
 
+    // libopus: ec_enc_bit_logp() (celt/entenc.c)
     void RangeEncoder::EncodeBitLogp(std::int32_t val, std::uint32_t logp) noexcept
     {
         if (log_ != nullptr)
@@ -170,6 +178,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         Normalize();
     }
 
+    // libopus: ec_enc_icdf() (celt/entenc.c)
     void RangeEncoder::EncodeIcdf(std::int32_t s, const std::uint8_t* icdf, std::uint32_t ftb) noexcept
     {
         if (log_ != nullptr)
@@ -184,6 +193,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         Normalize();
     }
 
+    // libopus: ec_enc_uint() (celt/entenc.c)
     void RangeEncoder::EncodeUint(std::uint32_t fl, std::uint32_t ft) noexcept
     {
         // one operation in the log, not its parts
@@ -212,6 +222,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: ec_enc_bits() (celt/entenc.c)
     void RangeEncoder::EncodeBits(std::uint32_t fl, std::uint32_t bits) noexcept
     {
         if (log_ != nullptr)
@@ -232,6 +243,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         nbitsTotal_ += static_cast<std::int32_t>(bits);
     }
 
+    // libopus: ec_enc_patch_initial_bits() (celt/entenc.c)
     void RangeEncoder::PatchInitialBits(std::uint32_t val, std::uint32_t nbits) noexcept
     {
         const std::uint32_t shift = SymBits - nbits;
@@ -251,12 +263,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: ec_enc_shrink() (celt/entenc.c)
     void RangeEncoder::Shrink(std::uint32_t size) noexcept
     {
         std::memmove(buf_ + size - endOffs_, buf_ + storage_ - endOffs_, endOffs_);
         storage_ = size;
     }
 
+    // libopus: ec_enc_done() (celt/entenc.c)
     void RangeEncoder::Done() noexcept
     {
         // the minimum number of bits that decodes the symbols so far correctly, whatever follows
@@ -305,6 +319,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: ec_tell_frac() (celt/entcode.c)
     std::uint32_t RangeEncoder::TellFrac() const noexcept
     {
         static constexpr std::uint32_t correction[8] = {35733, 38967, 42495, 46340, 50535, 55109, 60097, 65535};

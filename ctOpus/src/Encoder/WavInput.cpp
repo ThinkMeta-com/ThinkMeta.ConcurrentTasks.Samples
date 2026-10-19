@@ -40,6 +40,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return static_cast<std::uint32_t>((p[1] << 8) | p[0]);
         }
 
+        // opus-tools: sanitize_fourcc() (src/audio-in.c)
         void SanitizeFourcc(std::uint8_t* p) noexcept
         {
             for (std::int32_t i = 0; i < 4; ++i)
@@ -47,7 +48,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                     p[i] = '?';
         }
 
-        // find_wav_chunk
+        // opus-tools: find_wav_chunk() (src/audio-in.c)
         bool FindWavChunk(InputFile& file, const char* type, std::uint32_t& length, ReportFunction report) noexcept
         {
             for (;;) {
@@ -67,7 +68,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
-        // read_chunk
+        // opus-tools: read_chunk() (src/audio-in.c)
         bool ReadChunk(InputFile& file, std::uint8_t* buffer, std::uint32_t bufferSize, std::uint32_t& length) noexcept
         {
             const std::uint32_t chunkLength = length;
@@ -160,6 +161,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return bytes / itemSize;
     }
 
+    // opus-tools: seek_forward() (src/audio-in.c)
     bool InputFile::SeekForward(std::int64_t length) noexcept
     {
         if (length <= 0)
@@ -218,6 +220,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     // --- WavInput --------------------------------------------------------------------------------
 
+    // opus-tools: wav_open() (src/audio-in.c) with wav_id()
     bool WavInput::Open(InputFile& file, bool ignoreLength, ReportFunction report) noexcept
     {
         file_ = &file;
@@ -370,6 +373,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
+    // opus-tools: setup_downmix() (src/audio-in.c)
     std::int32_t WavInput::SetupDownmix(std::int32_t outChannels, ReportFunction report) noexcept
     {
         const std::int32_t inChannels = info_.channels;
@@ -409,6 +413,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return outChannels;
     }
 
+    // opus-tools: read_downmix() (src/audio-in.c)
     std::int32_t WavInput::Read(float* buffer, std::int32_t samples) noexcept
     {
         if (!downmix_)
@@ -438,7 +443,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return total;
     }
 
-    // wav_read and wav_ieee_read
+    // opus-tools: wav_read() and wav_ieee_read() (src/audio-in.c)
     std::int32_t WavInput::ReadPcm(float* buffer, std::int32_t samples) noexcept
     {
         const std::int32_t sampleBytes = ieeeFloat_ ? 4 : sampleSizeBits_ / 8;

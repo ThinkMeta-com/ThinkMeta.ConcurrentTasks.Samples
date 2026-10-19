@@ -10,6 +10,7 @@
 
 #include <immintrin.h>
 
+#include <atomic>
 #include <cstdint>
 
 #include "CeltBands.h"
@@ -25,7 +26,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     // The edge Encode ⇄ Theta: the second theta RDO trial of the stereo bands on a task of its own
     // (QuantAllBands with a runner): the encoder hands it over and waits for it a few microseconds later, so both
-    // sides spin first and only then block.
+    // sides spin first and only then block. The handshake before blocking is Dekker's: each side announces
+    // that it is about to sleep (sleeping_, encoderWaiting_), then checks the other side's counter again; with
+    // sequentially consistent operations on both sides one of them always sees the other, so no wake-up is lost.
     class ThetaHelper final : public ThetaTrialRunner
     {
     public:
@@ -40,31 +43,31 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         void Start(ThetaTrial* trial) noexcept override
         {
-            trial_ = trial;
-            InterlockedIncrement64(&posted_);
-            if (sleeping_ != 0)
+            trial_.store(trial, std::memory_order_relaxed); // published by posted_
+            posted_.fetch_add(1);
+            if (sleeping_.load())
                 wake_.Set();
         }
 
         void Finish() noexcept override
         {
-            const std::int64_t ticket = posted_;
-            for (std::int32_t spin = 0; done_ != ticket; ++spin) {
+            const std::int64_t ticket = posted_.load(std::memory_order_relaxed); // the encoder's own count
+            for (std::int32_t spin = 0; done_.load(std::memory_order_acquire) != ticket; ++spin) {
                 if (spin < FinishSpins) {
                     _mm_pause();
                     continue;
                 }
-                InterlockedExchange(&encoderWaiting_, 1);
-                if (done_ != ticket)
+                encoderWaiting_.store(true);
+                if (done_.load() != ticket)
                     finished_.Wait();
-                InterlockedExchange(&encoderWaiting_, 0);
+                encoderWaiting_.store(false);
             }
         }
 
         // the end (the encoder is done)
         void Stop() noexcept
         {
-            InterlockedExchange(&stop_, 1);
+            stop_.store(true);
             wake_.Set();
         }
 
@@ -72,23 +75,23 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         void Run() noexcept
         {
             for (;;) {
-                const std::int64_t seen = done_;
-                for (std::int32_t spin = 0; posted_ == seen && stop_ == 0; ++spin) {
+                const std::int64_t seen = done_.load(std::memory_order_relaxed); // only this task moves it
+                for (std::int32_t spin = 0; posted_.load(std::memory_order_acquire) == seen && !stop_.load(std::memory_order_acquire); ++spin) {
                     if (spin < IdleSpins) {
                         _mm_pause();
                         continue;
                     }
-                    InterlockedExchange(&sleeping_, 1);
-                    if (posted_ == seen && stop_ == 0)
+                    sleeping_.store(true);
+                    if (posted_.load() == seen && !stop_.load())
                         wake_.Wait();
-                    InterlockedExchange(&sleeping_, 0);
+                    sleeping_.store(false);
                     spin = 0;
                 }
-                if (posted_ == seen)
+                if (posted_.load(std::memory_order_acquire) == seen)
                     return;
-                RunThetaTrial(trial_);
-                InterlockedExchange64(&done_, seen + 1);
-                if (encoderWaiting_ != 0)
+                RunThetaTrial(trial_.load(std::memory_order_relaxed));
+                done_.store(seen + 1);
+                if (encoderWaiting_.load())
                     finished_.Set();
             }
         }
@@ -97,15 +100,15 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         static constexpr std::int32_t FinishSpins = 1 << 14; // a trial takes a few microseconds
         static constexpr std::int32_t IdleSpins   = 1 << 12; // over the gaps between frames
 
-        ThetaTrial* const storage_;
-        ThetaTrial* volatile trial_               = nullptr;
-        alignas(64) volatile std::int64_t posted_ = 0;
-        alignas(64) volatile std::int64_t done_   = 0;
-        alignas(64) volatile long sleeping_       = 0;
-        alignas(64) volatile long encoderWaiting_ = 0;
-        alignas(64) volatile long stop_           = 0;
-        Synchronization::AutoResetEvent_s wake_;     // a trial for a sleeping helper, or the end
-        Synchronization::AutoResetEvent_s finished_; // a trial done for a waiting encoder
+        ThetaTrial* const        storage_;
+        std::atomic<ThetaTrial*> trial_{nullptr};
+        alignas(64) std::atomic<std::int64_t> posted_{0};
+        alignas(64) std::atomic<std::int64_t> done_{0};
+        alignas(64) std::atomic<bool> sleeping_{false};
+        alignas(64) std::atomic<bool> encoderWaiting_{false};
+        alignas(64) std::atomic<bool> stop_{false};
+        Synchronization::AutoResetEvent_s wake_;     // a trial for a sleeping helper, or the end; one waiter: Theta
+        Synchronization::AutoResetEvent_s finished_; // a trial done for a waiting encoder; one waiter: the encoder
     };
 
     // The edge Encode → Speculate: the speculations of the CELT encoders on a task of
@@ -115,15 +118,15 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
     public:
         void Post(CeltSpeculation* spec) noexcept override
         {
-            const std::int64_t n = posted_;
+            const std::int64_t n = posted_.load(std::memory_order_relaxed); // only the encoder posts
             ring_[n % Ring]      = spec;
-            InterlockedExchange64(&posted_, n + 1);
+            posted_.store(n + 1);
             wake_.Set();
         }
 
         void Stop() noexcept
         {
-            InterlockedExchange(&stop_, 1);
+            stop_.store(true);
             wake_.Set();
         }
 
@@ -131,23 +134,25 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         {
             std::int64_t next = 0;
             for (;;) {
-                while (next < posted_) {
+                while (next < posted_.load(std::memory_order_acquire)) {
                     RunSpeculation(*ring_[next % Ring]);
                     ++next;
                 }
-                if (stop_ != 0)
+                if (stop_.load(std::memory_order_acquire))
                     return;
                 wake_.Wait();
             }
         }
 
     private:
-        static constexpr std::int64_t Ring = 64; // more than streams: one speculation per stream at a time
+        // More than streams: one speculation per stream is in the queue at a time, and mapping family 255 has up to 255
+        // streams. (An overwritten entry would only lose its speculation, never change the output.)
+        static constexpr std::int64_t Ring = 256;
 
-        CeltSpeculation* ring_[Ring]              = {};
-        alignas(64) volatile std::int64_t posted_ = 0;
-        alignas(64) volatile long stop_           = 0;
-        Synchronization::AutoResetEvent_s wake_;
+        CeltSpeculation* ring_[Ring] = {};
+        alignas(64) std::atomic<std::int64_t> posted_{0};
+        alignas(64) std::atomic<bool> stop_{false};
+        Synchronization::AutoResetEvent_s wake_; // one waiter: Speculate
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus

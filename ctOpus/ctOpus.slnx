@@ -3,11 +3,14 @@
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/ctOpus/">
-    <Project Path="src/ctOpus/ThinkMeta.ConcurrentTasks.Samples.ctOpus.vcxproj" Id="4f707573-0002-4000-8000-000000000003" />
-    <Project Path="src/Gui/ThinkMeta.ConcurrentTasks.Samples.ctOpus.Gui.vcxproj" Id="4f707573-0002-4000-8000-000000000004" />
-    <Project Path="src/LiveBench/ThinkMeta.ConcurrentTasks.Samples.ctOpus.LiveBench.vcxproj" Id="4f707573-0002-4000-8000-000000000005" />
+    <Project Path="src/App/ThinkMeta.ConcurrentTasks.Samples.ctOpus.vcxproj" Id="4f707573-0002-4000-8000-000000000003" />
     <Project Path="src/Encoder/ThinkMeta.ConcurrentTasks.Samples.ctOpus.Encoder.vcxproj" Id="4f707573-0002-4000-8000-000000000001" />
     <Project Path="src/Tasks/ThinkMeta.ConcurrentTasks.Samples.ctOpus.Tasks.vcxproj" Id="4f707573-0002-4000-8000-000000000002" />
+    <Project Path="src/Tests/ThinkMeta.ConcurrentTasks.Samples.ctOpus.Tests.vcxproj" Id="4f707573-0002-4000-8000-000000000006" />
+  </Folder>
+  <Folder Name="/Extras/">
+    <Project Path="src/Gui/ThinkMeta.ConcurrentTasks.Samples.ctOpus.Gui.vcxproj" Id="4f707573-0002-4000-8000-000000000004" />
+    <Project Path="src/LiveBench/ThinkMeta.ConcurrentTasks.Samples.ctOpus.LiveBench.vcxproj" Id="4f707573-0002-4000-8000-000000000005" />
   </Folder>
   <Folder Name="/opusenc/">
     <Project Path="opus/opus-tools-0.2/opusenc.vcxproj" Id="4f707573-0001-4000-8000-000000000005" />

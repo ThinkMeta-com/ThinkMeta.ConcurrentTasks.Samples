@@ -46,7 +46,7 @@ param(
     [Parameter(Mandatory)][ValidateSet('Reference', 'Compare')][string]$Mode,
     [Parameter(Mandatory)][ValidateSet('Smoke', 'Quick', 'Full')][string]$Matrix,
     [Parameter(Mandatory)][ValidateSet('sse2', 'avx2')][string]$Simd,
-    [string]$Exe = (Join-Path $PSScriptRoot '..\src\build\Release\bin\ctJpeg.exe'), # your build; ..\bin\ctJpeg.exe for the published one
+    [string]$Exe = (Join-Path $PSScriptRoot '..\build\Release\bin\ctJpeg.exe'), # your build; ..\bin\ctJpeg.exe for the published one
     [string]$HashFile,
     [string]$InputRoot = (Join-Path $PSScriptRoot '..\testdata'),
     [string]$ExtraArgs = '',

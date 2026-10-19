@@ -1,0 +1,29 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/ctJpeg/">
+    <Project Path="src/App/ThinkMeta.ConcurrentTasks.Samples.ctJpeg.vcxproj" Id="4a504547-0002-4000-8000-000000000003">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Encoder/ThinkMeta.ConcurrentTasks.Samples.ctJpeg.Encoder.vcxproj" Id="4a504547-0002-4000-8000-000000000001">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Tasks/ThinkMeta.ConcurrentTasks.Samples.ctJpeg.Tasks.vcxproj" Id="4a504547-0002-4000-8000-000000000002">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Tests/ThinkMeta.ConcurrentTasks.Samples.ctJpeg.Tests.vcxproj" Id="4a504547-0002-4000-8000-000000000004">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="src/GenTestImages/GenTestImages.vcxproj" Id="4a504547-0002-4000-8000-000000000005">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/ThinkMeta.ConcurrentTasks.API/">
+    <Project Path="../ThinkMeta.ConcurrentTasks.API/Library/ThinkMeta.ConcurrentTasks/ThinkMeta.ConcurrentTasks.vcxproj" Id="8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+</Solution>

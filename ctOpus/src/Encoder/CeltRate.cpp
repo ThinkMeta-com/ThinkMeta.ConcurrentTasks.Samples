@@ -6,6 +6,7 @@
 #include "CeltRate.h"
 
 #include "CeltEnergy.h"
+#include "IntMath.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
@@ -17,20 +18,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         constexpr std::uint8_t Log2FracTable[24] = {0, 8, 13, 16, 19, 21, 23, 24, 26, 27, 28, 29, 30, 31, 32, 32, 33, 34, 34, 35, 36, 36, 37, 37};
 
-        constexpr std::int32_t Imin(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a < b ? a : b;
-        }
-        constexpr std::int32_t Imax(std::int32_t a, std::int32_t b) noexcept
-        {
-            return a > b ? a : b;
-        }
-
+        // libopus: celt_udiv() (celt/entcode.h)
         inline std::int32_t Udiv(std::int32_t n, std::int32_t d) noexcept
         {
             return static_cast<std::int32_t>(static_cast<std::uint32_t>(n) / static_cast<std::uint32_t>(d));
         }
 
+        // libopus: interp_bits2pulses() (celt/rate.c)
         std::int32_t InterpBits2Pulses(std::int32_t start, std::int32_t end, std::int32_t skipStart, const std::int32_t* bits1, const std::int32_t* bits2,
                                        const std::int32_t* thresh, const std::int32_t* cap, std::int32_t total, std::int32_t* balanceOut, std::int32_t skipRsv,
                                        std::int32_t* intensity, std::int32_t intensityRsv, std::int32_t* dualStereo, std::int32_t dualStereoRsv,
@@ -230,6 +224,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopus: init_caps() (celt/celt.c)
     void InitCaps(std::int32_t* cap, std::int32_t lm, std::int32_t c) noexcept
     {
         for (std::int32_t i = 0; i < NbEBands; ++i) {
@@ -238,6 +233,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopus: clt_compute_allocation() (celt/rate.c)
     std::int32_t ComputeAllocation(std::int32_t start, std::int32_t end, const std::int32_t* offsets, const std::int32_t* cap, std::int32_t allocTrim,
                                    std::int32_t* intensity, std::int32_t* dualStereo, std::int32_t total, std::int32_t* balance, std::int32_t* pulses,
                                    std::int32_t* ebits, std::int32_t* finePriority, std::int32_t c, std::int32_t lm, RangeEncoder* ec, std::int32_t prev,

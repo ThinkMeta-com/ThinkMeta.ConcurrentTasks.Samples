@@ -10,9 +10,9 @@
 
 #define CTOPUS_VERSION_MAJOR 0
 #define CTOPUS_VERSION_MINOR 1
-#define CTOPUS_VERSION_PATCH 0
+#define CTOPUS_VERSION_PATCH 1
 #define CTOPUS_VERSION_BUILD 0
-#define CTOPUS_VERSION_STRING "0.1"
+#define CTOPUS_VERSION_STRING "0.1.1"
 #define CTOPUS_COPYRIGHT "Copyright (c) 2026 ThinkMeta Software GmbH"
 #define CTOPUS_COMPANY "ThinkMeta Software GmbH"
 #define CTOPUS_OPUS_VERSION "1.6.1"

@@ -21,7 +21,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         constexpr std::int32_t MinPeriod = 15; // COMBFILTER_MINPERIOD
 
-        // xcorr_kernel_avx: like xcorr_kernel, but 8 results at a time (FMA partial sums)
+        // libopus: xcorr_kernel_avx() (celt/x86/pitch_avx.c): like xcorr_kernel, but 8 results at a time (FMA partial sums)
         void XcorrKernelAvx(const float* x, const float* y, float sum[8], std::int32_t len) noexcept
         {
             __m256       xsum0 = _mm256_setzero_ps();
@@ -68,6 +68,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             _mm256_storeu_ps(sum, xsum0);
         }
 
+        // libopus: find_best_pitch() (celt/pitch.c)
         void FindBestPitch(const float* xcorr, const float* y, std::int32_t len, std::int32_t maxPitch, std::int32_t* bestPitch) noexcept
         {
             float bestNum[2] = {-1, -1};
@@ -103,6 +104,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: celt_fir5() (celt/pitch.c)
         void Fir5(float* x, const float* num, std::int32_t n) noexcept
         {
             const float num0 = num[0];
@@ -131,7 +133,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
-        // _celt_autocorr without a window
+        // libopus: _celt_autocorr() (celt/celt_lpc.c) without a window
         void Autocorr(const float* x, float* ac, std::int32_t lag, std::int32_t n, std::int32_t arch) noexcept
         {
             const std::int32_t fastN = n - lag;
@@ -144,7 +146,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
-        // _celt_lpc
+        // libopus: _celt_lpc() (celt/celt_lpc.c)
         void Lpc(float* lpc, const float* ac, std::int32_t p) noexcept
         {
             float error = ac[0];
@@ -173,6 +175,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
+        // libopus: compute_pitch_gain() (celt/pitch.c)
         float ComputePitchGain(float xy, float xx, float yy) noexcept
         {
             return xy / static_cast<float>(std::sqrt(static_cast<double>(1 + xx * yy)));
@@ -180,6 +183,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
         constexpr std::int32_t SecondCheck[16] = {0, 0, 3, 2, 3, 2, 5, 2, 3, 2, 3, 2, 5, 2, 3, 2};
 
+        // libopus: celt_udiv() (celt/entcode.h)
         inline std::int32_t Udiv(std::int32_t n, std::int32_t d) noexcept
         {
             return static_cast<std::int32_t>(static_cast<std::uint32_t>(n) / static_cast<std::uint32_t>(d));
@@ -187,6 +191,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopus: opus_select_arch() (celt/x86/x86cpu.c)
     std::int32_t SelectArch() noexcept
     {
         // the CPU features: SSE, SSE2, SSE4.1, AVX2 (with FMA and the AVX2 bit of leaf 7)
@@ -216,6 +221,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return avx2 ? ArchAvx2 : 3;
     }
 
+    // libopus: celt_pitch_xcorr_c() (celt/pitch.c) and celt_pitch_xcorr_avx2() (celt/x86/pitch_avx.c)
     void PitchXcorr(const float* x, const float* y, float* xcorr, std::int32_t len, std::int32_t maxPitch, std::int32_t arch) noexcept
     {
         std::int32_t i = 0;
@@ -237,6 +243,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             xcorr[i] = InnerProd(x, y + i, len);
     }
 
+    // libopus: pitch_downsample() (celt/pitch.c)
     void PitchDownsample(float* const x[], float* xLp, std::int32_t len, std::int32_t c, std::int32_t factor, std::int32_t arch) noexcept
     {
         float              ac[5];
@@ -275,6 +282,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         Fir5(xLp, lpc2, len);
     }
 
+    // libopus: pitch_search() (celt/pitch.c)
     void PitchSearch(const float* xLp, const float* y, std::int32_t len, std::int32_t maxPitch, std::int32_t* pitch, std::int32_t arch) noexcept
     {
         std::int32_t       bestPitch[2] = {0, 0};
@@ -317,6 +325,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         *pitch = 2 * bestPitch[0] - offset;
     }
 
+    // libopus: remove_doubling() (celt/pitch.c)
     float RemoveDoubling(float* x, std::int32_t maxPeriod, std::int32_t minPeriod, std::int32_t n, std::int32_t* t0Out, std::int32_t prevPeriod,
                          float prevGain) noexcept
     {
@@ -407,6 +416,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return pg;
     }
 
+    // libopus: comb_filter() (celt/celt.c)
     void CombFilter(float* y, float* x, std::int32_t t0, std::int32_t t1, std::int32_t n, float g0, float g1, std::int32_t tapset0, std::int32_t tapset1,
                     const float* window, std::int32_t overlap) noexcept
     {

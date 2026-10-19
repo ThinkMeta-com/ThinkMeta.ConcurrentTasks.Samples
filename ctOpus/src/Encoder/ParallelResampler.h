@@ -27,6 +27,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         /// <summary>Takes the filter of an initialized Resampler; false if out of memory.</summary>
         bool Initialize(const Resampler& resampler) noexcept;
 
+        /// <summary>
+        /// Input at 48 kHz, which libopusenc copies into its buffer unchanged: a filter of length 1,
+        /// output j is input j.
+        /// </summary>
+        void InitializeIdentity() noexcept;
+
         std::int32_t FilterLength() const noexcept { return n_; }
 
         /// <summary>Index into the padded input of the first tap of output j.</summary>
@@ -44,18 +50,17 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         /// </summary>
         void Compute(const float* const* padded, std::int32_t channels, std::int64_t j0, std::int64_t j1, float* out) const noexcept;
 
-        bool UsesAvx2() const noexcept { return avx2_; }
-
     private:
         void ComputeScalar(const float* padded, std::int64_t j0, std::int64_t j1, float* out, std::int32_t stride) const noexcept;
         void ComputeAvx2(const float* padded, std::int64_t j0, std::int64_t j1, float* out, std::int32_t stride) const noexcept;
 
-        const float*            table_  = nullptr; // the Resampler's sinc table, [phase][tap]
-        std::int32_t            n_      = 0;
-        std::int64_t            den_    = 0;
-        std::int64_t            step_   = 0; // int_advance * den + frac_advance = num
-        std::int64_t            period_ = 0; // lcm(den, 8): the pattern of 8-output groups repeats
-        bool                    avx2_   = false;
+        const float*            table_    = nullptr; // the Resampler's sinc table, [phase][tap]
+        std::int32_t            n_        = 0;
+        std::int64_t            den_      = 0;
+        std::int64_t            step_     = 0; // int_advance * den + frac_advance = num
+        std::int64_t            period_   = 0; // lcm(den, 8): the pattern of 8-output groups repeats
+        bool                    avx2_     = false;
+        bool                    identity_ = false;
         HeapArray<float>        groupCoef_; // [group][tap][lane]
         HeapArray<std::int32_t> groupPerm_; // [group][lane]: offset of the lane's window
     };

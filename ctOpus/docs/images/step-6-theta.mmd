@@ -1,6 +1,7 @@
 flowchart LR
     W["Resample ×N"] -- "blocks" --> A["Analyse + Signal<br/>High"]
     W -- "blocks" --> E["Encode<br/>High"]
+    A -- "tonality, signal frames" --> E
     A -- "signal frames" --> F["Front<br/>High"]
     F -- "front frames" --> E
     E -. "resync" .-> F

@@ -24,10 +24,11 @@ On a corpus of 343 music files (45.1 hours), `--comp 10 --bitrate 128`, measured
 
 | Folder / file | Contents |
 |---|---|
-| `bin\` | `ctOpus.exe` (encoder, same command line as opusenc), `ctOpusGui.exe` (live encoding and multi-stream load test), `ctOpusLiveBench.exe` (live latency benchmark), `opusenc.exe` (the reference, built from `opus\`) and `ThinkMeta.ConcurrentTasks.Core.dll` (scheduler core) |
+| `bin\` | `ctOpus.exe` (encoder, same command line as opusenc), `opusenc.exe` (the reference, built from `opus\`), `ThinkMeta.ConcurrentTasks.Core.dll` (scheduler core) and two extras: `ctOpusGui.exe` (live encoding and multi-stream load test) and `ctOpusLiveBench.exe` (live latency benchmark) |
 | `opus\` | Unmodified sources of the reference: opus-tools 0.2, libopusenc 0.2.1, libogg 1.3.6 and libopus 1.6.1, with Visual Studio projects ([The reference](#the-reference)) |
-| `src\` | The source code of ctOpus: `Encoder\` (the codec, the Ogg container and the WAV reader, a static library), `Tasks\` (the task graph), `ctOpus\` (the encoder program and its opusenc frontend), `Gui\` and `LiveBench\` |
-| `ctOpus.slnx` | Builds everything: ctOpus, ctOpusGui, ctOpusLiveBench and the reference opusenc ([Building](#building)) |
+| `src\` | The source code of ctOpus: `App\` (the program `ctOpus.exe` with its opusenc frontend), `Encoder\` (the codec, the Ogg container and the WAV reader, a static library without task code), `Tasks\` (the task graph), `Tests\` (unit tests of the graph and its edges) and the extras `Gui\` and `LiveBench\` ([Reading the code](#reading-the-code)) |
+| `docs\` | [`task-graph.md`](docs/task-graph.md) (how the graph grew, step by step) and [`porting.md`](docs/porting.md) (which libopus, libopusenc and opus-tools function became which ctOpus function) |
+| `ctOpus.slnx` | Builds everything: ctOpus and its unit tests, the extras ctOpusGui and ctOpusLiveBench (solution folder `Extras`) and the reference opusenc ([Building](#building)) |
 | `ThinkMeta.SolutionFiles\` | Forwards the build settings to the `ThinkMeta.ConcurrentTasks.API` submodule of this repository |
 | `verify\` | `Verify-Opus.ps1`: bit-identity check of a build against opusenc, with synthetic test files and reference hashes ([Checking a build](#checking-a-build)) |
 | `benchmark\` | `Compare-Folder.ps1` and `run.cmd`: speed and bit identity on your own WAV files |
@@ -60,7 +61,7 @@ The script encodes every file with opusenc and ctOpus, measures the wall time an
 
 ## Building
 
-Requirements: Windows 10 or 11 x64 and **Visual Studio 2026** with the workload *Desktop development with C++*. ctOpus uses C++ modules; the library and the scheduler core come from the submodule `ThinkMeta.ConcurrentTasks.API` of this repository, so clone it with its submodules:
+Requirements: Windows 10 or 11 x64 and **Visual Studio 2026** with the workload *Desktop development with C++*. ctOpus's own code is classic headers and `.cpp` files; the scheduler's library is consumed as C++ modules. The library and the scheduler core come from the submodule `ThinkMeta.ConcurrentTasks.API` of this repository, so clone it with its submodules:
 
 ```cmd
 git clone --recurse-submodules https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.Samples.git
@@ -79,7 +80,7 @@ Output:
 
 | Folder | Contents |
 |---|---|
-| `build\Release\bin\` | `ctOpus.exe`, `ctOpusGui.exe`, `ctOpusLiveBench.exe` and `ThinkMeta.ConcurrentTasks.Core.dll` |
+| `build\Release\bin\` | `ctOpus.exe`, the unit tests `ThinkMeta.ConcurrentTasks.Samples.ctOpus.Tests.dll`, the extras `ctOpusGui.exe` and `ctOpusLiveBench.exe`, and `ThinkMeta.ConcurrentTasks.Core.dll` |
 | `opus\build\Release\bin\` | `opusenc.exe`, the reference |
 
 Your build is not byte-identical to the programs in `bin\`: those are built with the static C runtime and their own build paths, yours uses the C runtime DLL of Visual Studio. What must be identical is the **output**: every `.opus` file your ctOpus writes must be bit-identical to opusenc's.
@@ -104,6 +105,8 @@ cd verify
 ```
 
 `benchmark\run.cmd` checks bit identity as well, file by file, while it measures.
+
+The unit tests run in Visual Studio's Test Explorer or with `vstest.console build\Release\bin\ThinkMeta.ConcurrentTasks.Samples.ctOpus.Tests.dll`. They need no files (they write their test signals to the temp folder) and check the task graph against the sequential graph and the graph's edges under load ([Reading the code](#reading-the-code)).
 
 ---
 
@@ -154,7 +157,7 @@ Desktop (i9-11900K), whole corpus, 128 kbit/s; time is the sum of the per-file m
 
 <!-- BENCHMARK: --comp 10, 128 kbit/s, ctOpus --threads 1, 2, 4, 6, 7, 8, 12, 16 (and the machine's maximum): time and speedup vs --threads 1 and vs opusenc -->
 
-ctOpus uses its speculation only from 7 threads on (one level at 7, three levels from 8, extra helpers for the levels from 12); below that the gain comes from the analysis chain and the input stage alone.
+ctOpus uses its speculation only from 7 threads on (one level at 7, with its own theta helper; three levels from 8; theta helpers for the three levels from 12); below that the gain comes from the analysis chain, the input stage and, from 3 threads at `--comp 8` and above, the theta helper of the encoder.
 
 ### Other CPUs
 
@@ -225,22 +228,22 @@ And "the same output" means the same bits, so every floating point operation mus
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/graph-dark.svg">
-  <img alt="Read and Write on the I/O scheduler; Distribute on the compute scheduler feeds Resample ×N; the blocks go to Encode and to the chain Analyse → Signal → Front, whose front frames go to Encode, with a resync back from Encode; Encode hands trials to Theta and clones of the next frames to Speculate ×3, which returns symbol logs, and its Ogg pages to Write" src="docs/images/graph-light.svg">
+  <img alt="FileRead and FileWrite on the I/O scheduler; Read on the compute scheduler feeds Resample ×N; the blocks go to Encode and to the chain Analyse → Signal → Front, which delivers tonality, signal frames and front frames to Encode, with a resync back from Encode; Encode hands trials to Theta and clones of the next frames to Speculate ×3, a cascade in which each level clones the next, with the seed and a cancellation from Encode; Speculate returns symbol logs and has its own Theta helpers; Encode hands its Ogg pages to FileWrite" src="docs/images/graph-light.svg">
 </picture>
 
-<sub>Rendered with Mermaid's ELK layout; source: [docs/images/graph.mmd](docs/images/graph.mmd).</sub>
+<sub>Rendered with Mermaid's ELK layout; source: [docs/images/graph.mmd](docs/images/graph.mmd). The node names are the names in the code ([Reading the code](#reading-the-code)).</sub>
 
 **[How the graph grew, step by step →](docs/task-graph.md)** from opusenc's single loop to this graph, with the reason and the measured gain of each step.
 
 Opus is a sequential codec: every frame depends on the state the previous frame left behind (filter memories, energy prediction, bit reservoir, the range coder). ctOpus keeps that sequential backbone exact and takes everything else off it:
 
-1. **Input stage:** WAV reading and the Speex resampler of opusenc (44.1 → 48 kHz) run in parallel blocks, bit-identical to the streaming resampler.
+1. **Input stage:** WAV reading and the Speex resampler of opusenc (e.g. 44.1 → 48 kHz) run in parallel blocks, bit-identical to the streaming resampler. Input at 48 kHz, which opusenc does not resample, goes through the same graph: the resample stage only copies (interleaves) the samples. (Earlier versions encoded 48 kHz input on one thread; going through the graph made it 3.6× faster.)
 2. **Analysis chain:** tonality analysis, pitch search, transient analysis and the CELT front end (pre-filter, MDCT, band energies) depend only on the signal and run ahead of the encoder on tasks of their own.
 3. **Speculative backbone:** while the encoder quantizes frame N, up to three speculation tasks already quantize frames N+1 to N+3 on cloned encoder states, with the outcome of the frames before them guessed. The encoder checks every input of the speculation; if it matches, it replays the recorded range coder symbols instead of computing the frame (about 96 % of the speculated frames). A wrong guess is aborted at the next band.
-4. **Theta search helpers:** at complexity 8 and above, the second rounding candidate of the stereo angle search runs on a helper task at the same time as the first.
+4. **Theta search helpers:** at complexity 8 and above (`--comp 8`; below, CELT makes no second trial), the second rounding candidate of the stereo angle search runs on a helper task at the same time as the first, from 3 threads on.
 5. **Bit identity:** the same floating point operations in the same order as libopus, including its SSE code paths. Every change is checked against more than 2,400 reference files (all complexities, many bit rates and options, mono, stereo and surround, SILK, hybrid and CELT modes, several sample rates) and against itself with 1 to 16 threads.
 
-The speedup on one file is limited by the backbone that remains sequential; with fewer than 7 threads ctOpus uses less speculation.
+The speedup on one file is limited by the backbone that remains sequential; with fewer than 7 threads ctOpus uses no speculation.
 
 ---
 
@@ -301,7 +304,7 @@ Options of ctOpus only (not written to the `ENCODER_OPTIONS` tag, so the output 
 Not supported, with an error message and exit code 1: input other than WAV (AIFF, FLAC, raw PCM, so also `--raw`, `--raw-bits`, `--raw-rate`, `--raw-chan`, `--raw-endianness`), `--picture` and `--save-range`. WAV input covers the formats opusenc reads (PCM 8, 16 and 24 bit, 32-bit float, WAVE_FORMAT_EXTENSIBLE, any sample rate, up to 255 channels).
 
 <details>
-<summary><b>ctOpusGui and ctOpusLiveBench</b>: their command lines</summary>
+<summary><b>The extras ctOpusGui and ctOpusLiveBench</b>: their command lines</summary>
 
 ### ctOpusGui
 
@@ -345,7 +348,9 @@ Input for ctOpusLiveBench: 16-bit stereo WAV.
 
 ---
 
-## Live encoding (`ctOpusGui.exe`, `ctOpusLiveBench.exe`)
+## Extras: live encoding (`ctOpusGui.exe`, `ctOpusLiveBench.exe`)
+
+The two extras are not part of the file encoder, and you do not need them to follow its task graph. They use the same encoder library (`src\Encoder\`) and, for the theta search helper, the `ThetaHelper` of `src\Tasks\EncodeHelpers.h`; in `ctOpus.slnx` they are in the solution folder `Extras` (sources in `src\Gui\` and `src\LiveBench\`).
 
 Live encoding has no look-ahead, so the techniques above do not apply. What counts there is the time from a frame's arrival to its packet:
 
@@ -356,13 +361,55 @@ Live encoding has no look-ahead, so the techniques above do not apply. What coun
 
 ---
 
+## Reading the code
+
+The parallel version adds a task layer (`src\Tasks\`) around an encoder (`src\Encoder\`) that does not know about tasks. Read it in this order:
+
+1. **`src\Tasks\EncodeGraph.h`**: the graph as a diagram and the list of its nodes, then `EncodeGraph::Initialize` and `EncodeGraph::Run` in `EncodeGraph.cpp`. `Initialize` allocates the edges (the PCM feed, the block ring, the rings of the analysis chain). `Run` decides which helper nodes the graph gets (the thresholds are named at the top of `EncodeGraph.cpp`: `ThetaHelperThreads`, `ThetaTrialComplexity`, `OneLevelThreads`, `CascadeThreads`, `LevelHelperThreads`), creates the nodes, puts them all into one `TaskGroup`, starts them with `ITaskScheduler::AddTask` (the serial stages with `TaskPriority::High`, the resamplers with `Normal`) and waits for the group. This is where ThinkMeta.ConcurrentTasks is used. `SequentialGraph`, in the same files, is the one-node graph of `--sequential`.
+2. **The edges**, each a class that starts with the nodes it connects:
+   * `PcmFeed` and `BlockRing` (`GraphEdges.h`): Read → Resample → Encode and Analyse. The ring's methods name the stage and the step: `AcquireRead`, `CompleteRead`, `AcquireResample`, `CompleteResample`, `AcquireEncode`, … (`Acquire…` may wait and hands out the next block, `Complete…` hands it on); `Abort` ends the run and wakes every stage.
+   * `ToneChain` (`ToneChain.h`): the rings of the analysis chain Analyse → Signal → Front → Encode, and the resync from Encode back to Front. Encode reads them through the encoder's hook interface `ToneAnalysisSource`.
+   * `ThetaHelper` and `SpeculationQueue` (`EncodeHelpers.h`): Encode ⇄ Theta and Encode → Speculate. They implement the encoder's hooks `ThetaTrialRunner` and `SpeculationRunner`.
+   * `BlockPipe` (`FileIo.h`): FileRead → Read and Encode → FileWrite.
+
+   The shared counters are `std::atomic`. Next to every event its comment says who waits on it: `AutoResetEvent_s` with "one waiter: …" wherever a single task waits, the plain `AutoResetEvent` only where several do (the Resample tasks on `resampleReady_`).
+3. **The nodes** (`EncodeTasks.h`, `EncodeTasks.cpp`): `ReadTask`, `ResampleTask`, `AnalyseTask`, `SignalTask`, `FrontTask`, `EncodeTask`, `SpeculateTask`, `ThetaTask` and `SequentialEncodeTask`; `FileReadTask` and `FileWriteTask` are in `FileIo.h`. Each is a plain loop that waits on an edge.
+4. **`src\App\Frontend.cpp`**: `RunFrontend` is opusenc's `main()`. The setup of ThinkMeta.ConcurrentTasks, the same in every sample, is the commented block "The setup of ThinkMeta.ConcurrentTasks" in it:
+   1. `ConvertThreadToTask`: the main thread becomes a task, because it waits for the graph's `TaskGroup` and for the pipes of `FileIo`. The graph owns its edges and their events; the events themselves are ordinary objects that any thread may set, only waiting needs a task.
+   2. `EnableAsyncIo`: the core's I/O completion port, for the overlapped reads and writes.
+   3. An I/O scheduler with one thread for FileRead and FileWrite, which only wait for the disk.
+   4. The compute scheduler, one thread per logical processor, created in `RunEncodeGraph` once the graph knows its thread count. `RunEncodeGraph` runs `EncodeGraph`, or `SequentialGraph` for `--sequential` and when `EncodeGraph::Initialize` fails.
+   5. At the end `Stop`, `DisableAsyncIo` and `ConvertTaskToThread`.
+
+   `src\App\CpuCheckEntry.cpp` is the program's entry point: it checks for AVX2 and the other instruction sets before the C runtime starts.
+5. **The encoder** (`src\Encoder\`), a static library without task code: the port of libopus (`OpusStreamEncoder`, `OpusMultistreamEncoder`, `CeltEncoder` with `CeltBands`, `CeltEnergy`, `CeltRate`, `CeltVq`, `CeltPitch`, `CeltMdct`, `KissFft`, `RangeEncoder`, the `Silk…` files, `ToneAnalysis`), of libopusenc (`OggOpusEncoder`, `OggPacker`, `Resampler`) and of opus-tools' WAV reader (`WavInput`). Each ported function names its original in a comment above it, such as `// libopus: quant_all_bands() (celt/bands.c)`; [docs/porting.md](docs/porting.md) maps the main functions. New in ctOpus are the parallel resampler (`ParallelResampler`, `PlanarStore`), the frames the analysis chain hands over (`CeltSignalFrame`, `CeltFrontFrame`, `StreamInputFrame`) and the speculation (`CeltSpeculation.h`, `CeltSpeculation.cpp`). The speculation is a protocol of ctOpus's own, outside the library: a state machine with compare-and-swap and short spins, described with its states and invariants at the top of `CeltSpeculation.h`. It can cost time, never a bit: a result is taken only if the inputs it read were exactly the real ones.
+6. **The tests** (`src\Tests\`), the smallest examples of ThinkMeta.ConcurrentTasks in this repository: `EdgeTests.cpp` runs `BlockRing` and `BlockPipe` under load with stand-in nodes (`FunctionTask` in `TestTasks.h` turns a lambda into a task, `TestSchedulers` is the setup above in a few lines), including an abort in the middle and a consumer that closes early. `GraphTests.cpp` runs `EncodeGraph` against `SequentialGraph` and expects the same Ogg Opus bytes: with 1, 2, 3, 7, 8 and 12 threads (every combination of helper nodes), at 48 kHz (the copy instead of the resampler), mono at 16 kHz, with 6 channels (several streams), for an input shorter than one block and at `--comp 5` (no theta helper).
+
+Why some edges are classes of their own and not the library's building blocks:
+
+* **`BlockRing`, not `Semaphore_s`:** a slot is free only once two stages, Encode and Analyse, have its block, and Read needs the number of the released block, not a count.
+* **`BlockPipe`, not `StreamedFileReader` and `OrderedFileWriter`:** `BlockPipe` connects the library's `AsyncFile::ReadFile` and `AsyncFile::WriteFile` (overlapped reads and writes on the completion port) with the ported opusenc frontend. The WAV reader pulls its bytes in order and starts behind the header it has already parsed; a read error ends its input, as in opusenc, where `StreamedFileReader` would read the failed bytes as zeros. The Ogg pages are appended in order and never patched, so they need neither the copy tasks nor the patching of `OrderedFileWriter`.
+* **`ThetaHelper`, not a plain event:** a theta trial takes a few microseconds, so both sides spin first and only then block on an event; the handshake before blocking is described in `EncodeHelpers.h`.
+
+### Error handling
+
+ctOpus reports errors as opusenc does, with its messages and exit code 1, and does not try to recover:
+
+* **Before the encoding** (options, the input format, the encoder settings) ctOpus prints opusenc's message and ends the process at once (`std::exit`), as opusenc's `fatal()` does. It does not stop the schedulers first; the end of the process takes them down.
+* **A read error** ends the input early, as a failing read does in opusenc's WAV reader; the file is encoded up to that point.
+* **A write error** does not stop the encoder: FileWrite takes the remaining blocks, so the encoder never waits on a full pipe. At the end ctOpus reports `Encoding aborted` with exit code 1.
+* **Memory:** if `EncodeGraph::Initialize` cannot allocate the PCM feed or the block ring, ctOpus encodes with the sequential graph, with the same output; if only the rings of the analysis chain do not fit, the graph runs without the chain (and without speculation). If memory runs out while the graph runs (the input store, the encoder's buffers), the stage that notices aborts the block ring, every stage wakes and ends, and ctOpus reports `Encoding aborted`. A speculation whose state cannot be allocated is left out; that stream encodes without it.
+* An incomplete output file is not deleted, as with opusenc.
+
+---
+
 ## Room for improvement
 
 ctOpus is not finished; the measurements point to these next steps:
 
 * **The sequential backbone:** the quantization of the bands (`quant_all_bands` with the range coder) stays sequential from frame to frame. Speculation runs it ahead, but on the i9-11900K ctOpus still kept only about 3.7 of the 8 cores busy on average (VTune, a build with two speculation levels), and one thread is only 10 % faster than opusenc (2.00 s against 2.21 s at `--comp 10`).
 * **Turbo clock:** every additional busy core lowers the clock of all of them. The band quantization itself took about 5 % longer with 2 busy cores and 10 % longer with 6; more speculation levels or helpers therefore pay off only up to a point (three levels from 8 threads, helpers for the levels only from 12).
-* **Fewer than 7 threads:** below 7 threads speculation costs more than it gains and is switched off, so CPUs with 4 cores / 4 threads get only the analysis chain and the input stage.
+* **Fewer than 7 threads:** below 7 threads speculation costs more than it gains and is switched off, so CPUs with 4 cores / 4 threads get only the analysis chain, the input stage and the theta helper of the encoder.
 * **SILK and hybrid modes:** the speculation covers CELT frames only; speech at low bit rates (SILK, hybrid) runs the backbone without it. These modes are bit-identical but their speedup has not been measured separately.
 * **Notebooks under sustained load:** on the Core Ultra 7 155H ctOpus is 3.5× faster than opusenc on single tracks but only 1.9× on album-length files; with fewer threads ctOpus might hold a higher clock for longer. This has not been measured yet.
 * **CPUs without AVX2:** `ctOpus.exe` is built for AVX2; a build for older CPUs has not been made or checked.

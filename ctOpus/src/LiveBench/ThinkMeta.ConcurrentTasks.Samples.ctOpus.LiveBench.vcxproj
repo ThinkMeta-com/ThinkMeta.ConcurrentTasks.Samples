@@ -34,7 +34,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\Encoder\CpuCheckEntry.cpp">
+    <ClCompile Include="..\App\CpuCheckEntry.cpp">
       <PreprocessorDefinitions>CT_CPUCHECK_CRT_ENTRY=wmainCRTStartup;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ClCompile Include="main.cpp" />

@@ -55,7 +55,7 @@
     <ClCompile Include="LibopusCodec.cpp" />
     <ClCompile Include="LiveSession.cpp" />
     <ClCompile Include="LoadTest.cpp" />
-    <ClCompile Include="..\Encoder\CpuCheckEntry.cpp">
+    <ClCompile Include="..\App\CpuCheckEntry.cpp">
       <PreprocessorDefinitions>CT_CPUCHECK_CRT_ENTRY=wWinMainCRTStartup;CT_CPUCHECK_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ClCompile Include="main.cpp" />

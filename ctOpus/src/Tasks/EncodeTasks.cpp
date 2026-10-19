@@ -60,7 +60,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 break;
         }
 
-        // the end of the input: ope_encoder_drain's LPC extension of the last 480 frames, then zeros
+        // the end of the input: ope_encoder_drain's LPC extension of the last 480 frames, then zeros.
+        // With the resampler it extends libopusenc's LPC buffer (zeros before a short input); at
+        // 48 kHz it extends the encoder's own buffer, which holds only the samples: at most 480.
         const std::int64_t n = w - (p.filterLen - 1);
         HeapArray<float>   lpc;
         if (!lpc.Allocate(static_cast<std::size_t>(LpcExtensionInput + LpcExtensionLength) * channels)) {
@@ -72,7 +74,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             for (std::int32_t c = 0; c < channels; ++c)
                 lpc[static_cast<std::size_t>(i) * channels + c] = src >= 0 ? p.input.Channel(c)[p.filterLen - 1 + src] : 0.f;
         }
-        LpcExtend(lpc.Data() + static_cast<std::size_t>(LpcExtensionInput) * channels, LpcExtensionInput, LpcExtensionLength, channels);
+        const std::int32_t history = p.resampled ? LpcExtensionInput : static_cast<std::int32_t>(MinI64(n, LpcExtensionInput));
+        LpcExtend(lpc.Data() + static_cast<std::size_t>(LpcExtensionInput) * channels, history, LpcExtensionLength, channels);
 
         const std::int64_t realOutputs  = p.resampler.OutputsFor(n);
         const std::int64_t totalOutputs = realOutputs + p.drainFrames;
@@ -138,10 +141,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                     result_ = encoder_.WriteResampled(out, static_cast<std::int32_t>(realCount));
                 for (std::int64_t j = j0 + realCount; j < j1; ++j)
                     std::memcpy(pad.Data() + (j - ring.RealOutputs()) * channels, out + (j - j0) * channels, sizeof(float) * channels);
-                if (result_ != OpeOk) {
-                    ring.Abort();
-                    ring.analyseReady.Set();
-                }
+                if (result_ != OpeOk)
+                    ring.Abort(); // wakes every stage, Analyse too
             }
             ring.CompleteEncode(next);
             progress_();

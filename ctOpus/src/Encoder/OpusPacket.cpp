@@ -12,6 +12,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     namespace {
 
+        // libopus: encode_size() (src/opus.c)
         std::int32_t EncodeSize(std::int32_t size, std::uint8_t* data) noexcept
         {
             if (size < 252) {
@@ -23,6 +24,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return 2;
         }
 
+        // libopus: parse_size() (src/opus.c)
         std::int32_t ParseSize(const std::uint8_t* data, std::int32_t len, std::int16_t* size) noexcept
         {
             if (len < 1) {
@@ -41,6 +43,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return 2;
         }
 
+        // libopus: opus_packet_get_samples_per_frame() (src/opus.c)
         std::int32_t SamplesPerFrame(const std::uint8_t* data, std::int32_t fs) noexcept
         {
             if ((data[0] & 0x80) != 0) {
@@ -55,6 +58,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return (fs << audiosize) / 100;
         }
 
+        // libopus: opus_packet_get_nb_frames() (src/opus_decoder.c)
         std::int32_t NbFramesOf(const std::uint8_t* packet, std::int32_t len) noexcept
         {
             if (len < 1)
@@ -82,7 +86,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return true;
         }
 
-        // opus_packet_parse_impl (not self-delimited) with the padding
+        // libopus: opus_packet_parse_impl() (src/opus.c) (not self-delimited) with the padding
         std::int32_t ParsePacket(const std::uint8_t* data, std::int32_t len, std::uint8_t* outToc, const std::uint8_t* frames[48], std::int16_t size[48],
                                  const std::uint8_t** padding, std::int32_t* paddingLen) noexcept
         {
@@ -185,6 +189,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopus: opus_strerror() (celt/celt.c)
     const char* OpusStrError(std::int32_t error) noexcept
     {
         static const char* const errorStrings[8] = {"success",          "invalid argument",        "buffer too small", "internal error",
@@ -194,6 +199,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return errorStrings[-error];
     }
 
+    // libopus: opus_packet_get_nb_samples() (src/opus_decoder.c)
     std::int32_t PacketGetNbSamples(const std::uint8_t* packet, std::int32_t len, std::int32_t fs) noexcept
     {
         const std::int32_t count = NbFramesOf(packet, len);
@@ -206,6 +212,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return samples;
     }
 
+    // libopus: opus_repacketizer_cat_impl() (src/repacketizer.c)
     std::int32_t Repacketizer::Cat(const std::uint8_t* data, std::int32_t len) noexcept
     {
         // the ToC
@@ -238,6 +245,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return OPUS_OK;
     }
 
+    // libopus: opus_repacketizer_out_range_impl() (src/repacketizer.c)
     std::int32_t Repacketizer::OutRange(std::int32_t begin, std::int32_t end, std::uint8_t* data, std::int32_t maxLen, bool selfDelimited, bool pad) noexcept
     {
         if (begin < 0 || begin >= end || end > nbFrames_)
@@ -335,6 +343,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return totSize;
     }
 
+    // libopus: opus_packet_pad_impl() (src/repacketizer.c)
     std::int32_t PacketPad(std::uint8_t* data, std::int32_t len, std::int32_t newLen) noexcept
     {
         if (len < 1)

@@ -30,6 +30,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         };
         constexpr CrcTable Crc;
 
+        // libopusenc: ogg_page_checksum_set() (src/ogg_packer.c)
         void SetChecksum(std::uint8_t* page, std::size_t length) noexcept
         {
             page[22] = page[23] = page[24] = page[25] = 0;
@@ -44,6 +45,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
     } // namespace
 
+    // libopusenc: oggp_create() (src/ogg_packer.c)
     bool OggPacker::Initialize(std::int32_t serialNumber) noexcept
     {
         bufSize_ = MaxPageSize;
@@ -62,6 +64,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
+    // libopusenc: shift_buffer() (src/ogg_packer.c)
     void OggPacker::ShiftBuffer() noexcept
     {
         const std::size_t bufShift    = pagesFill_ != 0 ? pages_[0].bufPos : bufBegin_;
@@ -82,6 +85,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopusenc: oggp_get_packet_buffer() (src/ogg_packer.c)
     std::uint8_t* OggPacker::GetPacketBuffer(std::int32_t bytes) noexcept
     {
         if (bufFill_ + bytes > bufSize_) {
@@ -100,6 +104,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return userBuf_;
     }
 
+    // libopusenc: oggp_commit_packet() (src/ogg_packer.c)
     bool OggPacker::CommitPacket(std::int32_t bytes, std::uint64_t granulePosition, bool endOfStream) noexcept
     {
         const std::size_t nb255s = static_cast<std::size_t>(bytes) / 255;
@@ -129,6 +134,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
+    // libopusenc: oggp_flush_page() (src/ogg_packer.c)
     bool OggPacker::FlushPage() noexcept
     {
         if (lacingFill_ == lacingBegin_)
@@ -172,6 +178,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
+    // libopusenc: oggp_get_next_page() (src/ogg_packer.c)
     bool OggPacker::GetNextPage(const std::uint8_t*& page, std::int32_t& bytes) noexcept
     {
         if (pagesFill_ == 0) {

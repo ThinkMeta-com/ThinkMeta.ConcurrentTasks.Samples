@@ -23,6 +23,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         constexpr std::int32_t BufferExtra      = 24000;
         constexpr std::int32_t BufferSamples    = MaxLookahead + BufferExtra;
 
+        // libopusenc: compute_frame_samples() (src/opusenc.c)
         std::int32_t ComputeFrameSamples(std::int32_t request) noexcept
         {
             if (request <= OPUS_FRAMESIZE_40_MS)
@@ -41,7 +42,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
         }
 
-        // vorbis_lpc_from_data: LPC coefficients by autocorrelation and Levinson-Durbin.
+        // libopusenc: vorbis_lpc_from_data() (src/opusenc.c): LPC coefficients by autocorrelation and Levinson-Durbin.
         void LpcFromData(const float* data, float* lpci, std::int32_t n, std::int32_t stride) noexcept
         {
             double aut[LpcOrder + 1];
@@ -90,7 +91,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
                 lpci[j] = static_cast<float>(lpc[j]);
         }
 
-        // extend_signal: continues the before samples ahead of x by after LPC-predicted, windowed samples.
+        // libopusenc: extend_signal() (src/opusenc.c): continues the before samples ahead of x by after LPC-predicted, windowed samples.
         void ExtendSignal(float* x, std::int32_t before, std::int32_t after, std::int32_t channels) noexcept
         {
             if (after == 0)
@@ -137,6 +138,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         ExtendSignal(x, before, after, channels);
     }
 
+    // libopusenc: ope_strerror() (src/opusenc.c)
     const char* OpeErrorString(std::int32_t error) noexcept
     {
         static const char* const strings[] = {"cannot open file",     "call cannot be made at this point",
@@ -165,6 +167,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             callbacks_.close(callbacks_.user);
     }
 
+    // libopusenc: ope_encoder_create_callbacks() (src/opusenc.c)
     std::int32_t OggOpusEncoder::Create(const Callbacks& callbacks, const OpusTags& comments, std::int32_t rate, std::int32_t channels,
                                         std::int32_t family) noexcept
     {
@@ -244,6 +247,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return stream != nullptr ? stream->Ctl(request, value) : OPUS_BAD_ARG;
     }
 
+    // libopusenc: ope_encoder_ctl() (src/opusenc.c), the SET requests
     std::int32_t OggOpusEncoder::Ctl(std::int32_t request, std::int32_t value) noexcept
     {
         if (unrecoverable_ != 0)
@@ -321,6 +325,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return ret;
     }
 
+    // libopusenc: ope_encoder_ctl() (src/opusenc.c), the GET requests
     std::int32_t OggOpusEncoder::Get(std::int32_t request, std::int32_t& value) noexcept
     {
         if (unrecoverable_ != 0)
@@ -336,6 +341,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return Ctl(OPUS_SET_EXPERT_FRAME_DURATION_REQUEST, value);
     }
 
+    // libopusenc: output_pages() (src/opusenc.c)
     bool OggOpusEncoder::OutputPages() noexcept
     {
         const std::uint8_t* page   = nullptr;
@@ -347,12 +353,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return true;
     }
 
+    // libopusenc: oe_flush_page() (src/opusenc.c)
     bool OggOpusEncoder::FlushPage() noexcept
     {
         packer_.FlushPage();
         return OutputPages();
     }
 
+    // libopusenc: init_stream() (src/opusenc.c)
     void OggOpusEncoder::InitStream() noexcept
     {
         if (!serialNoIsSet_)
@@ -396,6 +404,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         streamIsInit_ = true;
     }
 
+    // libopusenc: shift_buffer() (src/opusenc.c)
     void OggOpusEncoder::ShiftBuffer() noexcept
     {
         // keeps LpcInput samples before the start for the LPC extension
@@ -408,6 +417,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         }
     }
 
+    // libopusenc: encode_buffer() (src/opusenc.c)
     void OggOpusEncoder::EncodeBuffer() noexcept
     {
         // round up when converting the granule position, the decoder rounds down
@@ -460,6 +470,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             ShiftBuffer();
     }
 
+    // libopusenc: ope_encoder_write_float() (src/opusenc.c)
     std::int32_t OggOpusEncoder::WriteFloat(const float* pcm, std::int32_t samplesPerChannel) noexcept
     {
         const std::int32_t channels = channels_;
@@ -507,6 +518,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
         return OpeOk;
     }
 
+    // libopusenc: ope_encoder_drain() (src/opusenc.c)
     std::int32_t OggOpusEncoder::Drain() noexcept
     {
         if (unrecoverable_ != 0)

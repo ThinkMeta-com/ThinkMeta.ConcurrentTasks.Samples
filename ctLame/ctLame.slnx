@@ -3,16 +3,16 @@
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/ctLame/">
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctLame/ThinkMeta.ConcurrentTasks.Samples.ctLame.vcxproj" Id="d7fec108-4d95-4bef-ad22-c4fc83c435f1">
+    <Project Path="src/App/ThinkMeta.ConcurrentTasks.Samples.ctLame.vcxproj" Id="d7fec108-4d95-4bef-ad22-c4fc83c435f1">
       <Platform Project="x64" />
     </Project>
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctLame.Encoder/ThinkMeta.ConcurrentTasks.Samples.ctLame.Encoder.vcxproj" Id="85c3ba8a-9f1f-41fe-a4c1-d0e1a1db95e7">
+    <Project Path="src/Encoder/ThinkMeta.ConcurrentTasks.Samples.ctLame.Encoder.vcxproj" Id="85c3ba8a-9f1f-41fe-a4c1-d0e1a1db95e7">
       <Platform Project="x64" />
     </Project>
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctLame.Tasks/ThinkMeta.ConcurrentTasks.Samples.ctLame.Tasks.vcxproj" Id="a01a3676-2e89-4a4e-927e-8090d2904a80">
+    <Project Path="src/Tasks/ThinkMeta.ConcurrentTasks.Samples.ctLame.Tasks.vcxproj" Id="a01a3676-2e89-4a4e-927e-8090d2904a80">
       <Platform Project="x64" />
     </Project>
-    <Project Path="src/ThinkMeta.ConcurrentTasks.Samples.ctLame.Tests/ThinkMeta.ConcurrentTasks.Samples.ctLame.Tests.vcxproj" Id="2eb96f7b-ceec-4964-b443-bd9ba3e76269">
+    <Project Path="src/Tests/ThinkMeta.ConcurrentTasks.Samples.ctLame.Tests.vcxproj" Id="2eb96f7b-ceec-4964-b443-bd9ba3e76269">
       <Platform Project="x64" />
     </Project>
   </Folder>

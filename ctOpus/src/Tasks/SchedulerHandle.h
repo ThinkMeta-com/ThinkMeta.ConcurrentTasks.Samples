@@ -11,12 +11,17 @@
 
 namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
 
-    /// <summary>Owns a scheduler from CreateTaskScheduler and destroys it at the end of its lifetime.</summary>
+    /// <summary>
+    /// Owns a scheduler from CreateTaskScheduler and destroys it at the end of its lifetime. Start and Stop stay
+    /// explicit: a sample starts its schedulers before the task graph runs and stops them after the graph has ended,
+    /// so every task has exited before Stop. (The same class in every ThinkMeta.ConcurrentTasks sample.)
+    /// </summary>
     class SchedulerHandle
     {
     public:
         SchedulerHandle() noexcept = default;
         explicit SchedulerHandle(ITaskScheduler* scheduler) noexcept : scheduler_(scheduler) {}
+
         SchedulerHandle(SchedulerHandle&& other) noexcept : scheduler_(other.Release()) {}
         SchedulerHandle& operator=(SchedulerHandle&& other) noexcept
         {
@@ -26,10 +31,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             }
             return *this;
         }
+
         SchedulerHandle(const SchedulerHandle&)            = delete;
         SchedulerHandle& operator=(const SchedulerHandle&) = delete;
+
         ~SchedulerHandle() { Reset(); }
 
+        /// <summary>Creates a scheduler with numberOfThreads threads; the handle is empty if the core rejects the arguments.</summary>
         static SchedulerHandle Create(SchedulerKind kind, std::uint32_t numberOfThreads) noexcept
         {
             SchedulerInfo info;
@@ -37,9 +45,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return SchedulerHandle(CreateTaskScheduler(kind, &info));
         }
 
+        ITaskScheduler* Get() const noexcept { return scheduler_; }
         ITaskScheduler* operator->() const noexcept { return scheduler_; }
         explicit        operator bool() const noexcept { return scheduler_ != nullptr; }
 
+        /// <summary>Gives up ownership without destroying the scheduler.</summary>
         ITaskScheduler* Release() noexcept
         {
             ITaskScheduler* scheduler = scheduler_;
@@ -47,6 +57,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::ctOpus {
             return scheduler;
         }
 
+        /// <summary>Destroys the scheduler, if any.</summary>
         void Reset() noexcept
         {
             if (scheduler_ != nullptr)
