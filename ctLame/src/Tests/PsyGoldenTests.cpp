@@ -33,7 +33,7 @@ namespace LameTests {
 
         constexpr std::int32_t MaxFrames = 3000;
 
-        struct PsyRun : IPcmSink, IFrameSink {
+        struct PsyRun final : IPcmSink, IFrameSink {
             SessionConfig config;
             PsyConstants  constants;
             PsyState      state;
@@ -93,11 +93,11 @@ namespace LameTests {
             }
         };
 
-        void Run(const wchar_t* name, const wchar_t* path, void (*adjust)(EncoderOptions&), std::int32_t expectedFrames, std::uint64_t expected)
+        void Run(const Char* name, const Char* path, void (*adjust)(EncoderOptions&), std::int32_t expectedFrames, std::uint64_t expected)
         {
             WavData wav;
             if (!wav.Load(path)) {
-                wchar_t text[400];
+                Char text[400];
                 Logger::WriteMessage(MissingInputText(text, name, path));
                 return;
             }
@@ -126,99 +126,110 @@ namespace LameTests {
             const std::int32_t  frames = run->frames;
             const std::uint64_t actual = run->checksum.value;
 
-            wchar_t text[200];
-            swprintf_s(text, L"%ls: %d frames 0x%016llX", name, frames, actual);
+            Char text[200];
+            FormatTo(text, CT_TEXT("%s: %d frames 0x%016llX"), name, frames, actual);
             Logger::WriteMessage(text);
             Assert::AreEqual(expectedFrames, frames, name);
             Assert::AreEqual(expected, actual, name);
         }
 
-        const wchar_t* const Corpus = CorpusFile();
+        const Char* const Corpus = CorpusFile();
 
-        void RunSynth(const wchar_t* name, const wchar_t* file, void (*adjust)(EncoderOptions&), std::int32_t expectedFrames, std::uint64_t expected)
+        // The model calls the math library (pow, exp, log10), whose last bits differ between the UCRT and glibc, and so
+        // do some checksums; both were recorded with LAME's own model, built on each platform.
+        constexpr std::uint64_t PerPlatform([[maybe_unused]] std::uint64_t ucrt, [[maybe_unused]] std::uint64_t glibc) noexcept
         {
-            wchar_t path[MAX_PATH];
-            swprintf_s(path, L"%ls%ls", SynthDir(), file);
+#if defined(_WIN32)
+            return ucrt;
+#else
+            return glibc;
+#endif
+        }
+
+        void RunSynth(const Char* name, const Char* file, void (*adjust)(EncoderOptions&), std::int32_t expectedFrames, std::uint64_t expected)
+        {
+            Char path[Shared::File::MaxPath];
+            FormatTo(path, CT_TEXT("%s%s"), SynthDir(), file);
             Run(name, path, adjust, expectedFrames, expected);
         }
 
     } // namespace
 
-    TEST_CLASS(PsyGoldenTests){public: TEST_METHOD(V4){Run(L"V4", Corpus, [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 3000, 0x868D5F2CD3D92041ull);
+    TEST_CLASS(PsyGoldenTests){public: TEST_METHOD(V4){Run(CT_TEXT("V4"), Corpus, [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 3000, PerPlatform(0x868D5F2CD3D92041ull, 0xDB9BF43B81D50202ull));
 } // namespace LameTests
 
 TEST_METHOD(V0)
 {
-    Run(L"V0", Corpus, [](EncoderOptions& o) { o.SetVbrQuality(0.0f); }, 3000, 0x043AFCE30D1CD063ull);
+    Run(CT_TEXT("V0"), Corpus, [](EncoderOptions& o) { o.SetVbrQuality(0.0f); }, 3000, PerPlatform(0x043AFCE30D1CD063ull, 0xE7781D05B1121E84ull));
 }
 
 TEST_METHOD(V9999)
 {
-    Run(L"V9999", Corpus, [](EncoderOptions& o) { o.SetVbrQuality(9.999f); }, 3000, 0xA3356836B5F88500ull);
+    Run(CT_TEXT("V9999"), Corpus, [](EncoderOptions& o) { o.SetVbrQuality(9.999f); }, 3000, 0xA3356836B5F88500ull);
 }
 
 TEST_METHOD(SimpleStereoV2)
 {
     Run(
-        L"SimpleStereoV2", Corpus,
+        CT_TEXT("SimpleStereoV2"), Corpus,
         [](EncoderOptions& o) {
             o.SetVbrQuality(2.0f);
             o.SetMode(Stereo);
         },
-        3000, 0x6F8D3106E52151A2ull);
+        3000, PerPlatform(0x6F8D3106E52151A2ull, 0xB7ED62A87EB26A5Bull));
 }
 
 TEST_METHOD(MonoDownmixV5)
 {
     Run(
-        L"MonoDownmixV5", Corpus,
+        CT_TEXT("MonoDownmixV5"), Corpus,
         [](EncoderOptions& o) {
             o.SetVbrQuality(5.0f);
             o.SetMode(Mono);
         },
-        3000, 0x2E4CE0BF19C886F8ull);
+        3000, PerPlatform(0x2E4CE0BF19C886F8ull, 0x3E3F507501E2925Bull));
 }
 
 TEST_METHOD(ExperimentalZV3)
 {
     Run(
-        L"ExperimentalZV3", Corpus,
+        CT_TEXT("ExperimentalZV3"), Corpus,
         [](EncoderOptions& o) {
             o.SetVbrQuality(3.0f);
             o.SetExperimentalZ(1);
         },
-        3000, 0xEB7ACB566A313EACull);
+        3000, PerPlatform(0xEB7ACB566A313EACull, 0xF9619F6A0DF53A47ull));
 }
 
 TEST_METHOD(AthaaSensitivityV4)
 {
     Run(
-        L"AthaaSensitivityV4", Corpus,
+        CT_TEXT("AthaaSensitivityV4"), Corpus,
         [](EncoderOptions& o) {
             o.SetVbrQuality(4.0f);
             o.SetAthaaSensitivity(6.0f);
         },
-        3000, 0x1A7B1CBF280BD8D6ull);
+        3000, PerPlatform(0x1A7B1CBF280BD8D6ull, 0xB0409244496C662Dull));
 }
 
 TEST_METHOD(Rate32kV73)
 {
-    RunSynth(L"Rate32kV73", L"s16-stereo-32000.wav", [](EncoderOptions& o) { o.SetVbrQuality(7.3f); }, 767, 0x0E0FB2A117DD5B3Aull);
+    RunSynth(CT_TEXT("Rate32kV73"), CT_TEXT("s16-stereo-32000.wav"), [](EncoderOptions& o) { o.SetVbrQuality(7.3f); }, 767, 0x0E0FB2A117DD5B3Aull);
 }
 
 TEST_METHOD(Rate48kV15)
 {
-    RunSynth(L"Rate48kV15", L"s16-stereo-48000.wav", [](EncoderOptions& o) { o.SetVbrQuality(1.5f); }, 767, 0xABDDC233C3B953FEull);
+    RunSynth(CT_TEXT("Rate48kV15"), CT_TEXT("s16-stereo-48000.wav"), [](EncoderOptions& o) { o.SetVbrQuality(1.5f); }, 767, 0xABDDC233C3B953FEull);
 }
 
 TEST_METHOD(MonoInputV4)
 {
-    RunSynth(L"MonoInputV4", L"s16-mono-44100.wav", [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 767, 0xA3F7E83F43B04B3Aull);
+    RunSynth(CT_TEXT("MonoInputV4"), CT_TEXT("s16-mono-44100.wav"), [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 767, 0xA3F7E83F43B04B3Aull);
 }
 
 TEST_METHOD(ClippedV2)
 {
-    RunSynth(L"ClippedV2", L"s16-stereo-44100-clipped.wav", [](EncoderOptions& o) { o.SetVbrQuality(2.0f); }, 767, 0x04809653B7024C30ull);
+    RunSynth(CT_TEXT("ClippedV2"), CT_TEXT("s16-stereo-44100-clipped.wav"), [](EncoderOptions& o) { o.SetVbrQuality(2.0f); }, 767, PerPlatform(0x04809653B7024C30ull, 0x6461483BDBEDD468ull));
 }
 }
 ;

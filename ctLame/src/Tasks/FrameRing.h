@@ -11,7 +11,9 @@
 #include <cstdint>
 #include <new>
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -118,6 +120,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         bool MoreWork() const noexcept;
 
         FrameData*                 slots_     = nullptr;
+        std::size_t                slotBytes_ = 0;       // the size of slots_, for the release
         std::atomic<std::int32_t>* prepared_  = nullptr; // per slot: the preparation of its frame is done
         std::atomic<std::int32_t>* searched_  = nullptr; // per slot: the search of its frame is done
         std::uint32_t              slotCount_ = 0;

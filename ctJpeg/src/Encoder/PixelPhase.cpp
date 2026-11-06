@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <Windows.h>
+#include "Memory.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
@@ -21,7 +21,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     PixelScratch::~PixelScratch()
     {
         if (data_ != nullptr)
-            HeapFree(GetProcessHeap(), 0, data_);
+            Shared::Heap::Free(data_);
     }
 
     float* PixelScratch::Reserve(std::size_t floats) noexcept
@@ -29,8 +29,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         if (floats <= capacity_)
             return data_;
         if (data_ != nullptr)
-            HeapFree(GetProcessHeap(), 0, data_);
-        data_     = static_cast<float*>(HeapAlloc(GetProcessHeap(), 0, floats * sizeof(float)));
+            Shared::Heap::Free(data_);
+        data_     = static_cast<float*>(Shared::Heap::Allocate(floats * sizeof(float)));
         capacity_ = data_ != nullptr ? floats : 0;
         return data_;
     }

@@ -8,10 +8,9 @@
 
 #include "Entropy.h"
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
-
-#include <intrin.h>
 
 #include "BitPacking.h"
 #include "ScanWriter.h"
@@ -149,13 +148,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         // whole words inside the chunk: 8 bytes from a 64-bit window (and the top bits of the next byte)
         for (; 8 * (j + 8) <= end; j += 8) {
             const std::size_t   b    = static_cast<std::size_t>((8 * j - start) >> 3);
-            const std::uint64_t word = _byteswap_uint64(*reinterpret_cast<const std::uint64_t*>(bytes + b));
+            const std::uint64_t word = std::byteswap(*reinterpret_cast<const std::uint64_t*>(bytes + b));
             const std::uint64_t v    = shift == 0 ? word : (word << shift) | (static_cast<std::uint64_t>(bytes[b + 8]) >> (8 - shift));
             if (HasZeroByte(~v)) {
                 for (std::int32_t s = 56; s >= 0; s -= 8)
                     emit(static_cast<std::uint8_t>(v >> s));
             } else {
-                *reinterpret_cast<std::uint64_t*>(out + n) = _byteswap_uint64(v);
+                *reinterpret_cast<std::uint64_t*>(out + n) = std::byteswap(v);
                 n += 8;
             }
         }

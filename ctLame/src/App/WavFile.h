@@ -6,11 +6,14 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 #include <cstdint>
 
 #include "EncoderOptions.h"
+#include "Text.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
@@ -33,11 +36,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         /// Opens the file and parses its header. Messages go to error unless silent is 10 or more
         /// (--quiet). Returns false if the file cannot be opened or is not a supported WAV file.
         /// </summary>
-        bool Open(const wchar_t* path, EncoderOptions& options, bool ignoreLength, std::int32_t silent);
+        bool Open(const Shared::Char* path, EncoderOptions& options, bool ignoreLength, std::int32_t silent);
 
         void Close() noexcept;
-
-        HANDLE Handle() const noexcept { return file_; }
 
         /// <summary>Bits per sample as the header says (pcmbitwidth).</summary>
         std::int32_t PcmBitWidth() const noexcept { return pcmBitWidth_; }
@@ -63,7 +64,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         void          ReadBytes(std::uint8_t* bytes, std::uint32_t count) noexcept;
         std::int32_t  Skip(std::uint32_t offset) noexcept;
 
-        HANDLE        file_                  = INVALID_HANDLE_VALUE;
+#if defined(_WIN32)
+        HANDLE file_ = INVALID_HANDLE_VALUE;
+#else
+        int file_ = -1; // file descriptor
+#endif
         std::int32_t  pcmBitWidth_           = 16;
         bool          pcmIsIeeeFloat_        = false;
         bool          countSamplesCarefully_ = false;

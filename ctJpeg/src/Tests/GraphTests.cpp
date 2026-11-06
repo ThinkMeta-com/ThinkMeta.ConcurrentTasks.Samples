@@ -3,6 +3,8 @@
 
 #include "pch.h"
 
+#include "Memory.h"
+
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -36,7 +38,7 @@ namespace JpegTests {
             char           header[64];
             const auto     headerSize = static_cast<std::size_t>(std::snprintf(header, sizeof(header), "P6\n%d %d\n255\n", width, height));
             size                      = headerSize + static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 3;
-            auto* data                = static_cast<std::uint8_t*>(HeapAlloc(GetProcessHeap(), 0, size));
+            auto* data                = static_cast<std::uint8_t*>(ThinkMeta::ConcurrentTasks::Samples::Shared::Heap::Allocate(size));
             std::memcpy(data, header, headerSize);
             std::uint32_t  rng = 12345;
             std::uint8_t*  p   = data + headerSize;
@@ -86,8 +88,8 @@ namespace JpegTests {
             std::size_t   size = 0;
             std::uint8_t* ppm  = MakePpm(1500, 1100, size);
             Image         image;
-            wchar_t       error[256];
-            Assert::IsTrue(image.ParsePnm(ppm, size, error, 256), error);
+            ThinkMeta::ConcurrentTasks::Samples::Shared::Char       error[256];
+            Assert::IsTrue(image.ParsePnm(ppm, size, error, 256), Wide(error).c_str());
 
             const SimdLevel simd = HighestSimdLevel(CpuFeatures::Detect());
             for (const ChromaSubsampling sub : {ChromaSubsampling::Default, ChromaSubsampling::Yuv420}) {

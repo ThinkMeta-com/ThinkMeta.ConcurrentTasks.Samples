@@ -9,11 +9,11 @@
 #include <cstddef>
 #include <cstdint>
 
-import ThinkMeta.ConcurrentTasks.Windows.Error;
+import ThinkMeta.ConcurrentTasks.Platform.Error;
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
-    using Windows::Error;
+    using Platform::Error;
 
     WavReaderTask::WavReaderTask(BlockPipe& pipe, const Settings& settings) noexcept : pipe_(pipe), settings_(settings)
     {
@@ -31,7 +31,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         const ProfiledRun  run(profile);
 
         AsyncIo::AsyncFile file;
-        std::uint32_t      error = file.Create(settings_.path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN);
+#if defined(_WIN32)
+        std::uint32_t error = file.Create(settings_.path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN);
+#else
+        std::uint32_t error = file.Create(settings_.path, Platform::FileOptions{.shareWrite = true});
+#endif
 
         std::uint64_t total = 0;
         if (Error::Succeeded(error)) {

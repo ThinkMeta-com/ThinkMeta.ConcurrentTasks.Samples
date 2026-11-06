@@ -19,6 +19,22 @@
 
 namespace {
 
+#if defined(_WIN32)
+constexpr char PathSeparator = '\\';
+#else
+constexpr char PathSeparator = '/';
+#endif
+
+// fopen_s on Windows (the C runtime's checked function), fopen elsewhere
+FILE* OpenFile(const char* path, const char* mode) {
+#if defined(_WIN32)
+    FILE* f = nullptr;
+    return fopen_s(&f, path, mode) == 0 ? f : nullptr;
+#else
+    return std::fopen(path, mode);
+#endif
+}
+
 struct Rng {
     std::uint64_t s;
     std::uint64_t Next() {
@@ -49,8 +65,8 @@ struct Image {
                 Set(x, y, r, g, b);
     }
     bool Save(const std::string& path) const {
-        FILE* f = nullptr;
-        if (fopen_s(&f, path.c_str(), "wb") != 0 || !f)
+        FILE* const f = OpenFile(path.c_str(), "wb");
+        if (!f)
             return false;
         std::fprintf(f, "P6\n%d %d\n255\n", w, h);
         std::fwrite(px.data(), 1, px.size(), f);
@@ -228,11 +244,16 @@ Image MakeEdge(int w, int h) {
 
 // Writes the BT.601 luma of a P6 file as P5 (integer, rounded) - grayscale inputs from the photos.
 int ToGray(const char* in, const char* out) {
-    FILE* f = nullptr;
-    if (fopen_s(&f, in, "rb") != 0 || !f)
+    FILE* f = OpenFile(in, "rb");
+    if (!f)
         return 1;
     int w = 0, h = 0, maxval = 0;
-    if (fscanf_s(f, "P6 %d %d %d", &w, &h, &maxval) != 3 || maxval != 255) {
+#if defined(_WIN32)
+    const int fields = fscanf_s(f, "P6 %d %d %d", &w, &h, &maxval);
+#else
+    const int fields = std::fscanf(f, "P6 %d %d %d", &w, &h, &maxval);
+#endif
+    if (fields != 3 || maxval != 255) {
         std::fclose(f);
         return 1;
     }
@@ -244,7 +265,8 @@ int ToGray(const char* in, const char* out) {
         return 1;
     for (std::size_t i = 0; i < gray.size(); ++i)
         gray[i] = static_cast<std::uint8_t>((299 * rgb[3 * i] + 587 * rgb[3 * i + 1] + 114 * rgb[3 * i + 2] + 500) / 1000);
-    if (fopen_s(&f, out, "wb") != 0 || !f)
+    f = OpenFile(out, "wb");
+    if (!f)
         return 1;
     std::fprintf(f, "P5\n%d %d\n255\n", w, h);
     std::fwrite(gray.data(), 1, gray.size(), f);
@@ -256,7 +278,7 @@ int main(int argc, char** argv) {
     if (argc == 4 && std::string(argv[1]) == "--gray")
         return ToGray(argv[2], argv[3]);
     if (argc == 3 && std::string(argv[1]) == "--edge") {
-        const std::string edgeDir = std::string(argv[2]) + "\\";
+        const std::string edgeDir = std::string(argv[2]) + PathSeparator;
         const int sizes[][2] = {{1, 1}, {7, 5}, {8, 8}, {17, 9}, {16, 16}, {33, 31}, {257, 129}, {1001, 777}};
         for (const auto& s : sizes) {
             const std::string name = "edge-" + std::to_string(s[0]) + "x" + std::to_string(s[1]) + ".ppm";
@@ -266,7 +288,7 @@ int main(int argc, char** argv) {
         }
         return 0;
     }
-    const std::string dir = argc > 1 ? std::string(argv[1]) + "\\" : std::string();
+    const std::string dir = argc > 1 ? std::string(argv[1]) + PathSeparator : std::string();
     struct Job {
         const char* name;
         Image (*make)(int, int);

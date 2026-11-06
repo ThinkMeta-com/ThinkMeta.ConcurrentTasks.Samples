@@ -32,6 +32,7 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Compiler.h" />
     <ClInclude Include="Console.h" />
     <ClInclude Include="CpuCheck.h" />
     <ClInclude Include="CpuFeatures.h" />
@@ -44,6 +45,7 @@
     <ClInclude Include="SchedulerHandle.h" />
     <ClInclude Include="TaskRuntime.h" />
     <ClInclude Include="TestEnvironment.h" />
+    <ClInclude Include="Text.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Console.cpp" />

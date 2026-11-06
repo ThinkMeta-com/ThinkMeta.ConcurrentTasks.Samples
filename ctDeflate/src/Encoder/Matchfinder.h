@@ -12,8 +12,12 @@
 #include <cstdint>
 #include <cstring>
 
+#if defined(_MSC_VER)
+#    include <intrin.h>
+#endif
 #include <immintrin.h>
-#include <intrin.h>
+
+#include "Compiler.h"
 
 // Matchfinders of libdeflate 1.26 (lib/matchfinder_common.h, hc_matchfinder.h, ht_matchfinder.h).
 // Positions are stored as 16-bit values relative to a base pointer that advances in steps of the 32 KiB window.
@@ -43,9 +47,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
     }
 
     /// <summary>libdeflate: prefetchw() (common_defs.h). Prefetch for writing (the hash buckets are updated next).</summary>
-    __forceinline void PrefetchW(const void* p) noexcept
+    CT_FORCEINLINE void PrefetchW(const void* p) noexcept
     {
+#if defined(_MSC_VER)
         _m_prefetchw(p);
+#else
+        __builtin_prefetch(p, 1); // prefetchw where the CPU has it
+#endif
     }
 
     // libdeflate: lz_hash() (matchfinder_common.h)
@@ -56,7 +64,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
 
     /// <summary>libdeflate: lz_extend() (matchfinder_common.h). Length of the common prefix of strPtr and matchPtr,
     /// starting at startLen, at most maxLen.</summary>
-    __forceinline std::uint32_t LzExtend(const std::uint8_t* strPtr, const std::uint8_t* matchPtr, std::uint32_t startLen, std::uint32_t maxLen) noexcept
+    CT_FORCEINLINE std::uint32_t LzExtend(const std::uint8_t* strPtr, const std::uint8_t* matchPtr, std::uint32_t startLen, std::uint32_t maxLen) noexcept
     {
         std::uint32_t len = startLen;
         if (maxLen - len >= 32) {
@@ -115,9 +123,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
         /// longer than bestLen (else bestLen), searching at most maxSearchDepth list nodes and stopping at niceLen.
         /// nextHashes holds the hashes of in_next and receives those of in_next + 1. Nothing is inserted if maxLen &lt; 5.
         /// </summary>
-        __forceinline std::uint32_t LongestMatch(const std::uint8_t** inBaseP, const std::uint8_t* inNext, std::uint32_t bestLen, std::uint32_t maxLen,
-                                                 std::uint32_t niceLen, std::uint32_t maxSearchDepth, std::uint32_t* nextHashes,
-                                                 std::uint32_t* offsetRet) noexcept
+        CT_FORCEINLINE std::uint32_t LongestMatch(const std::uint8_t** inBaseP, const std::uint8_t* inNext, std::uint32_t bestLen, std::uint32_t maxLen,
+                                                  std::uint32_t niceLen, std::uint32_t maxSearchDepth, std::uint32_t* nextHashes,
+                                                  std::uint32_t* offsetRet) noexcept
         {
             std::uint32_t       depthRemaining = maxSearchDepth;
             const std::uint8_t* bestMatchPtr   = inNext;
@@ -215,8 +223,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
 
         /// <summary>libdeflate: hc_matchfinder_skip_bytes() (hc_matchfinder.h). Inserts count positions from inNext
         /// without searching; nothing if fewer than count + 5 bytes remain.</summary>
-        __forceinline void SkipBytes(const std::uint8_t** inBaseP, const std::uint8_t* inNext, const std::uint8_t* inEnd, std::uint32_t count,
-                                     std::uint32_t* nextHashes) noexcept
+        CT_FORCEINLINE void SkipBytes(const std::uint8_t** inBaseP, const std::uint8_t* inNext, const std::uint8_t* inEnd, std::uint32_t count,
+                                      std::uint32_t* nextHashes) noexcept
         {
             if (count + 5 > static_cast<std::size_t>(inEnd - inNext))
                 return;
@@ -270,8 +278,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
 
         /// <summary>libdeflate: ht_matchfinder_longest_match() (ht_matchfinder.h). Inserts inNext and returns the
         /// longest match of length &gt;= 4 among the bucket entries (0 if none). maxLen must be &gt;= 5.</summary>
-        __forceinline std::uint32_t LongestMatch(const std::uint8_t** inBaseP, const std::uint8_t* inNext, std::uint32_t maxLen, std::uint32_t niceLen,
-                                                 std::uint32_t* nextHash, std::uint32_t* offsetRet) noexcept
+        CT_FORCEINLINE std::uint32_t LongestMatch(const std::uint8_t** inBaseP, const std::uint8_t* inNext, std::uint32_t maxLen, std::uint32_t niceLen,
+                                                  std::uint32_t* nextHash, std::uint32_t* offsetRet) noexcept
         {
             std::uint32_t       bestLen      = 0;
             const std::uint8_t* bestMatchPtr = inNext;
@@ -335,8 +343,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
         /// fewer than count + 5 bytes remain. Slides the window up front if the range reaches the window end (that
         /// drops still valid negative entries, as in libdeflate).
         /// </summary>
-        __forceinline void SkipBytes(const std::uint8_t** inBaseP, const std::uint8_t* inNext, const std::uint8_t* inEnd, std::uint32_t count,
-                                     std::uint32_t* nextHash) noexcept
+        CT_FORCEINLINE void SkipBytes(const std::uint8_t** inBaseP, const std::uint8_t* inNext, const std::uint8_t* inEnd, std::uint32_t count,
+                                      std::uint32_t* nextHash) noexcept
         {
             if (count + RequiredBytes > static_cast<std::size_t>(inEnd - inNext))
                 return;

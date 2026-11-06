@@ -6,7 +6,11 @@
 #include "CeltPitch.h"
 
 #include <immintrin.h>
-#include <intrin.h>
+#if defined(_MSC_VER)
+#    include <intrin.h>
+#else
+#    include <cpuid.h>
+#endif
 
 #include <cmath>
 #include <cstdlib>
@@ -191,22 +195,37 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     } // namespace
 
+    // cpuid with subleaf 0 (MSVC __cpuid, clang __cpuid_count): eax, ebx, ecx, edx
+    static void Cpuid(int info[4], int leaf) noexcept
+    {
+#if defined(_MSC_VER)
+        __cpuid(info, leaf);
+#else
+        unsigned int a = 0, b = 0, c = 0, d = 0;
+        __cpuid_count(static_cast<unsigned int>(leaf), 0, a, b, c, d);
+        info[0] = static_cast<int>(a);
+        info[1] = static_cast<int>(b);
+        info[2] = static_cast<int>(c);
+        info[3] = static_cast<int>(d);
+#endif
+    }
+
     // libopus: opus_select_arch() (celt/x86/x86cpu.c)
     std::int32_t SelectArch() noexcept
     {
         // the CPU features: SSE, SSE2, SSE4.1, AVX2 (with FMA and the AVX2 bit of leaf 7)
         int info[4] = {};
-        __cpuid(info, 0);
+        Cpuid(info, 0);
         const int nIds = info[0];
         if (nIds < 1)
             return 0;
-        __cpuid(info, 1);
+        Cpuid(info, 1);
         const bool sse   = (info[3] & (1 << 25)) != 0;
         const bool sse2  = (info[3] & (1 << 26)) != 0;
         const bool sse41 = (info[2] & (1 << 19)) != 0;
         bool       avx2  = (info[2] & (1 << 28)) != 0 && (info[2] & (1 << 12)) != 0;
         if (avx2 && nIds >= 7) {
-            __cpuid(info, 7);
+            Cpuid(info, 7);
             avx2 = (info[1] & (1 << 5)) != 0;
         } else {
             avx2 = false;

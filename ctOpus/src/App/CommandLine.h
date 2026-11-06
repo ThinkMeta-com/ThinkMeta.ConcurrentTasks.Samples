@@ -12,6 +12,7 @@
 #include "OpusDefines.h"
 #include "OpusHeaders.h"
 #include "ParseResult.h"
+#include "Text.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
@@ -19,10 +20,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     struct Options {
         // the arguments as UTF-8 like opusenc (WIN_UNICODE), the originals for the file names
         HeapArray<char*> argvUtf8;
-        HeapArray<char>  argvStorage; // the strings of argvUtf8
-        wchar_t**        argvWide = nullptr;
-        std::int32_t     inIndex  = 0; // the file arguments
-        std::int32_t     outIndex = 0;
+        HeapArray<char>  argvStorage;          // the strings of argvUtf8
+        Shared::Char**   argvNative = nullptr; // the arguments as given, for the file names
+        std::int32_t     inIndex    = 0;       // the file arguments
+        std::int32_t     outIndex   = 0;
 
         bool         quiet          = false;
         std::int32_t bitrate        = -1;
@@ -62,7 +63,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         /// Reads the command line into options; prints the help, version or error texts. An invalid option value ends the
         /// process with exit code 1, like opusenc's fatal().
         /// </summary>
-        static Shared::ParseResult Parse(int argc, wchar_t** argv, Options& options);
+        static Shared::ParseResult Parse(int argc, Shared::Char** argv, Options& options);
 
         /// <summary>The help text, to stdout.</summary>
         static void PrintUsage();

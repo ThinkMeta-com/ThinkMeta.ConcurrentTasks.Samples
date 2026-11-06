@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "Text.h"
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -20,7 +21,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     enum class ProfileStage : std::int32_t { Input, Psy, PsyResolve, Mdct, Stereo, Search, Quantize, Bitstream, Count };
 
     /// <summary>Name of a stage for the report.</summary>
-    const wchar_t* ProfileStageName(ProfileStage stage) noexcept;
+    const Shared::Char* ProfileStageName(ProfileStage stage) noexcept;
 
     /// <summary>A timestamp in ticks (QueryPerformanceCounter).</summary>
     std::int64_t ProfileNow() noexcept;

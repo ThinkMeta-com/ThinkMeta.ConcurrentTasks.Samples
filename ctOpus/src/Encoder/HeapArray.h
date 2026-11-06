@@ -5,17 +5,17 @@
 
 #pragma once
 
-#include <Windows.h>
-
 #include <cstddef>
 #include <cstring>
 #include <type_traits>
 #include <utility>
 
+#include "Memory.h"
+
 namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>
-    /// Array of trivially copyable elements on the process heap (HeapAlloc), zero-initialised: no
+    /// Array of trivially copyable elements on the process heap (Shared::Heap), zero-initialised: no
     /// constructors or destructors run, and Grow moves the bytes.
     /// </summary>
     template <typename T>
@@ -47,7 +47,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             Free();
             if (count == 0)
                 return true;
-            data_ = static_cast<T*>(HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, count * sizeof(T)));
+            data_ = static_cast<T*>(Shared::Heap::Allocate(count * sizeof(T), true));
             if (data_ == nullptr)
                 return false;
             size_ = count;
@@ -62,7 +62,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                 return true;
             if (data_ == nullptr)
                 return Allocate(count);
-            void* p = HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, data_, count * sizeof(T));
+            void* p = Shared::Heap::Reallocate(data_, size_ * sizeof(T), count * sizeof(T), true);
             if (p == nullptr)
                 return false;
             data_ = static_cast<T*>(p);
@@ -72,8 +72,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
         void Free() noexcept
         {
-            if (data_ != nullptr)
-                HeapFree(GetProcessHeap(), 0, data_);
+            Shared::Heap::Free(data_);
             data_ = nullptr;
             size_ = 0;
         }

@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <cstring>
 
-#include <Windows.h>
+#include "Memory.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
@@ -39,7 +39,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         std::size_t capacity = capacity_ < 4096 ? 4096 : capacity_;
         while (capacity - size_ < extra)
             capacity *= 2;
-        void* block = data_ == nullptr ? HeapAlloc(GetProcessHeap(), 0, capacity) : HeapReAlloc(GetProcessHeap(), 0, data_, capacity);
+        void* block = data_ == nullptr ? Shared::Heap::Allocate(capacity) : Shared::Heap::Reallocate(data_, capacity_, capacity);
         if (block == nullptr)
             return false;
         data_     = static_cast<std::uint8_t*>(block);
@@ -59,7 +59,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     void ByteBuffer::Reset() noexcept
     {
         if (data_ != nullptr)
-            HeapFree(GetProcessHeap(), 0, data_);
+            Shared::Heap::Free(data_);
         data_     = nullptr;
         size_     = 0;
         capacity_ = 0;

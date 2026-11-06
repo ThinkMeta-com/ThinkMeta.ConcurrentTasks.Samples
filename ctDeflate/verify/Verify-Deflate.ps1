@@ -1,29 +1,33 @@
 <#
 .SYNOPSIS
-    Checks that a ctDeflate.exe writes exactly the .gz files of libdeflate 1.26 gzip.exe, byte for byte.
+    Checks that a ctDeflate program writes exactly the .gz files of libdeflate 1.26 gzip, byte for byte.
 
 .DESCRIPTION
-    Requires PowerShell 7 (the cases run in parallel with ForEach-Object -Parallel).
+    Requires PowerShell 7 (the cases run in parallel with ForEach-Object -Parallel), on Windows or Linux.
+
+    Each platform has its own tables, written with its own gzip (bin\win-x64\gzip.exe, bin/linux-x64/gzip):
+    Reference-Hashes-<Matrix>-win-x64.csv and Reference-Hashes-<Matrix>-linux-x64.csv. The script takes the one of
+    the platform it runs on; the contents of both are the same.
 
     -Matrix Generated (default): synthetic inputs that this script generates itself (random, periodic, text-like and
-      mostly-zero data, 22 MB in all), levels 1 to 9, against the SHA-256 table Reference-Hashes-Generated.csv.
-      Needs no download.
-    -Matrix Quick: the Silesia corpus (12 files, 212 MB), levels 1, 2, 5, 6, 8, 9, against Reference-Hashes-Quick.csv.
-    -Matrix Full: Silesia and enwik9 (1.2 GB), levels 1 to 9, against Reference-Hashes-Full.csv.
-      Silesia and enwik9 go to verify\corpus (silesia\<12 files> and enwik9), see the README.
-    -Files: your own files or folders, compared directly with bin\gzip.exe at every level of -Levels.
+      mostly-zero data, 22 MB in all), levels 1 to 9, against the SHA-256 table of the matrix. Needs no download.
+    -Matrix Quick: the Silesia corpus (12 files, 212 MB), levels 1, 2, 5, 6, 8, 9.
+    -Matrix Full: Silesia and enwik9 (1.2 GB), levels 1 to 9.
+      Silesia and enwik9 go to verify/corpus (silesia/<12 files> and enwik9), see the README.
+    -Files: your own files or folders, compared directly with gzip of bin\ at every level of -Levels.
 
-    Each case runs ctDeflate.exe -<level> [-ExtraArgs] -o <temporary file> <input>; the outputs go to a temporary
+    Each case runs ctDeflate -<level> [-ExtraArgs] -o <temporary file> <input>; the outputs go to a temporary
     folder. A run that takes longer than -TimeoutSec counts as a hang and fails. -Mode Reference writes the tables
-    from gzip.exe instead (for maintainers).
+    from gzip instead (for maintainers).
 
     Exit code: 0 if every case is identical, 1 otherwise.
 
     Parameters, the same in the Verify script of every sample:
       -Mode Compare|Reference  Compare (default) checks -Exe; Reference writes the table with -Oracle.
       -Matrix                  the test matrix; -HashFile the table (default: the one of the matrix here).
-      -Exe                     the program to check (default: build\Release\bin\ctDeflate.exe).
-      -Oracle                  the reference program (default: bin\gzip.exe).
+      -Exe                     the program to check (default: build\Release\bin\ctDeflate.exe on Windows,
+                               build/linux-release/bin/ctDeflate on Linux).
+      -Oracle                  the reference program (default: bin\win-x64\gzip.exe, bin/linux-x64/gzip).
       -ExtraArgs               options for -Exe only (e.g. '--threads 4', '--sequential').
       -Repeat n                every case n times; all outputs must match (catches thread-timing dependent output).
       -ThrottleLimit, -WorkDir cases run at once and the folder of the temporary outputs.
@@ -32,6 +36,7 @@
 
 .EXAMPLE
     pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe
+    pwsh verify/Verify-Deflate.ps1 -Exe build/linux-release/bin/ctDeflate
     pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe -Matrix Quick -ExtraArgs '--threads 2 --chunk 4096' -Repeat 2
     pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe -Files D:\Data -Levels 1,6,9
 #>
@@ -54,12 +59,13 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Verify-Deflate.ps1 needs PowerShell 7 (pwsh).' }
 $root = Split-Path $PSScriptRoot
-if (-not $Exe) { $Exe = Join-Path $root 'build\Release\bin\ctDeflate.exe' }
-if (-not $Oracle) { $Oracle = Join-Path $root 'bin\gzip.exe' }
+$platform = if ($IsLinux) { 'linux-x64' } else { 'win-x64' }
+if (-not $Exe) { $Exe = if ($IsLinux) { Join-Path $root 'build/linux-release/bin/ctDeflate' } else { Join-Path $root 'build\Release\bin\ctDeflate.exe' } }
+if (-not $Oracle) { $Oracle = if ($IsLinux) { Join-Path $root 'bin/linux-x64/gzip' } else { Join-Path $root 'bin\win-x64\gzip.exe' } }
 if (-not $Corpus) { $Corpus = Join-Path $PSScriptRoot 'corpus' }
 $Exe = (Resolve-Path -LiteralPath $Exe).Path
 $Oracle = (Resolve-Path -LiteralPath $Oracle).Path
-if (-not $HashFile) { $HashFile = Join-Path $PSScriptRoot "Reference-Hashes-$Matrix.csv" }
+if (-not $HashFile) { $HashFile = Join-Path $PSScriptRoot "Reference-Hashes-$Matrix-$platform.csv" }
 if ($Mode -eq 'Reference' -and ($ExtraArgs -or $Repeat -gt 1)) { throw '-ExtraArgs and -Repeat are for compare runs only.' }
 
 $tmp = Join-Path $WorkDir ([guid]::NewGuid().ToString())
@@ -127,7 +133,7 @@ try {
             $base = $Corpus
         }
         $cases = foreach ($n in $names) {
-            $path = Join-Path $base ($n -replace '/', '\')
+            $path = Join-Path $base ($n -replace '/', [IO.Path]::DirectorySeparatorChar)
             if (-not (Test-Path -LiteralPath $path)) { throw "corpus file missing: $path (see the README: verify\corpus)" }
             foreach ($l in $levelList) { [pscustomobject]@{ Path = $path; Name = $n; Level = $l } }
         }
@@ -152,9 +158,14 @@ try {
         $out = Join-Path $using:tmp ([guid]::NewGuid().ToString() + '.gz')
         $hash = ''; $size = 0; $code = 0; $ref = ''
         if ($using:Mode -eq 'Reference' -or ($using:live -and $case.Run -eq 0)) {
-            # gzip.exe -c writes to stdout; cmd redirection keeps the bytes unchanged
+            # gzip -c writes to stdout; the redirection of the shell keeps the bytes unchanged
             $refOut = "$out.ref"
-            cmd /c "`"$using:Oracle`" -c -$($case.Level) `"$($case.Path)`" > `"$refOut`""
+            if ($IsLinux) {
+                $quote = { param($text) "'" + $text.Replace("'", "'\''") + "'" }
+                /bin/sh -c "$(& $quote $using:Oracle) -c -$($case.Level) $(& $quote $case.Path) > $(& $quote $refOut)"
+            } else {
+                cmd /c "`"$using:Oracle`" -c -$($case.Level) `"$($case.Path)`" > `"$refOut`""
+            }
             $ref = Get-Sha $refOut
             if ($using:Mode -eq 'Reference') { $size = (Get-Item -LiteralPath $refOut).Length; $hash = $ref }
             Remove-Item -LiteralPath $refOut -ErrorAction SilentlyContinue

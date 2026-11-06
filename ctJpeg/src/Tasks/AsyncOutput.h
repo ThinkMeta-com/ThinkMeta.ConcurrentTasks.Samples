@@ -3,7 +3,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -12,6 +14,7 @@
 #include <cstdint>
 
 #include "ByteBuffer.h"
+#include "Text.h"
 
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 import ThinkMeta.ConcurrentTasks.AsyncIo.AsyncFile;
@@ -27,7 +30,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     class AsyncOutput : public Tasks::Task, public Memory::IReadSequentialMemory
     {
     public:
-        AsyncOutput(const wchar_t* path, const ByteBuffer& data) noexcept : path_(path), data_(data) {}
+        AsyncOutput(const Shared::Char* path, const ByteBuffer& data) noexcept : path_(path), data_(data) {}
 
         void Run() noexcept override;
 
@@ -40,10 +43,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         void             ReleaseReadMemory(std::size_t size) noexcept override;
 
     private:
-        const wchar_t*    path_;
-        const ByteBuffer& data_;
-        std::size_t       handedOut_ = 0;
-        std::uint32_t     error_     = 0;
+        const Shared::Char* path_;
+        const ByteBuffer&   data_;
+        std::size_t         handedOut_ = 0;
+        std::uint32_t       error_     = 0;
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg

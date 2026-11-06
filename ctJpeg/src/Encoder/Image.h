@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "Text.h"
 #include <cstddef>
 #include <cstdint>
 
@@ -39,25 +40,26 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         /// the image stays empty and error holds a message (at most errorSize characters).
         /// Used by the check tool (--dump-coefficients); the encoder reads through ParsePnmView.
         /// </summary>
-        bool ReadPnm(const wchar_t* path, wchar_t* error, std::int32_t errorSize) noexcept;
+        bool ReadPnm(const Shared::Char* path, Shared::Char* error, std::int32_t errorSize) noexcept;
 
-        /// <summary>Parses PNM file contents already in memory; takes ownership of a HeapAlloc block. Used by the tests.</summary>
-        bool ParsePnm(std::uint8_t* data, std::size_t size, wchar_t* error, std::int32_t errorSize) noexcept;
+        /// <summary>Parses PNM file contents already in memory; takes ownership of a Shared::Heap block. Used by the tests.</summary>
+        bool ParsePnm(std::uint8_t* data, std::size_t size, Shared::Char* error, std::int32_t errorSize) noexcept;
 
         /// <summary>
         /// Parses PNM file contents owned by the caller, which keeps them alive. The pixels may still be arriving: the
         /// header is read from the first available bytes, the length is checked against the file size.
         /// </summary>
-        bool ParsePnmView(const std::uint8_t* data, std::size_t available, std::size_t size, wchar_t* error, std::int32_t errorSize) noexcept;
+        bool ParsePnmView(const std::uint8_t* data, std::size_t available, std::size_t size, Shared::Char* error, std::int32_t errorSize) noexcept;
 
         /// <summary>Frees the contents.</summary>
         void Reset() noexcept;
 
     private:
-        bool ParseHeader(const std::uint8_t* data, std::size_t available, std::size_t size, wchar_t* error, std::int32_t errorSize) noexcept;
+        bool ParseHeader(const std::uint8_t* data, std::size_t available, std::size_t size, Shared::Char* error, std::int32_t errorSize) noexcept;
 
-        std::uint8_t*       data_       = nullptr; // HeapAlloc block with the whole file (ParsePnm)
+        std::uint8_t*       data_       = nullptr; // Shared::Heap block with the whole file (ParsePnm)
         const void*         view_       = nullptr; // mapped view of the file (ReadPnm)
+        std::size_t         viewSize_   = 0;       // its size (Linux: munmap needs it)
         const std::uint8_t* pixels_     = nullptr;
         std::int32_t        width_      = 0;
         std::int32_t        height_     = 0;

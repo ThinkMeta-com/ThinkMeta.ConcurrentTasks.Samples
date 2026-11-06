@@ -69,7 +69,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
                 if (cfg.highpass2 < .9 * (.75 / 31.0)) {
                     cfg.highpass1 = 0;
                     cfg.highpass2 = 0;
-                    Console::Print(Stream::Error, L"Warning: highpass filter disabled.  highpass frequency too small\n");
+                    Console::Print(Stream::Error, CT_TEXT("Warning: highpass filter disabled.  highpass frequency too small\n"));
                 }
             }
 

@@ -7,31 +7,38 @@
 
 #include "ChunkedDeflate.h"
 #include "Compressor.h"
+#include "File.h"
 #include "TestEnvironment.h"
 
 #include <libdeflate.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace ThinkMeta::ConcurrentTasks::Samples::Deflate;
+using ThinkMeta::ConcurrentTasks::Samples::Shared::Char;
+using ThinkMeta::ConcurrentTasks::Samples::Shared::File;
 using ThinkMeta::ConcurrentTasks::Samples::Shared::TestEnvironment;
 
 namespace DeflateTests {
 
     namespace {
 
-        bool ReadFile(const wchar_t* path, std::vector<std::uint8_t>& data, std::size_t maxSize)
+        bool ReadFile(const Char* path, std::vector<std::uint8_t>& data, std::size_t maxSize)
         {
-            HANDLE file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-            if (file == INVALID_HANDLE_VALUE)
+            std::uint64_t size = 0;
+            if (!File::Size(path, size))
                 return false;
-            LARGE_INTEGER size;
-            GetFileSizeEx(file, &size);
-            const auto n = static_cast<std::size_t>(size.QuadPart < static_cast<long long>(maxSize) ? size.QuadPart : maxSize);
+            const auto n = static_cast<std::size_t>(size < maxSize ? size : maxSize);
             data.resize(n);
-            unsigned long read = 0; // DWORD of ReadFile
-            const bool    ok   = ::ReadFile(file, data.data(), static_cast<unsigned long>(n), &read, nullptr) != 0 && read == n;
-            CloseHandle(file);
-            return ok;
+            return File::Read(path, data.data(), n);
+        }
+
+        // ASCII, for the messages of the test framework (wide text on both platforms)
+        std::wstring Widen(const Char* text)
+        {
+            std::wstring result;
+            for (; *text != 0; ++text)
+                result += static_cast<wchar_t>(*text);
+            return result;
         }
 
     } // namespace
@@ -46,11 +53,11 @@ namespace DeflateTests {
     public:
         TEST_METHOD(ChunkedMatchesLibdeflate)
         {
-            static wchar_t list[32768];
-            (void)TestEnvironment::Get(L"CTDEFLATE_TEST_FILES", list);
-            const wchar_t* next   = list;
-            std::size_t    tested = 0;
-            wchar_t        path[MAX_PATH];
+            static Char list[32768];
+            (void)TestEnvironment::Get(CT_TEXT("CTDEFLATE_TEST_FILES"), list);
+            const Char* next   = list;
+            std::size_t tested = 0;
+            Char        path[File::MaxPath];
             while (TestEnvironment::NextPath(next, path)) {
                 std::vector<std::uint8_t> data;
                 if (!ReadFile(path, data, 8u << 20))
@@ -69,15 +76,16 @@ namespace DeflateTests {
                         const std::size_t actualSize = CompressGzipChunked(level, data.data(), data.size(), actual.data(), options);
                         if (actualSize != expectedSize || std::memcmp(expected.data(), actual.data(), expectedSize) != 0) {
                             wchar_t msg[600];
-                            swprintf_s(msg, L"%s level %d chunk %zu: oracle %zu bytes, chunked %zu bytes", path, level, chunk, expectedSize, actualSize);
+                            std::swprintf(msg, std::size(msg), L"%ls level %d chunk %zu: oracle %zu bytes, chunked %zu bytes", Widen(path).c_str(), level, chunk,
+                                          expectedSize, actualSize);
                             Assert::Fail(msg);
                         }
                     }
                 }
             }
             if (tested == 0) {
-                wchar_t text[200];
-                Logger::WriteMessage(TestEnvironment::SkipText(text, L"CTDEFLATE_TEST_FILES", L"files to compress, separated by ';'"));
+                Char text[200];
+                Logger::WriteMessage(TestEnvironment::SkipText(text, CT_TEXT("CTDEFLATE_TEST_FILES"), CT_TEXT("files to compress, separated by ';'")));
             }
         }
     };

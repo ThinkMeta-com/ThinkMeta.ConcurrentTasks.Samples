@@ -5,14 +5,16 @@
 
 #include <cstdint>
 
+#include "Text.h"
+
 namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
 
     /// <summary>
     /// What the CPU and the operating system support (CPUID, XGETBV): the base of the CPU check (CpuCheck) and of the
     /// SIMD level a sample chooses (its SimdFeatures). AVX, AVX2 and FMA count only if the operating system saves the
     /// YMM registers. SSE2 is part of x64.
-    /// <para>Compiled like CpuCheck: plain SSE2, no whole program optimization; Detect runs before the C runtime.
-    /// Preliminary.</para>
+    /// <para>Compiled like CpuCheck: plain SSE2, no whole program optimization; Detect runs before the C runtime
+    /// (Windows) or before the program's constructors (Linux). Preliminary.</para>
     /// </summary>
     struct CpuFeatures {
         bool sse3   = false;
@@ -38,7 +40,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
         /// instruction sets the samples choose from and the name of the level in use. Returns the length (cut off to the
         /// buffer).
         /// </summary>
-        std::int32_t FormatLine(const wchar_t* levelName, wchar_t* text, std::int32_t size) const noexcept;
+        std::int32_t FormatLine(const Char* levelName, Char* text, std::int32_t size) const noexcept;
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Shared

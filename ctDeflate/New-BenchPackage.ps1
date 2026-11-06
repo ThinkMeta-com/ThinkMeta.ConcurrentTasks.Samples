@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
-    Builds the standalone benchmark package for other PCs: bin\ (ctDeflate, gzip, scheduler core)
-    with the benchmark script, optionally with a test corpus.
+    Builds the standalone benchmark package for other PCs (Windows): bin\ (ctDeflate, gzip, scheduler
+    core, from bin\win-x64\ of this folder) with the benchmark script, optionally with a test corpus.
 
 .DESCRIPTION
     The package needs no installation. Without -Corpus it holds no input files and the user points
@@ -24,7 +24,7 @@ param(
 $ErrorActionPreference = 'Stop'
 # Paths that depend on the script folder are resolved here, not in param() (Windows PowerShell 5.1).
 $Corpus = @($Corpus | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) # -File passes "a,b" as one string
-if (-not $BinDir) { $BinDir = Join-Path $PSScriptRoot 'bin' }
+if (-not $BinDir) { $BinDir = Join-Path $PSScriptRoot 'bin\win-x64' }
 if (-not $OutDir) { $OutDir = Join-Path $PSScriptRoot 'dist\ctDeflate-Bench' }
 $OutDir = [IO.Path]::GetFullPath($OutDir)
 if (Test-Path $OutDir) { Remove-Item -Recurse -Force -LiteralPath $OutDir }

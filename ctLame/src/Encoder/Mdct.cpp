@@ -8,8 +8,11 @@
 
 #include <array>
 #include <cstdint>
+#include <cstring>
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 #include "MdctKernels.h"
 
@@ -32,12 +35,16 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         // of a frame starts 286 samples into its input (w0 + 286 in mdct_sub48)
         constexpr std::int32_t PolyphaseLookBack = 286;
 
-#pragma warning(push)
-#pragma warning(disable : 4305) // truncation from 'double' to 'float': the table literals are doubles, as in LAME
+#if defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4305) // truncation from 'double' to 'float': the table literals are doubles, as in LAME
+#endif
 
 #include "MdctTables.inc"
 
-#pragma warning(pop)
+#if defined(_MSC_VER)
+#    pragma warning(pop)
+#endif
 
         // LAME keeps four more tables in the tail of win[SHORT_TYPE], whose short window uses
         // only the first 3 values: tantab_l, cx, ca and cs (the names of newmdct.c's macros)
@@ -113,7 +120,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
                     const float* const band0 = state.sb_sample[gr][0].data() + order[band];
                     float* const       band1 = state.sb_sample[1 - gr][0].data() + order[band];
                     if (ampFilter[band] < 1e-12) {
-                        ZeroMemory(mdct_enc, SamplesPerSubband * sizeof(float));
+                        std::memset(mdct_enc, 0, SamplesPerSubband * sizeof(float));
                     } else {
                         if (ampFilter[band] < 1.0) {
                             for (k = 0; k < SamplesPerSubband; k++)

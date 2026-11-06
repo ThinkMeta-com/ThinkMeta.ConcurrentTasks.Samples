@@ -5,18 +5,20 @@
 
 .DESCRIPTION
     Encodes a fixed test matrix and compares the SHA-256 of every output .opus file with a table
-    written by opusenc (opus-tools 0.2, libopusenc 0.2.1, libopus 1.6.1: bin\opusenc.exe, built from
-    opus\).
+    written by opusenc (opus-tools 0.2, libopusenc 0.2.1, libopus 1.6.1: opusenc in bin\win-x64\ and
+    bin/linux-x64/, built from opus\). Runs on Windows and Linux (PowerShell 7).
 
     -Mode Compare    encodes the matrix with -Exe and reports every case whose hash, size or exit
                      code differs from the table. Exit code 1 on any difference.
-    -Mode Reference  writes the table with -Oracle (default ..\bin\opusenc.exe), e.g. for a folder of
+    -Mode Reference  writes the table with -Oracle (default: opusenc of bin\), e.g. for a folder of
                      your own WAV files (-CorpusDir, with -HashFile).
 
-    The inputs are the synthetic test files of New-TestWavs.ps1 (written on first use to inputs\):
-    computed signals, mono to 10 channels, 8 to 96 kHz, 8-bit to float. The tables in this folder
-    were written by bin\opusenc.exe for them. -CorpusDir adds WAV files of your own; their hashes
-    are not in the tables, so write your own table first:
+    The inputs are the synthetic test files of New-TestWavs.ps1 (written on first use to inputs\, the
+    same files on both platforms): computed signals, mono to 10 channels, 8 to 96 kHz, 8-bit to float.
+    Each platform has its own tables, written by its own opusenc for these files:
+    Reference-Hashes-<Matrix>-win-x64.csv and Reference-Hashes-<Matrix>-linux-x64.csv; the script takes
+    the one of the platform it runs on. -CorpusDir adds WAV files of your own; their hashes are not in
+    the tables, so write your own table first:
 
       .\Verify-Opus.ps1 -Mode Reference -Matrix Full -CorpusDir D:\Music -HashFile my-Full.csv
       .\Verify-Opus.ps1 -Matrix Full -CorpusDir D:\Music -HashFile my-Full.csv
@@ -40,8 +42,9 @@
     Parameters, the same in the Verify script of every sample:
       -Mode Compare|Reference  Compare (default) checks -Exe; Reference writes the table with -Oracle.
       -Matrix                  the test matrix; -HashFile the table (default: the one of the matrix here).
-      -Exe                     the program to check (default: ..\build\Release\bin\ctOpus.exe).
-      -Oracle                  the reference program (default: ..\bin\opusenc.exe).
+      -Exe                     the program to check (default: ..\build\Release\bin\ctOpus.exe on Windows,
+                               ../build/linux-release/bin/ctOpus on Linux).
+      -Oracle                  the reference program (default: opusenc of ..\bin\win-x64\ or ../bin/linux-x64/).
       -ExtraArgs               options for -Exe only (e.g. '--threads 4', '--sequential').
       -Repeat n                every case n times; all outputs must match (catches thread-timing dependent output).
       -ThrottleLimit, -WorkDir cases run at once and the folder of the temporary outputs.
@@ -49,13 +52,15 @@
 
 .EXAMPLE
     .\Verify-Opus.ps1
-    .\Verify-Opus.ps1 -Matrix Smoke -Exe ..\bin\ctOpus.exe -ExtraArgs '--threads 4' -Repeat 3
+    .\Verify-Opus.ps1 -Matrix Smoke -Exe ..\bin\win-x64\ctOpus.exe -ExtraArgs '--threads 4' -Repeat 3
+    pwsh verify/Verify-Opus.ps1 -Exe bin/linux-x64/ctOpus -ThrottleLimit 4
 #>
 param(
     [ValidateSet('Reference', 'Compare')][string]$Mode = 'Compare',
     [ValidateSet('Smoke', 'Quick', 'Full', 'Surround', 'Silk')][string]$Matrix = 'Quick',
-    [string]$Exe = (Join-Path $PSScriptRoot '..\build\Release\bin\ctOpus.exe'), # your build; ..\bin\ctOpus.exe for the published one
-    [string]$Oracle = (Join-Path $PSScriptRoot '..\bin\opusenc.exe'),
+    # your build; bin\win-x64\ctOpus.exe or bin/linux-x64/ctOpus for the published one
+    [string]$Exe = $(if ($IsLinux) { Join-Path $PSScriptRoot '../build/linux-release/bin/ctOpus' } else { Join-Path $PSScriptRoot '..\build\Release\bin\ctOpus.exe' }),
+    [string]$Oracle = $(if ($IsLinux) { Join-Path $PSScriptRoot '../bin/linux-x64/opusenc' } else { Join-Path $PSScriptRoot '..\bin\win-x64\opusenc.exe' }),
     [string]$HashFile,
     [string]$ExtraArgs = '',
     [ValidateRange(1, 100)][int]$Repeat = 1,
@@ -63,8 +68,8 @@ param(
     [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) 'ctOpusVerify'),
     [int]$TimeoutSec = 300,
     [string]$CorpusDir = '',
-    [string]$SynthDir = (Join-Path $PSScriptRoot 'inputs\synth'),
-    [string]$SurroundDir = (Join-Path $PSScriptRoot 'inputs\surround'),
+    [string]$SynthDir = (Join-Path $PSScriptRoot 'inputs/synth'),
+    [string]$SurroundDir = (Join-Path $PSScriptRoot 'inputs/surround'),
     [string]$BaseArgs = '--quiet --serial 1'
 )
 
@@ -80,7 +85,8 @@ if ($Matrix -eq 'Full' -and -not $CorpusDir) { throw 'The Full matrix encodes th
 if (-not $HashFile) {
     if ($CorpusDir) { throw '-CorpusDir needs -HashFile: the tables here only hold the synthetic test files.' }
     $tableMatrix = if ($Matrix -eq 'Smoke') { 'Quick' } else { $Matrix } # Smoke cases are Quick cases
-    $HashFile = Join-Path $PSScriptRoot "Reference-Hashes-$tableMatrix.csv"
+    $platform = if ($IsLinux) { 'linux-x64' } else { 'win-x64' } # each platform's table, written by its own opusenc
+    $HashFile = Join-Path $PSScriptRoot "Reference-Hashes-$tableMatrix-$platform.csv"
 }
 if (-not (Test-Path (Join-Path $SynthDir '*.wav')) -or -not (Test-Path (Join-Path $SurroundDir '*.wav'))) {
     & (Join-Path $PSScriptRoot 'New-TestWavs.ps1') -OutDir (Split-Path $SynthDir) | Out-Null

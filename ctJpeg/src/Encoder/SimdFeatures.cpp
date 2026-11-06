@@ -3,11 +3,13 @@
 
 #include "SimdFeatures.h"
 
+#include "Text.h"
 #include <cstdint>
-#include <cwchar>
 #include <initializer_list>
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
+
+    using Shared::Text;
 
     SimdLevel HighestSimdLevel(const CpuFeatures& features) noexcept
     {
@@ -21,15 +23,15 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         return static_cast<std::int32_t>(requested) < static_cast<std::int32_t>(highest) ? requested : highest;
     }
 
-    const wchar_t* SimdLevelName(SimdLevel level) noexcept
+    const Shared::Char* SimdLevelName(SimdLevel level) noexcept
     {
-        return level == SimdLevel::Avx2 ? L"avx2" : L"sse2";
+        return level == SimdLevel::Avx2 ? CT_TEXT("avx2") : CT_TEXT("sse2");
     }
 
-    bool ParseSimdLevel(const wchar_t* name, SimdLevel& level) noexcept
+    bool ParseSimdLevel(const Shared::Char* name, SimdLevel& level) noexcept
     {
         for (const SimdLevel candidate : {SimdLevel::Sse2, SimdLevel::Avx2}) {
-            if (std::wcscmp(name, SimdLevelName(candidate)) == 0) {
+            if (Text::Equal(name, SimdLevelName(candidate))) {
                 level = candidate;
                 return true;
             }

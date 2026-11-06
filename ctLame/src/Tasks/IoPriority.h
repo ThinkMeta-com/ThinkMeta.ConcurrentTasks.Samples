@@ -8,7 +8,9 @@
 
 #include <cstdint>
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 #include <ThinkMeta.ConcurrentTasks/Core.h>
 

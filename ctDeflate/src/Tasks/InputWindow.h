@@ -5,7 +5,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -16,10 +18,13 @@
 #include <memory>
 #include <vector>
 
+#include "Text.h"
+
 import ThinkMeta.ConcurrentTasks.AsyncIo.AsyncFile;
 import ThinkMeta.ConcurrentTasks.Synchronization.AutoResetEvent;
 import ThinkMeta.ConcurrentTasks.Synchronization.ManualResetEvent;
-import ThinkMeta.ConcurrentTasks.Windows.Error;
+import ThinkMeta.ConcurrentTasks.Platform.Error;
+import ThinkMeta.ConcurrentTasks.Platform.VirtualMemory;
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
 
@@ -37,19 +42,20 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
     {
     public:
         InputWindow() = default;
-        ~InputWindow()
-        {
-            if (base_ != nullptr)
-                VirtualFree(base_, 0, MEM_RELEASE);
-        }
+
         InputWindow(const InputWindow&)            = delete;
         InputWindow& operator=(const InputWindow&) = delete;
 
         /// <summary>Streams the input from a file.</summary>
-        std::uint32_t Open(const wchar_t* path) noexcept
+        std::uint32_t Open(const Shared::Char* path) noexcept
         {
-            using Windows::Error;
+            using Platform::Error;
+#if defined(_WIN32)
+            // with the hint of a sequential read for the cache manager
             std::uint32_t error = file_.Create(path, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN);
+#else
+            std::uint32_t error = file_.Create(path, Platform::FileOptions{});
+#endif
             if (Error::Failed(error))
                 return error;
             AsyncIo::AsyncFile::FileSize size = 0;
@@ -58,11 +64,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
                 return error;
             size_ = static_cast<std::size_t>(size);
             // One spare segment: the last one is committed whole, so reads a little past the end stay valid.
-            base_ = static_cast<std::uint8_t*>(
-                VirtualAlloc(nullptr, (size_ + SegmentSize - 1) / SegmentSize * SegmentSize + SegmentSize, MEM_RESERVE, PAGE_READWRITE));
+            error = memory_.Reserve((size_ + SegmentSize - 1) / SegmentSize * SegmentSize + SegmentSize);
+            if (Error::Failed(error))
+                return error;
+            base_      = static_cast<std::uint8_t*>(memory_.GetAllocationBase());
             data_      = base_;
             streaming_ = true;
-            return base_ != nullptr ? Error::Success : Error::GetLastError();
+            return Error::Success;
         }
 
         /// <summary>The whole input is in memory already.</summary>
@@ -107,8 +115,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
         /// <summary>Waits until Allow moved the end (or did since the last wait).</summary>
         void AwaitAllowance() noexcept { allowedMoved_.Wait(); }
 
-        /// <summary>Commits the segment at pos (a multiple of SegmentSize).</summary>
-        bool CommitSegment(std::size_t pos) noexcept { return VirtualAlloc(base_ + pos, SegmentSize, MEM_COMMIT, PAGE_READWRITE) != nullptr; }
+        /// <summary>Commits the segment at pos (a multiple of SegmentSize); returns the error code.</summary>
+        std::uint32_t CommitSegment(std::size_t pos) noexcept { return Platform::VirtualMemory::Commit(base_ + pos, SegmentSize); }
 
         /// <summary>The bytes before loaded are in memory: wakes the parses whose input is complete.</summary>
         void CompleteRead(std::size_t loaded) noexcept
@@ -149,13 +157,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
         {
             pos = pos / SegmentSize * SegmentSize;
             if (pos > released_) {
-                VirtualFree(base_ + released_, pos - released_, MEM_DECOMMIT);
+                Platform::VirtualMemory::Decommit(base_ + released_, pos - released_);
                 released_ = pos;
             }
         }
 
     private:
         AsyncIo::AsyncFile                                     file_;
+        Platform::VirtualMemory                                memory_; // the reserved range of a streamed input
         std::uint8_t*                                          base_      = nullptr;
         const std::uint8_t*                                    data_      = nullptr;
         std::size_t                                            size_      = 0;

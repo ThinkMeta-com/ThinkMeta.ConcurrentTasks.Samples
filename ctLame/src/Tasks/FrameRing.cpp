@@ -9,6 +9,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "Memory.h"
+
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     namespace {
@@ -18,7 +20,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
         std::atomic<std::int32_t>* NewFlags(std::uint32_t count) noexcept
         {
-            void* memory = HeapAlloc(GetProcessHeap(), 0, count * sizeof(std::atomic<std::int32_t>));
+            void* memory = Shared::Heap::Allocate(count * sizeof(std::atomic<std::int32_t>));
             if (memory == nullptr)
                 return nullptr;
             auto* flags = static_cast<std::atomic<std::int32_t>*>(memory);
@@ -31,21 +33,18 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     FrameRing::~FrameRing()
     {
-        if (slots_ != nullptr)
-            VirtualFree(slots_, 0, MEM_RELEASE);
-        if (prepared_ != nullptr)
-            HeapFree(GetProcessHeap(), 0, prepared_);
-        if (searched_ != nullptr)
-            HeapFree(GetProcessHeap(), 0, searched_);
+        Shared::AddressSpace::Release(slots_, slotBytes_);
+        Shared::Heap::Free(prepared_);
+        Shared::Heap::Free(searched_);
     }
 
     bool FrameRing::Initialize(std::uint32_t slotCount) noexcept
     {
         // zeroed memory, like the FrameData of the sequential encoder
-        slots_
-            = static_cast<FrameData*>(VirtualAlloc(nullptr, static_cast<std::size_t>(slotCount) * sizeof(FrameData), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
-        prepared_ = NewFlags(slotCount);
-        searched_ = NewFlags(slotCount);
+        slotBytes_ = static_cast<std::size_t>(slotCount) * sizeof(FrameData);
+        slots_     = static_cast<FrameData*>(Shared::AddressSpace::Allocate(slotBytes_));
+        prepared_  = NewFlags(slotCount);
+        searched_  = NewFlags(slotCount);
         if (slots_ == nullptr || prepared_ == nullptr || searched_ == nullptr)
             return false;
         slotCount_ = slotCount;

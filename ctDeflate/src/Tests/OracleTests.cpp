@@ -48,8 +48,8 @@ namespace DeflateTests {
                 ++firstDiff;
             if (expectedSize != actualSize || firstDiff != expectedSize) {
                 wchar_t msg[512];
-                swprintf_s(msg, L"%s size %zu level %d: oracle %zu bytes, ctDeflate %zu bytes, first difference at byte %zu", label, data.size(),
-                           level, expectedSize, actualSize, firstDiff);
+                std::swprintf(msg, std::size(msg), L"%ls size %zu level %d: oracle %zu bytes, ctDeflate %zu bytes, first difference at byte %zu", label,
+                              data.size(), level, expectedSize, actualSize, firstDiff);
                 Assert::Fail(msg);
             }
         }

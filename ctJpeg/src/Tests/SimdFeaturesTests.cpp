@@ -16,11 +16,11 @@ namespace JpegTests {
         TEST_METHOD(NamesRoundTrip)
         {
             SimdLevel level = SimdLevel::Sse2;
-            Assert::IsTrue(ParseSimdLevel(L"avx2", level));
+            Assert::IsTrue(ParseSimdLevel(CT_TEXT("avx2"), level));
             Assert::IsTrue(level == SimdLevel::Avx2);
-            Assert::IsTrue(ParseSimdLevel(L"sse2", level));
+            Assert::IsTrue(ParseSimdLevel(CT_TEXT("sse2"), level));
             Assert::IsTrue(level == SimdLevel::Sse2);
-            Assert::IsFalse(ParseSimdLevel(L"sse4.1", level)); // jpegli's SSE4 output equals SSE2: no own level
+            Assert::IsFalse(ParseSimdLevel(CT_TEXT("sse4.1"), level)); // jpegli's SSE4 output equals SSE2: no own level
         }
 
         TEST_METHOD(ChooseNeverExceedsCpu)

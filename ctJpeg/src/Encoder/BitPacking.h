@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "Compiler.h"
 #include <cstdint>
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
@@ -18,13 +19,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     /// Non-zero if and only if one of the 8 bytes of x is zero; HasZeroByte(~x) finds a 0xFF byte.
     /// jpegli: HasZeroByte() (bit_writer.h).
     /// </summary>
-    __forceinline std::uint64_t HasZeroByte(std::uint64_t x) noexcept
+    CT_FORCEINLINE std::uint64_t HasZeroByte(std::uint64_t x) noexcept
     {
         return (x - 0x0101010101010101ULL) & ~x & 0x8080808080808080ULL;
     }
 
     /// <summary>Stores word big-endian at out (8 bytes).</summary>
-    __forceinline void StoreBigEndian64(std::uint64_t word, std::uint8_t* out) noexcept
+    CT_FORCEINLINE void StoreBigEndian64(std::uint64_t word, std::uint8_t* out) noexcept
     {
         for (std::int32_t i = 0; i < 8; ++i)
             out[i] = static_cast<std::uint8_t>(word >> (56 - 8 * i));
@@ -37,8 +38,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     /// jpegli: WriteBits() (bit_writer.h).
     /// </summary>
     template <class Discharge>
-    __forceinline void PackBits(std::uint64_t& putBuffer, std::int32_t& freeBits, bool& healthy, std::int32_t nbits, std::uint64_t bits,
-                                Discharge&& discharge) noexcept
+    CT_FORCEINLINE void PackBits(std::uint64_t& putBuffer, std::int32_t& freeBits, bool& healthy, std::int32_t nbits, std::uint64_t bits,
+                                 Discharge&& discharge) noexcept
     {
         if (nbits == 0) {
             healthy = false;

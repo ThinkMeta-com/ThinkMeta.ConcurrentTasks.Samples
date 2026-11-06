@@ -29,7 +29,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         /// One worker of a stage node (Pixel, Tokenize, Stitch, Count, Write, Splice, Release; see
         /// EncodeGraph.h): runs the stage's jobs until none is left.
         /// </summary>
-        class StageWorkerTask : public Tasks::Task
+        class StageWorkerTask final : public Tasks::Task
         {
         public:
             StageWorkerTask(StageJobs& jobs, std::uint32_t worker) noexcept : jobs_(jobs), worker_(worker) {}

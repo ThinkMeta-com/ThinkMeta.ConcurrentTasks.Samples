@@ -6,7 +6,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -29,6 +31,7 @@
 #include "Mp3WriterTask.h"
 #include "ResolveTask.h"
 #include "SequentialEncodeTask.h"
+#include "Text.h"
 #include "WavReaderTask.h"
 #include "WorkerTask.h"
 
@@ -62,14 +65,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     {
     public:
         struct Settings {
-            const wchar_t*    inPath          = nullptr;
-            const wchar_t*    outPath         = nullptr;
-            std::uint64_t     dataOffset      = 0;     // first byte of the WAV sample data
-            std::uint64_t     byteLimit       = ~0ull; // bytes of sample data to read at most
-            std::uint64_t     maxInputSamples = 0;     // samples per channel the input can have at most (0: unknown)
-            PcmReader::Format format;
-            std::uint32_t     threads    = 1; // compute threads: one worker each
-            bool              sequential = false;
+            const Shared::Char* inPath          = nullptr;
+            const Shared::Char* outPath         = nullptr;
+            std::uint64_t       dataOffset      = 0;     // first byte of the WAV sample data
+            std::uint64_t       byteLimit       = ~0ull; // bytes of sample data to read at most
+            std::uint64_t       maxInputSamples = 0;     // samples per channel the input can have at most (0: unknown)
+            PcmReader::Format   format;
+            std::uint32_t       threads    = 1; // compute threads: one worker each
+            bool                sequential = false;
             // reading the WAV file: what counts is the data in flight; 256 KB x 5 was among the
             // fastest shapes measured (cold, NVMe; the numbers are in docs/task-graph.md, step 1)
             std::uint32_t readSize      = 256 * 1024; // bytes per read (the PCM pipe's block size)
@@ -89,8 +92,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         };
 
         struct Result {
-            std::uint32_t readError   = ERROR_SUCCESS;
-            std::uint32_t writeError  = ERROR_SUCCESS;
+            std::uint32_t readError   = 0;
+            std::uint32_t writeError  = 0;
             std::int32_t  encodeError = 0; // LAME's error code, see FrameEncoder::Error
         };
 

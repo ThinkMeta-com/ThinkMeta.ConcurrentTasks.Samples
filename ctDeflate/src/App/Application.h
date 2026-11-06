@@ -27,7 +27,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
         Application();
 
         /// <summary>Reads the command line (CommandLine). False on an error.</summary>
-        bool ParseArgs(std::int32_t argc, wchar_t** argv);
+        bool ParseArgs(std::int32_t argc, Shared::Char** argv);
 
         /// <summary>Compresses the file; returns the exit code.</summary>
         std::int32_t Execute();

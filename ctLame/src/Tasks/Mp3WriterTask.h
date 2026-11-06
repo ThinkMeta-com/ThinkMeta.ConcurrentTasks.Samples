@@ -6,7 +6,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -21,6 +23,7 @@
 
 // headers with imports last
 #include "BlockPipe.h"
+#include "Text.h"
 
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 import ThinkMeta.ConcurrentTasks.AsyncIo.AsyncFile;
@@ -34,16 +37,18 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// known after encoding. Runs on the I/O scheduler and sets its own priority by the fill
     /// level of the pipe.
     /// </summary>
-    class Mp3WriterTask : public Tasks::Task
+    class Mp3WriterTask final : public Tasks::Task
     {
     public:
         static constexpr std::uint32_t MaxWritesInFlight = 8;
 
         struct Settings {
-            const wchar_t*           path                = nullptr;
-            std::uint32_t            creationDisposition = CREATE_ALWAYS;
-            std::uint32_t            writesInFlight      = 4;       // at most MaxWritesInFlight, less than the pipe's blocks
-            const std::atomic<bool>* producerFinished    = nullptr; // optional: drain with High priority once set
+            const Shared::Char* path = nullptr;
+#if defined(_WIN32)
+            std::uint32_t creationDisposition = CREATE_ALWAYS; // Linux: always created
+#endif
+            std::uint32_t            writesInFlight   = 4;       // at most MaxWritesInFlight, less than the pipe's blocks
+            const std::atomic<bool>* producerFinished = nullptr; // optional: drain with High priority once set
             FillLevelPolicy          policy;
             TaskProfile*             profile = nullptr; // CTLAME_PROFILE: busy and idle time
         };
@@ -62,7 +67,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
         void Run() noexcept override;
 
-        /// <summary>ERROR_SUCCESS or the error that ended the writing.</summary>
+        /// <summary>0 (success) or the error that ended the writing.</summary>
         std::uint32_t Error() const noexcept { return error_; }
 
         const IoStats& Stats() const noexcept { return stats_; }
@@ -72,7 +77,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         Settings         settings_;
         const std::byte* header_     = nullptr;
         std::uint32_t    headerSize_ = 0;
-        std::uint32_t    error_      = ERROR_SUCCESS;
+        std::uint32_t    error_      = 0;
         IoStats          stats_;
 
         std::array<AsyncIo::WaitableAsyncFileIoRequest_s, MaxWritesInFlight> requests_;

@@ -8,11 +8,11 @@
 
 #include <cstdint>
 
-import ThinkMeta.ConcurrentTasks.Windows.Error;
+import ThinkMeta.ConcurrentTasks.Platform.Error;
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
-    using Windows::Error;
+    using Platform::Error;
 
     Mp3WriterTask::Mp3WriterTask(BlockPipe& pipe, const Settings& settings) noexcept : pipe_(pipe), settings_(settings)
     {
@@ -30,7 +30,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         const ProfiledRun  run(profile);
 
         AsyncIo::AsyncFile file;
-        std::uint32_t      error = file.Create(settings_.path, GENERIC_WRITE, FILE_SHARE_READ, settings_.creationDisposition, FILE_FLAG_SEQUENTIAL_SCAN);
+#if defined(_WIN32)
+        std::uint32_t error = file.Create(settings_.path, GENERIC_WRITE, FILE_SHARE_READ, settings_.creationDisposition, FILE_FLAG_SEQUENTIAL_SCAN);
+#else
+        std::uint32_t error
+            = file.Create(settings_.path, Platform::FileOptions{.access = Platform::FileAccess::Write, .creation = Platform::FileCreation::CreateAlways});
+#endif
 
         const std::uint32_t inFlight    = settings_.writesInFlight;
         std::uint64_t       issued      = 0;
@@ -89,10 +94,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         }
 
         if (Error::Succeeded(error) && header_ != nullptr && headerSize_ > 0) {
-            unsigned long written = 0; // DWORD of the API
-            error                 = file.Write(header_, headerSize_, written, 0);
+            AsyncIo::AsyncFile::ByteCount written = 0;
+            error                                 = file.Write(header_, headerSize_, written, 0);
             if (Error::Succeeded(error) && written != headerSize_)
-                error = ERROR_WRITE_FAULT;
+                error = Error::WriteFault;
         }
 
         file.Close();

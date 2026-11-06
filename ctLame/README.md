@@ -2,8 +2,8 @@
 
 **ctLame** is an MP3 encoder that produces *exactly* the same files as LAME 4.0 (byte for byte)
 and runs **14 times as fast** on an 8-core desktop CPU. It is a C++ port of LAME's VBR encoder,
-built on **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler for Windows, and a first
-look at the research project around it that runs from 2027 to 2029
+built on **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler for Windows and Linux (x64),
+and a first look at the research project around it that runs from 2027 to 2029
 ([what comes next](#what-comes-next)).
 
 ctLame was created **AI-assisted**, using ThinkMeta.ConcurrentTasks: AI coding agents wrote the
@@ -12,9 +12,9 @@ ThinkMeta's developers, and every step was checked byte for byte against the ref
 in-depth code review is still pending:** the output is verified to be identical to the reference,
 but the code itself has not yet been reviewed line by line.
 
-**The source code of ctLame is here** (`src\`, GNU LGPL) and builds with Visual Studio 2026
-([Building](#building)); `bin\` holds the prebuilt `ctLame.exe` the benchmark results below were
-measured with.
+**The source code of ctLame is here** (`src\`, GNU LGPL) and builds with Visual Studio 2026 on
+Windows and with clang and CMake on Linux ([Building](#building)); `bin\win-x64\` holds the prebuilt
+`ctLame.exe` the benchmark results below were measured with, `bin/linux-x64/` the Linux build.
 
 | | lame.exe | ctLame |
 |---|---:|---:|
@@ -26,29 +26,48 @@ This repository contains:
 
 | Folder | Contents |
 |---|---|
-| `bin\` | prebuilt Windows x64 binaries: `lame.exe` (the reduced LAME below), `ctLame.exe`, and `ThinkMeta.ConcurrentTasks.Core.dll` (the scheduler core ctLame runs on) |
+| `bin\win-x64\` | prebuilt Windows x64 binaries: `lame.exe` (the reduced LAME below), `ctLame.exe`, and `ThinkMeta.ConcurrentTasks.Core.dll` (the scheduler core ctLame runs on) |
+| `bin/linux-x64/` | the same for Linux x64: `lame`, `ctLame` and `libThinkMeta.ConcurrentTasks.Core.so.2` |
 | `src\` | the source of **ctLame**: `App` (the program, LAME's command line), `Tasks` (the task graph), `Encoder` (the port of LAME's encoder, without task code) and `Tests` (unit tests); the code all samples share (console output, version resource, CPU check, task setup, `--stats`) is in [`..\Shared`](../Shared/README.md); see [Reading the code](#reading-the-code) |
-| `lame\` | the source of the **reduced LAME 4.0**, the reference ctLame is measured against |
+| `lame\` | the source of the **reduced LAME 4.0**, the reference ctLame is measured against, with Visual Studio projects and a CMake build for Linux |
 | `ctLame.slnx` | a Visual Studio solution that builds `ctLame.exe` and `lame.exe` ([Building](#building)) |
-| `verify\` | scripts that check a ctLame build byte for byte against `lame.exe`, with computed test signals and their reference hashes |
-| `benchmark\` | a script to compare both encoders on your own WAV files: speed and bit identity (needs `ctLame.exe` in `bin\`) |
+| `CMakeLists.txt` | the Linux build of ctLame and its unit tests (clang, CMake, Ninja) |
+| `verify\` | scripts that check a ctLame build byte for byte against `lame`, with computed test signals and their reference hashes (one table per platform) |
+| `benchmark\` | a script to compare both encoders on your own WAV files: speed and bit identity (Windows only for now; needs `ctLame.exe` in `bin\win-x64\`) |
 | `ThinkMeta.SolutionFiles\` | build settings; they forward to the ThinkMeta.ConcurrentTasks submodule next to this folder |
 
 ## Try it
 
-No installation and no runtime to install: the C runtime is linked statically; the binaries need
-nothing but Windows (10 or 11, x64).
+No installation and no runtime to install. Any x64 CPU runs ctLame; it chooses its SIMD code
+(scalar, SSE4.1, AVX2) at run time.
+
+| | Windows (`bin\win-x64\`) | Linux (`bin/linux-x64/`) |
+|---|---|---|
+| System | Windows 10 or 11, x64 | Linux x64 with **glibc 2.38** or later (Ubuntu 24.04, Debian 13, Fedora 39, RHEL 10 or newer); kernel 5.19 or later recommended. ctLame uses io_uring, which must be allowed (Docker's default seccomp profile blocks it; ctLame then reports an error at start) |
+| Runtime | the C runtime is linked statically | libstdc++ is linked in; the programs need only `libc.so.6` and `libm.so.6`, ctLame also `libThinkMeta.ConcurrentTasks.Core.so.2`, which it finds next to itself |
+
+Windows:
 
 ```
-bin\lame   -V 2 input.wav lame.mp3
-bin\ctLame -V 2 input.wav ctlame.mp3
+bin\win-x64\lame   -V 2 input.wav lame.mp3
+bin\win-x64\ctLame -V 2 input.wav ctlame.mp3
 fc /b lame.mp3 ctlame.mp3
 ```
 
-`fc` reports no differences. The command lines are the same, too: ctLame accepts every option of
-the reduced LAME and prints the same messages.
+Linux:
 
-To measure on your own music, run `benchmark\run.cmd D:\Music` (any folder of WAV files). It encodes
+```
+bin/linux-x64/lame   -V 2 input.wav lame.mp3
+bin/linux-x64/ctLame -V 2 input.wav ctlame.mp3
+cmp lame.mp3 ctlame.mp3
+```
+
+`fc` and `cmp` report no differences. The command lines are the same, too: ctLame accepts every
+option of the reduced LAME and prints the same messages. If the Linux programs lost their
+executable bit on the way (an archive unpacked on Windows, for example):
+`chmod +x bin/linux-x64/lame bin/linux-x64/ctLame`.
+
+To measure on your own music on Windows, run `benchmark\run.cmd D:\Music` (any folder of WAV files; the script is Windows only for now). It encodes
 every file with both programs, one process at a time, and writes a report with the times and the
 bit-identity check of each file. Every run reads a fresh copy of the file that is not in the file
 cache (`-Warm` reads the files where they are). For the run it switches to the High Performance
@@ -80,9 +99,34 @@ runtime, without buffer security checks and with profile-guided optimization (PG
 ctLame about 4 % faster. None of that changes what it computes: **the MP3 files of every build must
 be bit-identical to lame.exe's**, and `verify\` checks exactly that.
 
+### Building on Linux
+
+You need **clang 19 or later** (tested with clang 20), **CMake 3.28 or later** and **Ninja**, as for
+the C++ modules of the API submodule; on Ubuntu 24.04 `sudo apt install cmake ninja-build` and a
+clang from [apt.llvm.org](https://apt.llvm.org) (the distribution's clang 18 is too old).
+
+```
+git clone --recurse-submodules https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.Samples.git
+cd ThinkMeta.ConcurrentTasks.Samples/ctLame
+cmake -S . -B build/linux-release -G Ninja -DCMAKE_CXX_COMPILER=clang++
+cmake --build build/linux-release
+ctest --test-dir build/linux-release
+cmake -S lame -B lame/build/linux-release -G Ninja -DCMAKE_C_COMPILER=clang
+cmake --build lame/build/linux-release
+```
+
+ctLame lands in `build/linux-release/bin/` (it finds the scheduler core in the API submodule,
+`../ThinkMeta.ConcurrentTasks.API/Core/bin/linux-x64`), the reduced LAME in
+`lame/build/linux-release/bin/lame`: `lame/CMakeLists.txt` builds the same files with the same
+switches as the Visual Studio projects (`configLinux.h` in place of `configMS.h`), without FMA
+contraction. `ctest` runs the unit tests of ctLame and `../Shared`, with the same environment
+variables as above. The published `bin/linux-x64/ctLame` links libstdc++ statically, finds the core
+next to itself (`-DCT_SAMPLE_PUBLISH=ON` builds it that way) and is profile-guided optimized with
+ThinLTO and without stack protector; `bin/linux-x64/lame` keeps the plain build, as on Windows.
+
 ### Checking a build
 
-`verify\` needs PowerShell 7 (`pwsh`), nothing else:
+`verify\` needs PowerShell 7 (`pwsh`, on Linux [installed from Microsoft's packages](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-linux)), nothing else. Without `-Exe` and `-Oracle` the scripts check your Release build of the platform they run on:
 
 ```
 pwsh verify\Verify-Lame.ps1 -Signals
@@ -90,17 +134,27 @@ pwsh verify\Verify-Lame.ps1 -WavDir D:\Music -Matrix Quick
 pwsh verify\Compare-LameCli.ps1
 ```
 
+```
+pwsh verify/Verify-Lame.ps1 -Signals
+pwsh verify/Verify-Lame.ps1 -Signals -Exe bin/linux-x64/ctLame
+pwsh verify/Verify-Lame.ps1 -WavDir ~/Music -Matrix Quick
+```
+
 - `-Signals` generates 20 test signals (`New-TestSignals.ps1`: tones, sweeps, noise, transients,
   every supported sample rate and sample format, edge cases) with integer arithmetic only, so they
   are the same bytes on every machine, encodes them with 780 combinations of options and compares
-  every MP3 with `Reference-Hashes-Signals.csv`, the hashes the published `bin\lame.exe` writes
-  (and unmodified LAME 4.0 as well, see [the reduced LAME](#the-reduced-lame)).
-- `-WavDir` encodes WAV files of your own with your `lame.exe` and your `ctLame.exe` and compares
-  the outputs. `-Matrix Smoke`, `Quick` or `Full` choose how many files and options;
+  every MP3 with `Reference-Hashes-Signals-<platform>.csv`, the hashes the published `lame` of that
+  platform writes (`bin\win-x64\lame.exe` writes the same as unmodified LAME 4.0, see
+  [the reduced LAME](#the-reduced-lame)). The tables of Windows and Linux have the same contents.
+- `-WavDir` encodes WAV files of your own with your `lame` and your ctLame and compares
+  the outputs. On music, `lame` itself can write a few files differently on Windows and Linux,
+  since the C math libraries (UCRT, glibc) round some functions differently in the last bit (2 of
+  1020 cases in our corpus, at `-V 6.5` and `-V 9` with `-q 7`); ctLame follows the `lame` of its
+  platform, so compare programs of the same platform. `-Matrix Smoke`, `Quick` or `Full` choose how many files and options;
   `-ExtraArgs '--threads 1'` or `'--sequential'` check the other execution paths, `-Repeat 3` output
   that depends on thread timing.
-- `Compare-LameCli.ps1` runs both programs with 1012 command lines, including invalid ones, and
-  compares exit codes, console output and the MP3 files.
+- `Compare-LameCli.ps1` (Windows only) runs both programs with 1012 command lines, including
+  invalid ones, and compares exit codes, console output and the MP3 files.
 
 Every check must end with all cases identical. The Verify scripts of all samples take the same parameters: `-Mode Compare` (default) or `Reference`, `-Matrix`, `-Exe` (the program to check, default: your Release build), `-Oracle` (the reference program), `-HashFile`, `-ExtraArgs` (options for `-Exe` only), `-Repeat n` (every case n times; all outputs must match), `-ThrottleLimit`, `-WorkDir` and `-TimeoutSec` (a run beyond it counts as a hang).
 
@@ -113,7 +167,7 @@ Every check must end with all cases identical. The Verify scripts of all samples
 |---|---|
 | CPU | Intel Core i9-11900K (Rocket Lake), 8 cores, 16 threads |
 | System | Windows 11 Pro, power plan High Performance, no other load |
-| Programs | the binaries in `bin\` |
+| Programs | the binaries in `bin\win-x64\`; all numbers in this README are from Windows, there are no Linux measurements yet |
 | Settings | `-V 4` (LAME's default VBR quality), all other options at their defaults |
 | Timing | wall time of the whole process (start, reading the WAV file, encoding, writing the MP3), one process at a time; every run reads a fresh copy of the WAV file that is not in the file cache (cold); per file the programs take turns, three rounds, the median of each file counts, the totals are the sums of the medians |
 | Check | every MP3 of ctLame compared byte for byte with lame.exe's |
@@ -267,7 +321,7 @@ LAME always keeps the input rate, and is then identical to unmodified LAME with
 `--resample <input rate>`. The default is `-V 4` instead of CBR 128 kbit/s.
 
 `ctLame.slnx` builds it ([Building](#building)); the result is `build\Release\bin\lame.exe`, built
-with the settings of `bin\lame.exe`. Each published
+with the settings of `bin\win-x64\lame.exe`; on Linux `lame/CMakeLists.txt`. Each published
 program has its fastest build: `ctLame.exe` is in addition profile-guided optimized (PGO) and
 built without buffer security checks, which makes it about 4 % faster; for `lame.exe` both made it
 slower (by 2.6 %), so it keeps the plain build.
@@ -311,7 +365,7 @@ Options of ctLame only:
 | `-p`, `-c`, `-o`, `-e emp` | CRC, copyright and original flags; emphasis `n`, `5` or `c` |
 | `--nores`, `--strictly-enforce-ISO`, `--buffer-constraint c` | bit reservoir and stream constraints; `c` is `default`, `strict` or `maximum` |
 | `--quiet`, `--silent`, `--brief`, `--verbose`, `-S` | console output |
-| `--priority n` | process priority, 0 (idle) to 4 (high) |
+| `--priority n` | process priority, 0 (idle) to 4 (high); on Linux the nice value 10, 0 or -10 (raising it needs the rights to do so, otherwise the priority stays) |
 | `--license`, `--version` | license and version |
 
 </details>
@@ -436,21 +490,29 @@ ctLame is fast, but not at the end; the measurements point to these limits and n
   Rocket Lake), AVX-512 lookup tables (would cover only 3 to 7 % more blocks) and a mode without
   bit identity (fused multiply-add): 2 % faster on one thread, nothing on 16.
 
+* **Linux:** no measurements yet, and the benchmark script and `Compare-LameCli.ps1` are Windows
+  only; a Linux benchmark script would come first. The PGO gain of the Linux build (clang) is not
+  measured. The Linux programs need glibc 2.38 because libstdc++ is linked in from Ubuntu 24.04; a
+  build against an older glibc (in a container) would let them run on Ubuntu 22.04 and Debian 12 as
+  well.
+
 Every step keeps the output bit-identical to LAME.
 
 ## ThinkMeta.ConcurrentTasks
 
-ctLame is a showcase for **ThinkMeta.ConcurrentTasks**, a task scheduler for Windows by
-ThinkMeta Software GmbH. Tasks run on fibers: a task can wait for a frame, an event or an
-asynchronous file read without blocking its thread. A handful of threads keeps every core busy
-while thousands of tasks wait, and code that waits stays as simple as sequential code.
+ctLame is a showcase for **ThinkMeta.ConcurrentTasks**, a task scheduler for Windows and Linux
+(x64) by ThinkMeta Software GmbH; ctLame runs on both. Tasks run on
+fibers: a task can wait for a frame, an event or an asynchronous file read without blocking its
+thread. A handful of threads keeps every core busy while thousands of tasks wait, and code that
+waits stays as simple as sequential code.
 
-- **Small and fast core:** the scheduler is a 25 KB DLL that depends on nothing but Windows
-  (no C runtime). A task switch is a fiber switch; handing work to another thread costs well under
+- **Small and fast core:** the scheduler is a library of about 30 KB that depends on nothing but
+  the operating system: a DLL on Windows (no C runtime), a shared library on Linux (the C library
+  only). A task switch is a fiber switch; handing work to another thread costs well under
   a microsecond.
 - **Building blocks on top:** tasks with priorities, events, semaphores and other synchronization
   primitives for tasks, concurrent collections, pipes in virtual memory, asynchronous file and
-  socket I/O over completion ports.
+  socket I/O over I/O completion ports (Windows) and io_uring (Linux).
 - **Deterministic where it matters:** ctLame shows that a pipeline with ordered and parallel
   stages can keep a strictly sequential result while using every core.
 
@@ -475,11 +537,11 @@ ctLame is a first look at ThinkMeta.ConcurrentTasks.
 From January 2027 to December 2029 the framework is being developed further in a research and
 development project that Germany's Bescheinigungsstelle Forschungszulage (BSFZ) has certified
 as research and development under the research allowance (Forschungszulage). Today it runs on
-Windows on x64; the project takes it further:
+Windows and Linux on x64; the project takes it further:
 
 | Where | What |
 |---|---|
-| **Operating systems** | Linux and macOS besides Windows |
+| **Operating systems** | macOS besides Windows and Linux |
 | **Desktop and server CPUs** | hybrid x64 processors with performance and efficiency cores (Intel Alder, Raptor and Arrow Lake, AMD Zen 4 and 5) |
 | **Game consoles** | Xbox (GDK), PlayStation 5 and Nintendo Switch, on top of their own fiber APIs |
 | **Embedded CPUs and MCUs** | ARM Cortex-A, -M and -R, RISC-V, Xtensa (ESP32) and PowerPC (automotive), on bare metal and next to RTOSes such as FreeRTOS and Zephyr |
@@ -493,17 +555,19 @@ Want to run your own benchmarks or work with us? [www.thinkmeta.com](https://www
 
 ## License
 
-- `lame\` and `bin\lame.exe`: LAME, GNU Library General Public License version 2 or later
+- `lame\` and `lame` in `bin\`: LAME, GNU Library General Public License version 2 or later
   ([`COPYING`](COPYING)). Copyright (c) 1999-2011 The LAME Project and the authors named in the
   sources.
-- `src\` and `bin\ctLame.exe`: a port of LAME, therefore also under the GNU LGPL version 2 or later
+- `src\` and `ctLame` in `bin\win-x64\` and `bin/linux-x64/`: a port of LAME, therefore also under the GNU LGPL version 2 or later
   ([`COPYING`](COPYING), [`src\ctLame-LICENSE.md`](src/ctLame-LICENSE.md)). Copyright (c) 2026
   ThinkMeta Software GmbH for the port, LAME's copyrights for the original.
-- `bin\ThinkMeta.ConcurrentTasks.Core.dll`: proprietary, Copyright (c) 2026 ThinkMeta Software GmbH;
-  terms of use in [`LICENSE-Core.txt`](LICENSE-Core.txt). ctLame.exe loads it at run time. The
-  terms cover the DLL only: they permit its private and non-commercial use, commercial use of the
-  DLL requires a license from ThinkMeta Software GmbH; they do not limit the rights the LGPL grants
-  for ctLame.exe.
+- The scheduler core (`ThinkMeta.ConcurrentTasks.Core.dll`, `libThinkMeta.ConcurrentTasks.Core.so.2`
+  in `bin\`): proprietary, Copyright (c) 2026 ThinkMeta Software GmbH; terms of use in
+  [`LICENSE-Core.txt`](LICENSE-Core.txt). ctLame loads it at run time. The terms cover the core
+  only: they permit its private and non-commercial use, commercial use of the core requires a
+  license from ThinkMeta Software GmbH; they do not limit the rights the LGPL grants for ctLame.
+  The Linux programs contain the GNU C++ library and libgcc, linked in under the GCC Runtime
+  Library Exception.
 - `benchmark\`, `verify\`, `ThinkMeta.SolutionFiles\` and the build files: MIT license
   ([`LICENSE.txt`](LICENSE.txt)), Copyright (c) 2026 ThinkMeta Software GmbH (`.clang-format`
   there is a copy from the submodule).

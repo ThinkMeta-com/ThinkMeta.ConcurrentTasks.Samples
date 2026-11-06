@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     ctLame against lame.exe on a folder of WAV files: speed and bit identity.
 
@@ -46,8 +46,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root    = $PSScriptRoot
-# bin\ next to the script (benchmark package) or one level up (ctLame repository, benchmark\)
-$bin     = if (Test-Path (Join-Path $root 'bin')) { Join-Path $root 'bin' } else { Join-Path (Split-Path $root) 'bin' }
+# bin\ next to the script (benchmark package) or bin\win-x64\ one level up (ctLame folder, benchmark\)
+$bin     = if (Test-Path (Join-Path $root 'bin')) { Join-Path $root 'bin' } else { Join-Path (Split-Path $root) 'bin\win-x64' }
 $work    = Join-Path $root 'work'
 $results = Join-Path $root 'results'
 

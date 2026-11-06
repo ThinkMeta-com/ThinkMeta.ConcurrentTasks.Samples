@@ -34,7 +34,7 @@ namespace LameTests {
 
         // the file in memory: placeholder of the tag, frames, flush; the tag frame replaces the
         // placeholder at the end, like the writer does
-        struct EncodeRun : IPcmSink, IFrameSink {
+        struct EncodeRun final : IPcmSink, IFrameSink {
             static constexpr std::size_t Capacity = 8 * 1024 * 1024;
 
             SessionConfig config;
@@ -45,8 +45,8 @@ namespace LameTests {
             std::size_t   used  = 0;
             bool          error = false;
 
-            EncodeRun() { out = static_cast<std::byte*>(HeapAlloc(GetProcessHeap(), 0, Capacity)); }
-            ~EncodeRun() { HeapFree(GetProcessHeap(), 0, out); }
+            EncodeRun() { out = static_cast<std::byte*>(Shared::Heap::Allocate(Capacity)); }
+            ~EncodeRun() { Shared::Heap::Free(out); }
 
             void Append(const std::byte* data, std::int32_t size)
             {
@@ -63,13 +63,13 @@ namespace LameTests {
             void EncodeFrame(const ChannelSamples& in) override { Append(frame, encoder.RunAllStages(in, frame, sizeof(frame))); }
         };
 
-        void Run(const wchar_t* name, const wchar_t* file, void (*adjust)(EncoderOptions&), std::size_t expectedSize, std::uint64_t expected)
+        void Run(const Char* name, const Char* file, void (*adjust)(EncoderOptions&), std::size_t expectedSize, std::uint64_t expected)
         {
-            wchar_t path[MAX_PATH];
-            swprintf_s(path, L"%ls%ls", SynthDir(), file);
+            Char path[Shared::File::MaxPath];
+            FormatTo(path, CT_TEXT("%s%s"), SynthDir(), file);
             WavData wav;
             if (!wav.Load(path)) {
-                wchar_t text[400];
+                Char text[400];
                 Logger::WriteMessage(MissingInputText(text, name, path));
                 return;
             }
@@ -104,45 +104,45 @@ namespace LameTests {
             const bool        error = run->error;
             const std::size_t size  = run->used;
 
-            wchar_t text[200];
-            swprintf_s(text, L"%ls: %zu bytes 0x%016llX", name, size, checksum.value);
+            Char text[200];
+            FormatTo(text, CT_TEXT("%s: %zu bytes 0x%016llX"), name, size, checksum.value);
             Logger::WriteMessage(text);
             Assert::IsFalse(error, name);
             Assert::AreEqual(expectedSize, size, name);
             Assert::AreEqual(expected, checksum.value, name);
         }
 
-        constexpr const wchar_t* Clipped = L"s16-stereo-44100-clipped.wav";
+        constexpr const Char* Clipped = CT_TEXT("s16-stereo-44100-clipped.wav");
 
     } // namespace
 
-    TEST_CLASS(EncoderGoldenTests){public: TEST_METHOD(V4){Run(L"V4", Clipped, [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 385718, 0x5E783E2D1529CD12ull);
+    TEST_CLASS(EncoderGoldenTests){public: TEST_METHOD(V4){Run(CT_TEXT("V4"), Clipped, [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 385718, 0x5E783E2D1529CD12ull);
 } // namespace LameTests
 
 TEST_METHOD(V0)
 {
-    Run(L"V0", Clipped, [](EncoderOptions& o) { o.SetVbrQuality(0.0f); }, 718945, 0x8A5969A07E0A1BA2ull);
+    Run(CT_TEXT("V0"), Clipped, [](EncoderOptions& o) { o.SetVbrQuality(0.0f); }, 718945, 0x8A5969A07E0A1BA2ull);
 }
 
 TEST_METHOD(V9999)
 {
-    Run(L"V9999", Clipped, [](EncoderOptions& o) { o.SetVbrQuality(9.999f); }, 160979, 0xAC4E7B562DBAA8C3ull);
+    Run(CT_TEXT("V9999"), Clipped, [](EncoderOptions& o) { o.SetVbrQuality(9.999f); }, 160979, 0xAC4E7B562DBAA8C3ull);
 }
 
 TEST_METHOD(MonoInputV4)
 {
-    Run(L"MonoInputV4", L"s16-mono-44100.wav", [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 204722, 0x5210300AF1773B59ull);
+    Run(CT_TEXT("MonoInputV4"), CT_TEXT("s16-mono-44100.wav"), [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 204722, 0x5210300AF1773B59ull);
 }
 
 TEST_METHOD(Rate32kV73)
 {
-    Run(L"Rate32kV73", L"s16-stereo-32000.wav", [](EncoderOptions& o) { o.SetVbrQuality(7.3f); }, 304416, 0x4E2A5B8892FD249Bull);
+    Run(CT_TEXT("Rate32kV73"), CT_TEXT("s16-stereo-32000.wav"), [](EncoderOptions& o) { o.SetVbrQuality(7.3f); }, 304416, 0x4E2A5B8892FD249Bull);
 }
 
 TEST_METHOD(Rate48kStereoV15)
 {
     Run(
-        L"Rate48kStereoV15", L"s16-stereo-48000.wav",
+        CT_TEXT("Rate48kStereoV15"), CT_TEXT("s16-stereo-48000.wav"),
         [](EncoderOptions& o) {
             o.SetMode(Stereo);
             o.SetVbrQuality(1.5f);
@@ -153,7 +153,7 @@ TEST_METHOD(Rate48kStereoV15)
 TEST_METHOD(MonoDownmixV5)
 {
     Run(
-        L"MonoDownmixV5", Clipped,
+        CT_TEXT("MonoDownmixV5"), Clipped,
         [](EncoderOptions& o) {
             o.SetMode(Mono);
             o.SetVbrQuality(5.0f);
@@ -164,7 +164,7 @@ TEST_METHOD(MonoDownmixV5)
 TEST_METHOD(ExperimentalZV3)
 {
     Run(
-        L"ExperimentalZV3", Clipped,
+        CT_TEXT("ExperimentalZV3"), Clipped,
         [](EncoderOptions& o) {
             o.SetExperimentalZ(1);
             o.SetVbrQuality(3.0f);
@@ -175,7 +175,7 @@ TEST_METHOD(ExperimentalZV3)
 TEST_METHOD(ErrorProtectionV2)
 {
     Run(
-        L"ErrorProtectionV2", Clipped,
+        CT_TEXT("ErrorProtectionV2"), Clipped,
         [](EncoderOptions& o) {
             o.SetErrorProtection(1);
             o.SetVbrQuality(2.0f);
@@ -186,7 +186,7 @@ TEST_METHOD(ErrorProtectionV2)
 TEST_METHOD(HardMinMaxV4)
 {
     Run(
-        L"HardMinMaxV4", Clipped,
+        CT_TEXT("HardMinMaxV4"), Clipped,
         [](EncoderOptions& o) {
             o.SetVbrMinBitrateKbps(64);
             o.SetVbrMaxBitrateKbps(160);
@@ -199,7 +199,7 @@ TEST_METHOD(HardMinMaxV4)
 TEST_METHOD(NoReservoirV4)
 {
     Run(
-        L"NoReservoirV4", Clipped,
+        CT_TEXT("NoReservoirV4"), Clipped,
         [](EncoderOptions& o) {
             o.SetDisableReservoir(1);
             o.SetVbrQuality(4.0f);
@@ -210,7 +210,7 @@ TEST_METHOD(NoReservoirV4)
 TEST_METHOD(NoTagV4)
 {
     Run(
-        L"NoTagV4", Clipped,
+        CT_TEXT("NoTagV4"), Clipped,
         [](EncoderOptions& o) {
             o.SetWriteVbrTag(0);
             o.SetVbrQuality(4.0f);

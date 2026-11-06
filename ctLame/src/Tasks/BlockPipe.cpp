@@ -9,21 +9,22 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "Memory.h"
+
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     BlockPipe::~BlockPipe()
     {
-        if (memory_ != nullptr)
-            VirtualFree(memory_, 0, MEM_RELEASE);
-        if (sizes_ != nullptr)
-            HeapFree(GetProcessHeap(), 0, sizes_);
+        Shared::AddressSpace::Release(memory_, memoryBytes_);
+        Shared::Heap::Free(sizes_);
     }
 
     bool BlockPipe::Initialize(std::uint32_t blockCount, std::uint32_t blockSize) noexcept
     {
         const std::size_t total = static_cast<std::size_t>(blockCount) * blockSize;
-        memory_                 = static_cast<std::byte*>(VirtualAlloc(nullptr, total, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
-        sizes_                  = static_cast<std::uint32_t*>(HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, blockCount * sizeof(std::uint32_t)));
+        memory_                 = static_cast<std::byte*>(Shared::AddressSpace::Allocate(total));
+        memoryBytes_            = memory_ != nullptr ? total : 0;
+        sizes_                  = static_cast<std::uint32_t*>(Shared::Heap::Allocate(blockCount * sizeof(std::uint32_t), true));
         if (memory_ == nullptr || sizes_ == nullptr)
             return false;
         blockCount_ = blockCount;

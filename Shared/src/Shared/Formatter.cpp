@@ -209,8 +209,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
     }
 
     template <typename Char>
-    std::int32_t Formatter::Run(Char* buffer, std::int32_t size, const Char* format, std::va_list args) noexcept
+    std::int32_t Formatter::Run(Char* buffer, std::int32_t size, const Char* format, std::va_list arguments) noexcept
     {
+        // A local copy that the helpers take by reference: on x64 Linux va_list is an array type, so a parameter of
+        // that type is a pointer and cannot bind to std::va_list&.
+        std::va_list args;
+        va_copy(args, arguments);
         Output<Char> out(buffer, size);
         while (*format != 0) {
             if (*format != '%') {
@@ -262,6 +266,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
                 default: break;
             }
         }
+        va_end(args);
         return out.Finish();
     }
 
@@ -417,8 +422,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
         const char*        sign      = negative ? "-" : spec.plus ? "+" : spec.space ? " " : "";
 
         if (special) {
-            const bool   isNan  = (bits & ((std::uint64_t{1} << 52) - 1)) != 0;
-            const char*  text   = !isNan ? (upper ? "INF" : "inf") : negative ? (upper ? "NAN(IND)" : "nan(ind)") : (upper ? "NAN" : "nan");
+            const bool isNan = (bits & ((std::uint64_t{1} << 52) - 1)) != 0;
+#if defined(_WIN32)
+            // the UCRT writes a negative NaN as "-nan(ind)", glibc as "-nan"
+            const char* text = !isNan ? (upper ? "INF" : "inf") : negative ? (upper ? "NAN(IND)" : "nan(ind)") : (upper ? "NAN" : "nan");
+#else
+            const char* text = !isNan ? (upper ? "INF" : "inf") : (upper ? "NAN" : "nan");
+#endif
             std::int32_t length = 0;
             while (text[length] != 0)
                 ++length;
@@ -619,9 +629,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
         return code;
     }
 
-    // UTF-16; a lone surrogate stays as it is.
+    // UTF-16 (Windows); a lone surrogate stays as it is. UTF-32 where wchar_t has 4 bytes (Linux).
     char32_t Formatter::NextCodePoint(const wchar_t*& text) noexcept
     {
+        if constexpr (sizeof(wchar_t) == 4)
+            return static_cast<char32_t>(*text++);
         const char32_t first = static_cast<char16_t>(*text++);
         if (first >= 0xD800 && first < 0xDC00 && *text >= 0xDC00 && *text < 0xE000) {
             const char32_t second = static_cast<char16_t>(*text++);
@@ -656,6 +668,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
 
     std::int32_t Formatter::Encode(char32_t codePoint, wchar_t* out) noexcept
     {
+        if constexpr (sizeof(wchar_t) == 4) { // UTF-32 (Linux)
+            out[0] = static_cast<wchar_t>(codePoint);
+            return 1;
+        }
         if (codePoint < 0x10000) {
             out[0] = static_cast<wchar_t>(codePoint);
             return 1;

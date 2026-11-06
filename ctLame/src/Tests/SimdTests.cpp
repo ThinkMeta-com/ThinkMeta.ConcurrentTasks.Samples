@@ -399,8 +399,8 @@ TEST_METHOD(ChooseCapsAtTheCpu)
     all.sse41 = all.avx2 = true;
     Assert::IsTrue(ChooseSimdLevel(SimdLevel::Sse41, all) == SimdLevel::Sse41);
     SimdLevel level = SimdLevel::Scalar;
-    Assert::IsTrue(ParseSimdLevel(L"avx2", level) && level == SimdLevel::Avx2);
-    Assert::IsFalse(ParseSimdLevel(L"avx512", level));
+    Assert::IsTrue(ParseSimdLevel(CT_TEXT("avx2"), level) && level == SimdLevel::Avx2);
+    Assert::IsFalse(ParseSimdLevel(CT_TEXT("avx512"), level));
 }
 }
 ;

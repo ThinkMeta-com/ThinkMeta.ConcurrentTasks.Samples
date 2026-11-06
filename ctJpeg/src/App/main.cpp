@@ -4,8 +4,9 @@
 #include <cstdint>
 
 #include "Application.h"
+#include "Text.h"
 
-int wmain(int argc, wchar_t** argv)
+int CT_MAIN(int argc, ThinkMeta::ConcurrentTasks::Samples::Shared::Char** argv)
 {
     ThinkMeta::ConcurrentTasks::Samples::Jpeg::Application application;
     if (application.ParseArgs(argc, argv))

@@ -9,7 +9,9 @@
 #include <ThinkMeta.ConcurrentTasks/Core.h>
 
 #include "Compressor.h"
+#include "File.h"
 #include "TestData.h"
+#include "Text.h"
 
 #include <libdeflate.h>
 
@@ -24,7 +26,7 @@ namespace Ct = ThinkMeta::ConcurrentTasks;
 
 // The task graph itself (DeflateGraph on real schedulers): the parallel algorithm with 1, 2 and 7 workers, from memory
 // and from file to file, against libdeflate as the oracle; and a read error that must end the graph with the error
-// instead of hanging.
+// instead of hanging (Windows: Linux has no mandatory byte-range locks to make a read fail).
 namespace DeflateTests {
 
     namespace {
@@ -38,32 +40,31 @@ namespace DeflateTests {
             return out;
         }
 
-        std::wstring TempPath(const wchar_t* name)
+        using Path = std::basic_string<Shared::Char>;
+
+        // a file of this test process in the temp folder
+        Path TempPath(const char* name)
         {
-            wchar_t dir[MAX_PATH];
-            GetTempPathW(MAX_PATH, dir);
-            return std::wstring(dir) + L"ctDeflateGraphTests-" + std::to_wstring(GetCurrentProcessId()) + L"-" + name;
+#if defined(_WIN32)
+            const auto process = GetCurrentProcessId();
+#else
+            const auto process = getpid();
+#endif
+            const std::string file = "ctDeflateGraphTests-" + std::to_string(process) + "-" + name;
+            return (std::filesystem::temp_directory_path() / file).native();
         }
 
-        void WriteFileAll(const std::wstring& path, const std::vector<std::uint8_t>& data)
+        void WriteFileAll(const Path& path, const std::vector<std::uint8_t>& data)
         {
-            HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-            Assert::IsTrue(file != INVALID_HANDLE_VALUE);
-            DWORD written = 0; // DWORD of WriteFile
-            Assert::IsTrue(WriteFile(file, data.data(), static_cast<DWORD>(data.size()), &written, nullptr) && written == data.size());
-            CloseHandle(file);
+            Assert::IsTrue(Shared::File::Write(path.c_str(), data.data(), data.size()));
         }
 
-        std::vector<std::uint8_t> ReadFileAll(const std::wstring& path)
+        std::vector<std::uint8_t> ReadFileAll(const Path& path)
         {
-            HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-            Assert::IsTrue(file != INVALID_HANDLE_VALUE);
-            LARGE_INTEGER size;
-            GetFileSizeEx(file, &size);
-            std::vector<std::uint8_t> data(static_cast<std::size_t>(size.QuadPart));
-            DWORD                     read = 0; // DWORD of ReadFile
-            Assert::IsTrue(ReadFile(file, data.data(), static_cast<DWORD>(data.size()), &read, nullptr) && read == data.size());
-            CloseHandle(file);
+            std::uint64_t size = 0;
+            Assert::IsTrue(Shared::File::Size(path.c_str(), size));
+            std::vector<std::uint8_t> data(static_cast<std::size_t>(size));
+            Assert::IsTrue(Shared::File::Read(path.c_str(), data.data(), data.size()));
             return data;
         }
 
@@ -85,8 +86,8 @@ namespace DeflateTests {
                 result = graph.Run(*runtime.Io(), *compute);
             }
             wchar_t label[160];
-            swprintf_s(label, L"kind %d size %zu level %d workers %u chunk %zu%s", static_cast<int>(kind), size, level, workers, chunk,
-                       sequential ? L" sequential" : L"");
+            std::swprintf(label, std::size(label), L"kind %d size %zu level %d workers %u chunk %zu%ls", static_cast<int>(kind), size, level, workers, chunk,
+                          sequential ? L" sequential" : L"");
             Assert::AreEqual(0u, result.error, label);
             Assert::AreEqual(expected.size(), static_cast<std::size_t>(result.outSize), label);
             Assert::IsTrue(std::memcmp(expected.data(), out.data(), expected.size()) == 0, label);
@@ -117,8 +118,8 @@ namespace DeflateTests {
         TEST_METHOD(FileToFileMatchesOracle)
         {
             const auto data = MakeData(DataKind::Mixed, 12 << 20, 7);
-            const auto in   = TempPath(L"in.bin");
-            const auto out  = TempPath(L"out.gz");
+            const auto in   = TempPath("in.bin");
+            const auto out  = TempPath("out.gz");
             WriteFileAll(in, data);
             for (const bool sequential : {false, true}) {
                 DeflateGraph::Result result;
@@ -135,17 +136,18 @@ namespace DeflateTests {
                 const auto actual = ReadFileAll(out);
                 Assert::IsTrue(actual == Oracle(data, 6), sequential ? L"sequential" : L"parallel");
             }
-            DeleteFileW(in.c_str());
-            DeleteFileW(out.c_str());
+            Shared::File::Delete(in.c_str());
+            Shared::File::Delete(out.c_str());
         }
 
+#if defined(_WIN32)
         // A byte range of the input locked by another handle makes the reads of it fail (ERROR_LOCK_VIOLATION): the
         // graph must end and report the error, with either graph.
         TEST_METHOD(ReadErrorEndsTheGraph)
         {
             const auto data = MakeData(DataKind::Text, 8 << 20, 3);
-            const auto in   = TempPath(L"locked.bin");
-            const auto out  = TempPath(L"locked.gz");
+            const auto in   = TempPath("locked.bin");
+            const auto out  = TempPath("locked.gz");
             WriteFileAll(in, data);
             HANDLE locker = CreateFileW(in.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
             Assert::IsTrue(locker != INVALID_HANDLE_VALUE);
@@ -167,9 +169,10 @@ namespace DeflateTests {
             }
             UnlockFileEx(locker, 0, 1 << 20, 0, &at);
             CloseHandle(locker);
-            DeleteFileW(in.c_str());
-            DeleteFileW(out.c_str());
+            Shared::File::Delete(in.c_str());
+            Shared::File::Delete(out.c_str());
         }
+#endif
     };
 
 } // namespace DeflateTests

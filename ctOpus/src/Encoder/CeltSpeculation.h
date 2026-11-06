@@ -50,7 +50,7 @@
 // The memory orders: the state changes, the compare-and-swaps and the cancellation are
 // sequentially consistent; the other reads acquire, the other writes release.
 
-#include <intrin.h>
+#include <immintrin.h>
 
 #include <atomic>
 #include <cstddef>

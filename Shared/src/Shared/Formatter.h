@@ -9,7 +9,7 @@
 namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
 
     /// <summary>
-    /// printf-style formatting into a buffer, without the C runtime, with the same result as the UCRT for the
+    /// printf-style formatting into a buffer, without the C runtime, with the same result as the UCRT (glibc on Linux) for the
     /// conversions of the samples: %d %i %u %x %X (length hh, h, l, ll, z), %c, %s, %f %F %e %E %g %G and %%, with the
     /// flags - + space 0, a width and a precision (also as *). Narrow text is UTF-8. %s is a string of the type of the
     /// format (as in the UCRT), %hs always narrow and %ls always wide; %c and %lc alike.
@@ -43,7 +43,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
         class Output;
 
         template <typename Char>
-        static std::int32_t Run(Char* buffer, std::int32_t size, const Char* format, std::va_list args) noexcept;
+        static std::int32_t Run(Char* buffer, std::int32_t size, const Char* format, std::va_list arguments) noexcept;
         template <typename Char>
         static bool ParseSpec(const Char*& format, Spec& spec, std::va_list& args) noexcept;
         template <typename Char>

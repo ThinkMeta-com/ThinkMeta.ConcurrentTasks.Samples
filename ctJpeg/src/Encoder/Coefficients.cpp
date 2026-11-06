@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <Windows.h>
+#include "Memory.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
@@ -17,8 +17,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         for (std::int32_t c = 0; c < components_; ++c) {
             const auto        i     = static_cast<std::size_t>(c);
             const std::size_t count = static_cast<std::size_t>(setup.widthInBlocks[i]) * static_cast<std::size_t>(setup.heightInBlocks[i]) * DctSize2;
-            planes_[i]              = static_cast<std::int16_t*>(HeapAlloc(GetProcessHeap(), 0, count * sizeof(std::int16_t)));
-            dc_[i]                  = static_cast<std::int16_t*>(HeapAlloc(GetProcessHeap(), 0, count / DctSize2 * sizeof(std::int16_t)));
+            planes_[i]              = static_cast<std::int16_t*>(Shared::Heap::Allocate(count * sizeof(std::int16_t)));
+            dc_[i]                  = static_cast<std::int16_t*>(Shared::Heap::Allocate(count / DctSize2 * sizeof(std::int16_t)));
             if (planes_[i] == nullptr || dc_[i] == nullptr) {
                 Reset();
                 return false;
@@ -33,9 +33,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     {
         const auto i = static_cast<std::size_t>(c);
         if (planes_[i] != nullptr)
-            HeapFree(GetProcessHeap(), 0, planes_[i]);
+            Shared::Heap::Free(planes_[i]);
         if (dc_[i] != nullptr)
-            HeapFree(GetProcessHeap(), 0, dc_[i]);
+            Shared::Heap::Free(dc_[i]);
         planes_[i] = nullptr;
         dc_[i]     = nullptr;
     }
@@ -44,12 +44,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     {
         for (std::int16_t*& plane : planes_) {
             if (plane != nullptr)
-                HeapFree(GetProcessHeap(), 0, plane);
+                Shared::Heap::Free(plane);
             plane = nullptr;
         }
         for (std::int16_t*& plane : dc_) {
             if (plane != nullptr)
-                HeapFree(GetProcessHeap(), 0, plane);
+                Shared::Heap::Free(plane);
             plane = nullptr;
         }
         width_      = {};

@@ -3,32 +3,39 @@
 
 #include "FileIo.h"
 
+#if !defined(_WIN32)
+#    include <cerrno>
+#    include <fcntl.h>
+#    include <unistd.h>
+#endif
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <new>
 
-import ThinkMeta.ConcurrentTasks.Windows.Error;
+#include "Memory.h"
+
+import ThinkMeta.ConcurrentTasks.Platform.Error;
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
-    using Windows::Error;
+    using Platform::Error;
 
     // --- BlockPipe -------------------------------------------------------------------------------
 
     BlockPipe::~BlockPipe()
     {
-        if (memory_ != nullptr)
-            VirtualFree(memory_, 0, MEM_RELEASE);
-        if (sizes_ != nullptr)
-            HeapFree(GetProcessHeap(), 0, sizes_);
+        Shared::AddressSpace::Release(memory_, memoryBytes_);
+        Shared::Heap::Free(sizes_);
     }
 
     bool BlockPipe::Initialize(std::uint32_t blockCount, std::uint32_t blockSize) noexcept
     {
         const std::size_t total = static_cast<std::size_t>(blockCount) * blockSize;
-        memory_                 = static_cast<std::byte*>(VirtualAlloc(nullptr, total, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
-        sizes_                  = static_cast<std::uint32_t*>(HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, blockCount * sizeof(std::uint32_t)));
+        memory_                 = static_cast<std::byte*>(Shared::AddressSpace::Allocate(total));
+        memoryBytes_            = memory_ != nullptr ? total : 0;
+        sizes_                  = static_cast<std::uint32_t*>(Shared::Heap::Allocate(blockCount * sizeof(std::uint32_t), true));
         if (memory_ == nullptr || sizes_ == nullptr)
             return false;
         blockCount_ = blockCount;
@@ -90,7 +97,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     // --- FileReadTask ----------------------------------------------------------------------------
 
-    FileReadTask::FileReadTask(BlockPipe& pipe, const wchar_t* path, std::uint64_t offset, std::uint32_t readsInFlight) noexcept : pipe_(pipe), path_(path)
+    FileReadTask::FileReadTask(BlockPipe& pipe, const Shared::Char* path, std::uint64_t offset, std::uint32_t readsInFlight) noexcept : pipe_(pipe), path_(path)
     {
         options_.blockSize      = pipe.BlockSize();
         options_.blocksInFlight = readsInFlight < pipe.BlockCount() ? readsInFlight : pipe.BlockCount() - 1;
@@ -100,7 +107,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     void FileReadTask::Run() noexcept
     {
         // a read error ends the input early, as a failing ReadFile does in the synchronous InputFile
+#if defined(_WIN32)
         AsyncIo::AsyncFile::ReadFile(path_, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, this, options_);
+#else
+        AsyncIo::AsyncFile::ReadFile(path_, Platform::FileOptions{.shareWrite = true}, this, options_);
+#endif
     }
 
     std::byte* FileReadTask::RequestWriteMemory(std::size_t) noexcept
@@ -120,7 +131,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     // --- FileWriteTask ---------------------------------------------------------------------------
 
-    FileWriteTask::FileWriteTask(BlockPipe& pipe, const wchar_t* path, std::uint32_t writesInFlight) noexcept : pipe_(pipe), path_(path)
+    FileWriteTask::FileWriteTask(BlockPipe& pipe, const Shared::Char* path, std::uint32_t writesInFlight) noexcept : pipe_(pipe), path_(path)
     {
         options_.blockSize      = pipe.BlockSize();
         options_.blocksInFlight = writesInFlight < pipe.BlockCount() ? writesInFlight : pipe.BlockCount() - 1;
@@ -129,7 +140,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     void FileWriteTask::Run() noexcept
     {
         // the file was created by FileIo::CreateOutput
+#if defined(_WIN32)
         error_ = AsyncIo::AsyncFile::WriteFile(path_, GENERIC_WRITE, FILE_SHARE_READ, TRUNCATE_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, this, options_);
+#else
+        error_ = AsyncIo::AsyncFile::WriteFile(
+            path_, Platform::FileOptions{.access = Platform::FileAccess::Write, .creation = Platform::FileCreation::TruncateExisting}, this, options_);
+#endif
         // after an error: take the rest, so that the producer never waits on a full pipe
         BlockPipe::ReadBlock block{};
         while (pipe_.AcquireReadBlock(block))
@@ -161,9 +177,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         delete writer_;
     }
 
-    bool FileIo::AttachInput(InputFile& fin, const wchar_t* path) noexcept
+    bool FileIo::AttachInput(InputFile& fin, const Shared::Char* path) noexcept
     {
-        const std::int64_t position = path[0] == L'-' && path[1] == 0 ? -1 : fin.HandlePosition();
+        const std::int64_t position = path[0] == '-' && path[1] == 0 ? -1 : fin.HandlePosition();
         if (position < 0 || !readPipe_.Initialize(ReadBlocks, ReadBlockSize))
             return false;
         reader_ = new (std::nothrow) FileReadTask(readPipe_, path, static_cast<std::uint64_t>(position), ReadsInFlight);
@@ -173,17 +189,24 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         return true;
     }
 
-    std::uint32_t FileIo::CreateOutput(const wchar_t* path) noexcept
+    std::uint32_t FileIo::CreateOutput(const Shared::Char* path) noexcept
     {
         if (!writePipe_.Initialize(WriteBlocks, WriteBlockSize))
-            return ERROR_NOT_ENOUGH_MEMORY;
+            return static_cast<std::uint32_t>(Error::NotEnoughMemory);
         // created here, so that an error is reported before encoding; FileWrite opens it again
+#if defined(_WIN32)
         const HANDLE file = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (file == INVALID_HANDLE_VALUE)
             return GetLastError();
         CloseHandle(file);
+#else
+        const int file = ::open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
+        if (file < 0)
+            return static_cast<std::uint32_t>(errno);
+        ::close(file);
+#endif
         writer_ = new (std::nothrow) FileWriteTask(writePipe_, path, WritesInFlight);
-        return writer_ != nullptr ? ERROR_SUCCESS : static_cast<std::uint32_t>(ERROR_NOT_ENOUGH_MEMORY);
+        return writer_ != nullptr ? static_cast<std::uint32_t>(Error::Success) : static_cast<std::uint32_t>(Error::NotEnoughMemory);
     }
 
     void FileIo::Start(ITaskScheduler& io) noexcept

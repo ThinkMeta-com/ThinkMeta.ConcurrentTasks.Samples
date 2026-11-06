@@ -3,7 +3,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -15,6 +17,7 @@
 #include "EncoderOptions.h"
 #include "RunStats.h"
 #include "SimdFeatures.h"
+#include "Text.h"
 
 import ThinkMeta.ConcurrentTasks.Synchronization.TaskGroup;
 
@@ -36,7 +39,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         Application();
 
         /// <summary>Reads the command line (CommandLine). False on an error or after the help text.</summary>
-        bool ParseArgs(std::int32_t argc, wchar_t** argv);
+        bool ParseArgs(std::int32_t argc, Shared::Char** argv);
 
         /// <summary>Encodes the image; returns the exit code.</summary>
         std::int32_t Execute();
@@ -48,9 +51,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         /// <summary>The input arrives in steps of 1 MB: a Pixel tile wakes when the step holding its last row is in.</summary>
         static constexpr std::size_t ReadStep = std::size_t{1} << 20;
 
-        static int  DumpCoefficients(const Image& image, const EncoderOptions& options, SimdLevel simd, const wchar_t* path);
+        static int  DumpCoefficients(const Image& image, const EncoderOptions& options, SimdLevel simd, const Shared::Char* path);
         static bool StartRead(AsyncInput& input, ITaskScheduler& io, Synchronization::TaskGroup_s& ioGroup, const Options& frontend, Image& image,
-                              wchar_t* error, std::int32_t errorSize);
+                              Shared::Char* error, std::int32_t errorSize);
         static void PrintTimes(const PhaseTimes& times, double header, double schedulerStart, double encode, double endOfIo);
 
         Shared::RunStats    stats_; // --stats

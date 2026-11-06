@@ -6,6 +6,8 @@
 
 #include "SequentialEncodeTask.h"
 
+#include "Memory.h"
+
 #include <cstdint>
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
@@ -19,13 +21,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
           profile_(profile)
     {
         // zeroed, like the FrameData of the encoder
-        frame_ = static_cast<FrameData*>(HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(FrameData)));
+        frame_ = static_cast<FrameData*>(Shared::Heap::Allocate(sizeof(FrameData), true));
     }
 
     SequentialEncodeTask::~SequentialEncodeTask()
     {
-        if (frame_ != nullptr)
-            HeapFree(GetProcessHeap(), 0, frame_);
+        Shared::Heap::Free(frame_);
     }
 
     void SequentialEncodeTask::Run() noexcept

@@ -13,6 +13,7 @@
 #include "EncoderOptions.h"
 #include "Image.h"
 #include "SimdFeatures.h"
+#include "Text.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
@@ -51,6 +52,6 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     EncodeStatus EncodeFromCoefficients(const EncoderSetup& setup, const Coefficients& coefficients, ByteBuffer& output) noexcept;
 
     /// <summary>Text for a status, for error messages.</summary>
-    const wchar_t* EncodeStatusText(EncodeStatus status) noexcept;
+    const Shared::Char* EncodeStatusText(EncodeStatus status) noexcept;
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg

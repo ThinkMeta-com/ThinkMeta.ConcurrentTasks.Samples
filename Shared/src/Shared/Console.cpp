@@ -3,7 +3,13 @@
 
 #include "Console.h"
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#else
+#    include <cerrno>
+#    include <cstdlib>
+#    include <unistd.h>
+#endif
 
 #include <cstdarg>
 #include <cstddef>
@@ -13,7 +19,7 @@
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
 
-    void Console::Print(Stream stream, const wchar_t* format, ...) noexcept
+    void Console::Print(Stream stream, const Char* format, ...) noexcept
     {
         std::va_list args;
         va_start(args, format);
@@ -21,25 +27,52 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
         va_end(args);
     }
 
-    void Console::PrintV(Stream stream, const wchar_t* format, std::va_list args) noexcept
+    void Console::PrintV(Stream stream, const Char* format, std::va_list args) noexcept
     {
         // most texts fit on the stack; a longer one (a help text) is formatted again into a heap buffer
         constexpr std::int32_t LocalSize = 512;
-        wchar_t                local[LocalSize];
+        Char                   local[LocalSize];
         std::va_list           copy;
         va_copy(copy, args);
         const std::int32_t length = Formatter::FormatV(local, LocalSize, format, args);
         if (length < LocalSize) {
             Write(stream, local, length);
-        } else if (auto* text = static_cast<wchar_t*>(HeapAlloc(GetProcessHeap(), 0, (static_cast<std::size_t>(length) + 1) * sizeof(wchar_t)))) {
-            Formatter::FormatV(text, length + 1, format, copy);
-            Write(stream, text, length);
-            HeapFree(GetProcessHeap(), 0, text);
+        } else {
+            const std::size_t bytes = (static_cast<std::size_t>(length) + 1) * sizeof(Char);
+#if defined(_WIN32)
+            auto* text = static_cast<Char*>(HeapAlloc(GetProcessHeap(), 0, bytes));
+#else
+            auto* text = static_cast<Char*>(std::malloc(bytes));
+#endif
+            if (text != nullptr) {
+                Formatter::FormatV(text, length + 1, format, copy);
+                Write(stream, text, length);
+#if defined(_WIN32)
+                HeapFree(GetProcessHeap(), 0, text);
+#else
+                std::free(text);
+#endif
+            }
         }
         va_end(copy);
     }
 
-    void Console::Write(Stream stream, const wchar_t* text, std::int32_t length) noexcept
+    void Console::Fatal(const Char* format, ...) noexcept
+    {
+        std::va_list args;
+        va_start(args, format);
+        PrintV(Stream::Error, format, args);
+        va_end(args);
+#if defined(_WIN32)
+        ExitProcess(1);
+#else
+        _exit(1);
+#endif
+    }
+
+#if defined(_WIN32)
+
+    void Console::Write(Stream stream, const Char* text, std::int32_t length) noexcept
     {
         void* const handle = HandleOf(stream);
         if (handle == nullptr || length <= 0)
@@ -60,15 +93,6 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
             text += n;
             length -= n;
         }
-    }
-
-    void Console::Fatal(const wchar_t* format, ...) noexcept
-    {
-        std::va_list args;
-        va_start(args, format);
-        PrintV(Stream::Error, format, args);
-        va_end(args);
-        ExitProcess(1);
     }
 
     void* Console::HandleOf(Stream stream) noexcept
@@ -114,5 +138,24 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
             WriteFile(handle, out, static_cast<unsigned long>(used), &written, nullptr);
         }
     }
+
+#else
+
+    // UTF-8 as it is, whether the stream is a terminal, a file or a pipe
+    void Console::Write(Stream stream, const Char* text, std::int32_t length) noexcept
+    {
+        const int descriptor = stream == Stream::Output ? STDOUT_FILENO : STDERR_FILENO;
+        while (length > 0) {
+            const ssize_t written = ::write(descriptor, text, static_cast<std::size_t>(length));
+            if (written < 0 && errno == EINTR)
+                continue;
+            if (written <= 0)
+                return;
+            text += written;
+            length -= static_cast<std::int32_t>(written);
+        }
+    }
+
+#endif
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Shared

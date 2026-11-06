@@ -5,7 +5,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 #include <cstddef>
 #include <cstdint>
@@ -37,9 +39,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         InputFile& operator=(const InputFile&) = delete;
         ~InputFile() { Close(); }
 
-        /// <summary>Opens a file for reading; "-" is stdin. False with GetLastError set on failure.</summary>
-        bool Open(const wchar_t* path) noexcept;
-        void Close() noexcept;
+        /// <summary>Opens a file for reading; "-" is stdin. False on failure, with the error code in LastError.</summary>
+        bool Open(const Shared::Char* path) noexcept;
+
+        /// <summary>The error code of the operating system of the last failed Open (Windows error, errno).</summary>
+        std::uint32_t LastError() const noexcept { return lastError_; }
+        void          Close() noexcept;
 
         /// <summary>Reads up to size bytes; fewer only at the end of the input (fread).</summary>
         std::size_t Read(void* buffer, std::size_t size) noexcept;
@@ -67,11 +72,16 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         }
 
     private:
-        HANDLE               handle_   = INVALID_HANDLE_VALUE;
-        bool                 ownsFile_ = false;
-        bool                 canSeek_  = false;
-        InputSource*         source_   = nullptr;
-        const std::byte*     data_     = nullptr; // the buffered bytes: buffer_ or the source's block
+#if defined(_WIN32)
+        HANDLE handle_ = INVALID_HANDLE_VALUE;
+#else
+        int handle_ = -1; // file descriptor
+#endif
+        std::uint32_t        lastError_ = 0;
+        bool                 ownsFile_  = false;
+        bool                 canSeek_   = false;
+        InputSource*         source_    = nullptr;
+        const std::byte*     data_      = nullptr; // the buffered bytes: buffer_ or the source's block
         HeapArray<std::byte> buffer_;
         std::size_t          begin_ = 0;
         std::size_t          end_   = 0;

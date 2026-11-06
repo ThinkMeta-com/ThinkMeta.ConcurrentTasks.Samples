@@ -74,14 +74,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         return EncodeFromCoefficients(setup, coefficients, output);
     }
 
-    const wchar_t* EncodeStatusText(EncodeStatus status) noexcept
+    const Shared::Char* EncodeStatusText(EncodeStatus status) noexcept
     {
         switch (status) {
-            case EncodeStatus::Ok: return L"ok";
-            case EncodeStatus::NotImplemented: return L"not implemented yet";
-            case EncodeStatus::OutOfMemory: return L"out of memory";
-            case EncodeStatus::ReadFailed: return L"cannot read the input file";
-            default: return L"invalid input image";
+            case EncodeStatus::Ok: return CT_TEXT("ok");
+            case EncodeStatus::NotImplemented: return CT_TEXT("not implemented yet");
+            case EncodeStatus::OutOfMemory: return CT_TEXT("out of memory");
+            case EncodeStatus::ReadFailed: return CT_TEXT("cannot read the input file");
+            default: return CT_TEXT("invalid input image");
         }
     }
 

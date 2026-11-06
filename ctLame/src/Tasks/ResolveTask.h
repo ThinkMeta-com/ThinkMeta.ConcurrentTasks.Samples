@@ -6,7 +6,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -30,7 +32,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// ATH adjustment) and the filterbank carry. A serial link between the two parallel stages,
     /// so it runs with High priority.
     /// </summary>
-    class ResolveTask : public Tasks::Task
+    class ResolveTask final : public Tasks::Task
     {
     public:
         ResolveTask(FrameRing& ring, Encoder& encoder, TaskProfile* profile) noexcept : ring_(ring), encoder_(encoder), profile_(profile) {}

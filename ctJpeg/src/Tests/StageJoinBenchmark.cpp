@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cwchar>
 #include <memory>
@@ -37,14 +38,20 @@ namespace JpegTests {
             std::atomic<std::int32_t> next{0};
         };
 
-        double TicksPerNs()
+        using Clock = std::chrono::steady_clock;
+
+        // the ticks of the clock (QueryPerformanceCounter on Windows, clock_gettime on Linux)
+        long long Ticks()
         {
-            LARGE_INTEGER f;
-            QueryPerformanceFrequency(&f);
-            return static_cast<double>(f.QuadPart) / 1e9;
+            return static_cast<long long>(Clock::now().time_since_epoch().count());
         }
 
-        class Worker : public Ct::Tasks::Task
+        double TicksPerNs()
+        {
+            return static_cast<double>(Clock::period::den) / static_cast<double>(Clock::period::num) / 1e9;
+        }
+
+        class Worker final : public Ct::Tasks::Task
         {
         public:
             Worker(Jobs& jobs, double ticksPerNs) noexcept : jobs_(jobs), ticksPerNs_(ticksPerNs) {}
@@ -54,13 +61,10 @@ namespace JpegTests {
                 while (jobs_.next.fetch_add(1, std::memory_order_relaxed) < jobs_.count) {
                     if (jobs_.spinNs == 0)
                         continue;
-                    LARGE_INTEGER t0, t;
-                    QueryPerformanceCounter(&t0);
-                    const auto until = t0.QuadPart + static_cast<long long>(jobs_.spinNs * ticksPerNs_);
+                    const auto until = Ticks() + static_cast<long long>(static_cast<double>(jobs_.spinNs) * ticksPerNs_);
                     do {
                         _mm_pause();
-                        QueryPerformanceCounter(&t);
-                    } while (t.QuadPart < until);
+                    } while (Ticks() < until);
                 }
             }
 
@@ -74,8 +78,7 @@ namespace JpegTests {
         double JoinMicros(Ct::ITaskScheduler& scheduler, std::uint32_t workers, std::int32_t jobsPerJoin, std::int64_t spinNs, std::int32_t joins)
         {
             const double ticksPerNs = TicksPerNs();
-            LARGE_INTEGER t0, t1;
-            QueryPerformanceCounter(&t0);
+            const long long t0 = Ticks();
             for (std::int32_t j = 0; j < joins; ++j) {
                 Jobs jobs;
                 jobs.count                    = jobsPerJoin;
@@ -91,8 +94,8 @@ namespace JpegTests {
                     scheduler.AddTask(&*tasks[i], Ct::TaskPriority::Normal);
                 group.Wait();
             }
-            QueryPerformanceCounter(&t1);
-            return static_cast<double>(t1.QuadPart - t0.QuadPart) / ticksPerNs / 1000.0 / joins;
+            const long long t1 = Ticks();
+            return static_cast<double>(t1 - t0) / ticksPerNs / 1000.0 / joins;
         }
 
         double Median(double* v, std::int32_t n)
@@ -108,10 +111,10 @@ namespace JpegTests {
     public:
         TEST_METHOD(TaskGroupVersusTaskGroup_s)
         {
-            wchar_t value[8];
-            if (!Shared::TestEnvironment::Get(L"CTJPEG_BENCH_STAGEJOIN", value)) {
-                wchar_t text[200];
-                Logger::WriteMessage(Shared::TestEnvironment::SkipText(text, L"CTJPEG_BENCH_STAGEJOIN", L"any value"));
+            Shared::Char value[8];
+            if (!Shared::TestEnvironment::Get(CT_TEXT("CTJPEG_BENCH_STAGEJOIN"), value)) {
+                Shared::Char text[200];
+                Logger::WriteMessage(Shared::TestEnvironment::SkipText(text, CT_TEXT("CTJPEG_BENCH_STAGEJOIN"), CT_TEXT("any value")));
                 return;
             }
             constexpr std::uint32_t Workers = 16;

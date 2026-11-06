@@ -16,7 +16,7 @@
 #include "CeltVq.h"
 #include "IntMath.h"
 
-#include <intrin.h>
+#include <immintrin.h>
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 

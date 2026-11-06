@@ -16,7 +16,9 @@
 #include <cstdint>
 #include <cstring>
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 #include "LaneMath.h"
 #include "VecMath.h"
@@ -34,19 +36,25 @@
 
 // The implicit double -> float conversions of the constants are jpegli's and part of the
 // bit-exact result.
-#pragma warning(disable : 4244 4305)
+#if defined(_MSC_VER)
+#    pragma warning(disable : 4244 4305)
+#endif
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
     namespace {
 
-#pragma warning(push)
-#pragma warning(disable : 4305) // jpegli spells these as double literals in float arrays
+#if defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4305) // jpegli spells these as double literals in float arrays
+#endif
         // WcMultipliers<4> and <8> of dct-inl.h
         constexpr float WcMultipliers4[] = {0.541196100146197, 1.3065629648763764};
         constexpr float WcMultipliers8[] = {0.5097955791041592, 0.6013448869350453, 0.8999762231364156, 2.5629154477415055};
         constexpr float InvLog2e         = 0.6931471805599453; // kInvLog2e
-#pragma warning(pop)
+#if defined(_MSC_VER)
+#    pragma warning(pop)
+#endif
 
         constexpr float Sqrt2        = 1.41421356237f; // kSqrt2 of dct-inl.h B<N>()
         constexpr float DcBias       = 128.0f;         // kDCBias of ComputeCoefficientBlock: centers the DC around zero
@@ -179,7 +187,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
         // jpegli: RatioOfDerivativesOfCubicRootToSimpleGamma() (adaptive_quantization.cc).
         template <SimdLevel L>
-        __forceinline typename Vec<L>::T RatioV(typename Vec<L>::T v, bool invert) noexcept
+        CT_FORCEINLINE typename Vec<L>::T RatioV(typename Vec<L>::T v, bool invert) noexcept
         {
             using V        = Vec<L>;
             v              = V::ZeroIfNegative(v);
@@ -194,7 +202,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         struct DctV {
             using V = Vec<L>;
             using T = typename V::T;
-            static __forceinline void Run(T* mem) noexcept
+            static CT_FORCEINLINE void Run(T* mem) noexcept
             {
                 T tmp[N];
                 for (std::int32_t i = 0; i < N / 2; ++i)
@@ -219,7 +227,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         template <SimdLevel L>
         struct DctV<L, 2> {
             using V = Vec<L>;
-            static __forceinline void Run(typename V::T* mem) noexcept
+            static CT_FORCEINLINE void Run(typename V::T* mem) noexcept
             {
                 const auto in1 = mem[0];
                 const auto in2 = mem[1];
@@ -245,7 +253,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
         // jpegli: Transpose8x8Block() (transpose-inl.h): pure data movement, the same for every feature set.
         template <SimdLevel L>
-        __forceinline void Transpose8x8(const float* in, float* out) noexcept
+        CT_FORCEINLINE void Transpose8x8(const float* in, float* out) noexcept
         {
             if constexpr (L == SimdLevel::Avx2) {
                 const __m256 r0 = _mm256_loadu_ps(in), r1 = _mm256_loadu_ps(in + 8), r2 = _mm256_loadu_ps(in + 16), r3 = _mm256_loadu_ps(in + 24);
@@ -512,7 +520,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
             std::int32_t colorTmpStride = 0;     // floats per r, g, b row of the color transform
         };
 
-        __forceinline TileWindow MakeTileWindow(const EncoderSetup& s, const Image& image, std::int32_t c0, std::int32_t c1) noexcept
+        CT_FORCEINLINE TileWindow MakeTileWindow(const EncoderSetup& s, const Image& image, std::int32_t c0, std::int32_t c1) noexcept
         {
             TileWindow w;
             w.width                  = image.Width();
@@ -568,7 +576,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
             float* PreRow(std::int32_t q) noexcept { return pre + static_cast<std::size_t>(Clamp(q, 0, preLast) % preRing) * preStride + 1; }
         };
 
-        __forceinline bool AllocateBandBuffers(const EncoderSetup& s, const TileWindow& w, PixelScratch& scratch, BandBuffers& b) noexcept
+        CT_FORCEINLINE bool AllocateBandBuffers(const EncoderSetup& s, const TileWindow& w, PixelScratch& scratch, BandBuffers& b) noexcept
         {
             std::size_t floats = static_cast<std::size_t>(w.ring) * w.stride * static_cast<std::size_t>(w.comps);
             if (w.sub420)
@@ -615,7 +623,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         // PadInputBuffer() (encode.cc) for the new rows of iMCU row r: rows and columns outside the
         // image repeat the edge. The first iMCU row of a band also reads the context above it.
         template <SimdLevel L>
-        __forceinline void ReadInputRows(const Image& image, const TileWindow& w, std::int32_t r, bool firstRow, BandBuffers& b) noexcept
+        CT_FORCEINLINE void ReadInputRows(const Image& image, const TileWindow& w, std::int32_t r, bool firstRow, BandBuffers& b) noexcept
         {
             const std::int32_t yFrom = firstRow ? r * w.iMcuHeight - ContextRows : r * w.iMcuHeight + ContextRows;
             for (std::int32_t wy = yFrom; wy < r * w.iMcuHeight + w.iMcuHeight + ContextRows; ++wy) {
@@ -644,7 +652,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         }
 
         // jpegli: Downsample2x2() (downsample.cc) of iMCU row r's chroma for 4:2:0.
-        __forceinline void Downsample2x2Rows(const TileWindow& w, std::int32_t r, BandBuffers& b) noexcept
+        CT_FORCEINLINE void Downsample2x2Rows(const TileWindow& w, std::int32_t r, BandBuffers& b) noexcept
         {
             for (std::int32_t yo = r * w.iMcuHeight / 2; yo < (r + 1) * w.iMcuHeight / 2; ++yo) {
                 for (std::int32_t c = 0; c < 2; ++c) {
@@ -665,7 +673,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         };
 
         // jpegli: the dampening at the start of PerBlockModulations() (adaptive_quantization.cc).
-        __forceinline QuantFieldScaling ComputeQuantFieldScaling(const EncoderSetup& s) noexcept
+        CT_FORCEINLINE QuantFieldScaling ComputeQuantFieldScaling(const EncoderSetup& s) noexcept
         {
             QuantFieldScaling scaling;
             float             dampen = 1.0f;
@@ -684,7 +692,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         // pre-erosion rows of the Y block rows [ybBegin, ybEnd), over the strip's pre-erosion
         // columns. The first iMCU row of a band also computes the row above it.
         template <SimdLevel L>
-        __forceinline void ComputePreErosionRows(const TileWindow& w, std::int32_t ybBegin, std::int32_t ybEnd, bool firstRow, BandBuffers& b) noexcept
+        CT_FORCEINLINE void ComputePreErosionRows(const TileWindow& w, std::int32_t ybBegin, std::int32_t ybEnd, bool firstRow, BandBuffers& b) noexcept
         {
             float* const       diff  = b.diff;
             const std::int32_t pFrom = firstRow ? 2 * ybBegin - 1 : 2 * ybBegin + 1;
@@ -703,7 +711,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         // jpegli: FuzzyErosion() (adaptive_quantization.cc) of Y block row yb over the strip's
         // columns: the eroded pre-erosion rows 2 yb (fuzzyA) and 2 yb + 1 (fuzzyB).
         template <SimdLevel L>
-        __forceinline void FuzzyErosionBlockRow(const TileWindow& w, std::int32_t yb, BandBuffers& b) noexcept
+        CT_FORCEINLINE void FuzzyErosionBlockRow(const TileWindow& w, std::int32_t yb, BandBuffers& b) noexcept
         {
             const std::int32_t fx0 = 2 * w.yBlockBegin, fn = 2 * (w.yBlockEnd - w.yBlockBegin);
             FuzzyErosionRowV<L>(b.PreRow(2 * yb - 1) + fx0, b.PreRow(2 * yb) + fx0, b.PreRow(2 * yb + 1) + fx0, fn, b.fuzzyA + 1 + fx0);
@@ -713,7 +721,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         // jpegli: PerBlockModulations() (adaptive_quantization.cc) and the final mapping of
         // ComputeAdaptiveQuantField() for the strip's blocks of Y block row yb.
         template <SimdLevel L>
-        __forceinline void PerBlockModulationsRow(const TileWindow& w, std::int32_t yb, std::int32_t ybBegin, const QuantFieldScaling& scaling, BandBuffers& b) noexcept
+        CT_FORCEINLINE void PerBlockModulationsRow(const TileWindow& w, std::int32_t yb, std::int32_t ybBegin, const QuantFieldScaling& scaling,
+                                                   BandBuffers& b) noexcept
         {
             float*       fieldRow = b.field + static_cast<std::size_t>(yb - ybBegin) * w.yBlocks;
             const float* even     = b.fuzzyA + 1;
@@ -733,8 +742,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         // jpegli: ComputeAdaptiveQuantField() (adaptive_quantization.cc) of the Y block rows
         // [ybBegin, ybEnd) of an iMCU row.
         template <SimdLevel L>
-        __forceinline void ComputeAdaptiveQuantField(const TileWindow& w, std::int32_t ybBegin, std::int32_t ybEnd, bool firstRow, const QuantFieldScaling& scaling,
-                                                     BandBuffers& b) noexcept
+        CT_FORCEINLINE void ComputeAdaptiveQuantField(const TileWindow& w, std::int32_t ybBegin, std::int32_t ybEnd, bool firstRow,
+                                                      const QuantFieldScaling& scaling, BandBuffers& b) noexcept
         {
             ComputePreErosionRows<L>(w, ybBegin, ybEnd, firstRow, b);
             for (std::int32_t yb = ybBegin; yb < ybEnd; ++yb) {
@@ -746,8 +755,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         // jpegli: ProcessiMCURow<kStreamingModeCoefficients>() (encode_streaming.cc): DCT and
         // quantization of the strip's blocks of iMCU row r, with the Y field of its block rows.
         template <SimdLevel L>
-        __forceinline void ComputeCoefficientsForiMcuRow(const EncoderSetup& s, const TileWindow& w, std::int32_t r, std::int32_t c0, std::int32_t c1, BandBuffers& b,
-                                                         Coefficients& out) noexcept
+        CT_FORCEINLINE void ComputeCoefficientsForiMcuRow(const EncoderSetup& s, const TileWindow& w, std::int32_t r, std::int32_t c0, std::int32_t c1,
+                                                          BandBuffers& b, Coefficients& out) noexcept
         {
             const bool         aq      = s.adaptiveQuant;
             const float* const field   = b.field;

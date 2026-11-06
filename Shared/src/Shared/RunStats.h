@@ -46,9 +46,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
         void Print(std::uint32_t threads, bool sequential) const noexcept
         {
             const double end = Diagnostics::Now();
-            Console::Print(Stream::Error, L"stats: %.3f s (start %.3f, setup %.3f, work %.3f, rest %.3f), %u thread%ls%ls, peak memory %.0f MB\n",
-                           startup_ + (end - t0_), startup_, Setup(), Work(), end - work1_, threads, threads != 1 ? L"s" : L"",
-                           sequential ? L" (sequential)" : L"", Diagnostics::PeakMemoryMB());
+            Console::Print(Stream::Error, CT_TEXT("stats: %.3f s (start %.3f, setup %.3f, work %.3f, rest %.3f), %u thread%s%s, peak memory %.0f MB\n"),
+                           startup_ + (end - t0_), startup_, Setup(), Work(), end - work1_, threads, threads != 1 ? CT_TEXT("s") : CT_TEXT(""),
+                           sequential ? CT_TEXT(" (sequential)") : CT_TEXT(""), Diagnostics::PeakMemoryMB());
         }
 
     private:

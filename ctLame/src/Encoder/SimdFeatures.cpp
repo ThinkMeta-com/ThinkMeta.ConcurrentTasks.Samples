@@ -27,19 +27,19 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         return static_cast<std::int32_t>(requested) < static_cast<std::int32_t>(highest) ? requested : highest;
     }
 
-    const wchar_t* SimdLevelName(SimdLevel level) noexcept
+    const Shared::Char* SimdLevelName(SimdLevel level) noexcept
     {
         switch (level) {
-            case SimdLevel::Sse41: return L"sse4.1";
-            case SimdLevel::Avx2: return L"avx2";
-            default: return L"scalar";
+            case SimdLevel::Sse41: return CT_TEXT("sse4.1");
+            case SimdLevel::Avx2: return CT_TEXT("avx2");
+            default: return CT_TEXT("scalar");
         }
     }
 
-    bool ParseSimdLevel(const wchar_t* name, SimdLevel& level) noexcept
+    bool ParseSimdLevel(const Shared::Char* name, SimdLevel& level) noexcept
     {
         for (const SimdLevel candidate : {SimdLevel::Scalar, SimdLevel::Sse41, SimdLevel::Avx2}) {
-            if (std::wcscmp(name, SimdLevelName(candidate)) == 0) {
+            if (Shared::Text::Equal(name, SimdLevelName(candidate))) {
                 level = candidate;
                 return true;
             }

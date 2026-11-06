@@ -18,7 +18,9 @@
 // jpegli's operand types and order, including the float/double mix of std::pow.
 
 // The implicit double -> float conversions are jpegli's and part of the bit-exact result.
-#pragma warning(disable : 4244 4305)
+#if defined(_MSC_VER)
+#    pragma warning(disable : 4244 4305)
+#endif
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 

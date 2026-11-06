@@ -6,7 +6,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -32,7 +34,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// whose window is complete into the frame ring, in frame order. Holds back while all slots
     /// of the ring are in use, so the input runs at most a ring ahead of the encoding.
     /// </summary>
-    class DispatchTask : public Tasks::Task
+    class DispatchTask final : public Tasks::Task
     {
     public:
         DispatchTask(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format, FrameRing& ring, TaskProfile* profile) noexcept;

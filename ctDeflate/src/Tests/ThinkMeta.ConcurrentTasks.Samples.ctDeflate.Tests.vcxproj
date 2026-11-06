@@ -45,6 +45,9 @@
     <ClInclude Include="TestData.h" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\src\Shared\ThinkMeta.ConcurrentTasks.Samples.Shared.vcxproj">
+      <Project>{5a4ed000-0001-4000-8000-000000000001}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\Encoder\ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Encoder.vcxproj">
       <Project>{de71a7e0-0001-4000-8000-000000000001}</Project>
     </ProjectReference>

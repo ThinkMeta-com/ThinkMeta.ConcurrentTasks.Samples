@@ -15,10 +15,13 @@
 // headers with imports last
 #include "EncodeGraph.h"
 
+namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
+    class SchedulerHandle;
+}
+
 namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     class OggOpusEncoder;
-    class Shared::SchedulerHandle;
     class WavInput;
 
     /// <summary>
@@ -34,7 +37,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         Application();
 
         /// <summary>Reads the command line (CommandLine). False on an error or after the help or version text.</summary>
-        bool ParseArgs(int argc, wchar_t** argv);
+        bool ParseArgs(int argc, Shared::Char** argv);
 
         /// <summary>Encodes the file; returns the exit code. A failure ends the process with exit code 1 (fatal()).</summary>
         int Execute();
@@ -46,7 +49,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         struct EncData;
         struct Progress;
 
-        static void         ReportToStderr(const wchar_t* format, std::va_list args);
+        static void         ReportToStderr(const Shared::Char* format, std::va_list args);
         static void         PrintTime(double seconds);
         static void         PrintOpenError(const char* name, unsigned long error);
         static bool         WriteCallback(void* user, const std::uint8_t* data, std::int32_t length);

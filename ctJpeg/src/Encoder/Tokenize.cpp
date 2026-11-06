@@ -7,12 +7,15 @@
 
 #include "Tokenize.h"
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <new>
 
 #include <immintrin.h>
-#include <intrin.h>
+#if defined(_MSC_VER)
+#    include <intrin.h>
+#endif
 
 // Port of the tokenizers of jpegli's entropy_coding.cc for progressive level 2 without restart
 // markers: TokenizeProgressiveDC, TokenizeACProgressiveScan, TokenizeACRefinementScan,
@@ -63,7 +66,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
         std::int32_t TrailingZeros(std::uint64_t v) noexcept
         {
-            return static_cast<std::int32_t>(_tzcnt_u64(v));
+#if defined(_MSC_VER)
+            return static_cast<std::int32_t>(_tzcnt_u64(v)); // without BMI1 the CPU runs it as bsf: the same for v != 0
+#else
+            return std::countr_zero(v);
+#endif
         }
 
     } // namespace

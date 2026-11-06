@@ -3,14 +3,18 @@
 // Part of ctOpus, a hand-written C++ port of libopus 1.6.1, libopusenc 0.2.1 and opus-tools 0.2;
 // their BSD license notices are in COPYING.
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#else
+#    include <cerrno>
+#    include <unistd.h>
+#endif
 
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <cwchar>
 
 #include "CommandLine.h"
 #include "Console.h"
@@ -20,6 +24,7 @@
 #include "OpusDefines.h"
 #include "OpusHeaders.h"
 #include "OpusPacket.h"
+#include "Text.h"
 #include "WavInput.h"
 
 // headers with imports last
@@ -35,23 +40,28 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     using Shared::Console;
     using Shared::Formatter;
     using Shared::Stream;
+    using Shared::Text;
 
     // EncData of opusenc.c and the output file
     struct Application::EncData {
-        OggOpusEncoder* enc          = nullptr;
-        HANDLE          out          = INVALID_HANDLE_VALUE;
-        bool            outIsStdout  = false;
-        FileIo*         io           = nullptr; // the output through the node FileWrite, else out
-        std::int64_t    totalBytes   = 0;
-        std::int64_t    bytesWritten = 0;
-        std::int64_t    nbEncoded    = 0;
-        std::int64_t    pagesOut     = 0;
-        std::int64_t    packetsOut   = 0;
-        std::int32_t    peakBytes    = 0;
-        std::int32_t    minBytes     = 256 * 1275 * 6;
-        std::int32_t    lastLength   = 0;
-        std::int32_t    nbStreams    = 1;
-        std::int32_t    nbCoupled    = 0;
+        OggOpusEncoder* enc = nullptr;
+#if defined(_WIN32)
+        HANDLE out = INVALID_HANDLE_VALUE; // stdout
+#else
+        int out = -1; // stdout
+#endif
+        bool         outIsStdout  = false;
+        FileIo*      io           = nullptr; // the output through the node FileWrite, else out
+        std::int64_t totalBytes   = 0;
+        std::int64_t bytesWritten = 0;
+        std::int64_t nbEncoded    = 0;
+        std::int64_t pagesOut     = 0;
+        std::int64_t packetsOut   = 0;
+        std::int32_t peakBytes    = 0;
+        std::int32_t minBytes     = 256 * 1275 * 6;
+        std::int32_t lastLength   = 0;
+        std::int32_t nbStreams    = 1;
+        std::int32_t nbCoupled    = 0;
     };
 
     // the spinner of opusenc's main loop
@@ -72,7 +82,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         Shared::DebugReports::ToStderr();
     }
 
-    bool Application::ParseArgs(int argc, wchar_t** argv)
+    bool Application::ParseArgs(int argc, Shared::Char** argv)
     {
         stats_.Start();
         result_ = CommandLine::Parse(argc, argv, options_);
@@ -89,28 +99,27 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         // once the graph knows its thread count.
         Shared::TaskRuntime runtime(1);
         if (!runtime)
-            Console::Fatal(L"Error: failed to start the asynchronous I/O and its scheduler\n");
+            Console::Fatal(CT_TEXT("Error: failed to start the asynchronous I/O and its scheduler\n"));
         FileIo    fileIo;
         InputFile fin;
-        if (!fin.Open(options_.argvWide[options_.inIndex])) {
-            PrintOpenError(inFile, GetLastError());
+        if (!fin.Open(options_.argvNative[options_.inIndex])) {
+            PrintOpenError(inFile, fin.LastError());
             std::exit(1);
         }
         WavInput wav;
         if (options_.rawMode || !wav.Open(fin, options_.ignoreLength, ReportToStderr))
-            Console::Fatal(L"Error: unsupported input file: %hs\n", inFile);
+            Console::Fatal(CT_TEXT("Error: unsupported input file: %hs\n"), inFile);
 
         WavInput::Info info = wav.GetInfo();
         if (info.rate < 100 || info.rate > 768000)
-            Console::Fatal(L"Error: unsupported sample rate in input file: %ld Hz\n", static_cast<long>(info.rate));
+            Console::Fatal(CT_TEXT("Error: unsupported sample rate in input file: %ld Hz\n"), static_cast<long>(info.rate));
         if (info.channels > 255 || info.channels < 1)
-            Console::Fatal(L"Error: unsupported channel count in input file: %d\n"
-                           L"Channel count must be in the range 1 to 255.\n",
+            Console::Fatal(CT_TEXT("Error: unsupported channel count in input file: %d\n") CT_TEXT("Channel count must be in the range 1 to 255.\n"),
                            info.channels);
 
         if (options_.downmix == 0 && info.channels > 2 && options_.bitrate > 0 && options_.bitrate < (16000 * info.channels)) {
             if (!options_.quiet)
-                Console::Print(Stream::Error, L"Notice: Surround bitrate less than 16 kbit/s per channel, downmixing.\n");
+                Console::Print(Stream::Error, CT_TEXT("Notice: Surround bitrate less than 16 kbit/s per channel, downmixing.\n"));
             options_.downmix = info.channels > 8 ? 1 : 2;
         }
         if (options_.downmix > 0 && options_.downmix < info.channels)
@@ -135,24 +144,24 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         callbacks.packet = PacketCallback;
         std::int32_t ret = encoder.Create(callbacks, options_.comments, rate, chan, chan > 8 ? 255 : chan > 2 ? 1 : 0);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: failed to create encoder: %hs\n", OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: failed to create encoder: %hs\n"), OpeErrorString(ret));
         data.enc = &encoder;
 
         ret = encoder.SetExpertFrameDuration(options_.opusFrameParam);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: OPUS_SET_EXPERT_FRAME_DURATION failed: %hs\n", OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: OPUS_SET_EXPERT_FRAME_DURATION failed: %hs\n"), OpeErrorString(ret));
         ret = encoder.Ctl(OpeSetMuxingDelayRequest, options_.maxOggDelay);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: OPE_SET_MUXING_DELAY failed: %hs\n", OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: OPE_SET_MUXING_DELAY failed: %hs\n"), OpeErrorString(ret));
         ret = encoder.Ctl(OpeSetSerialNoRequest, options_.serialNo);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: OPE_SET_SERIALNO failed: %hs\n", OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: OPE_SET_SERIALNO failed: %hs\n"), OpeErrorString(ret));
         ret = encoder.Ctl(OpeSetHeaderGainRequest, 0);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: OPE_SET_HEADER_GAIN failed: %hs\n", OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: OPE_SET_HEADER_GAIN failed: %hs\n"), OpeErrorString(ret));
         ret = encoder.Ctl(OpeSetCommentPaddingRequest, options_.commentPadding);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: OPE_SET_COMMENT_PADDING failed: %hs\n", OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: OPE_SET_COMMENT_PADDING failed: %hs\n"), OpeErrorString(ret));
 
         data.nbStreams = encoder.NbStreams();
         data.nbCoupled = encoder.NbCoupledStreams();
@@ -166,42 +175,41 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             options_.bitrate     = ((64000 * data.nbStreams + 32000 * data.nbCoupled) * (k + 16) + 32) >> 6;
         }
         if (options_.bitrate > (1024000 * chan) || options_.bitrate < 500)
-            Console::Fatal(L"Error: bitrate %d bits/sec is insane\n%hs"
-                           L"--bitrate values from 6 to 256 kbit/s per channel are meaningful.\n",
+            Console::Fatal(CT_TEXT("Error: bitrate %d bits/sec is insane\n%hs") CT_TEXT("--bitrate values from 6 to 256 kbit/s per channel are meaningful.\n"),
                            options_.bitrate, options_.bitrate >= 1000000 ? "Did you mistake bits for kilobits?\n" : "");
         options_.bitrate = chan * 256000 < options_.bitrate ? chan * 256000 : options_.bitrate;
 
         ret = encoder.Ctl(OPUS_SET_BITRATE_REQUEST, options_.bitrate);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: OPUS_SET_BITRATE %d failed: %hs\n", options_.bitrate, OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: OPUS_SET_BITRATE %d failed: %hs\n"), options_.bitrate, OpeErrorString(ret));
         ret = encoder.Ctl(OPUS_SET_VBR_REQUEST, !options_.withHardCbr);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: OPUS_SET_VBR %d failed: %hs\n", !options_.withHardCbr, OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: OPUS_SET_VBR %d failed: %hs\n"), !options_.withHardCbr, OpeErrorString(ret));
         if (!options_.withHardCbr) {
             ret = encoder.Ctl(OPUS_SET_VBR_CONSTRAINT_REQUEST, options_.withCvbr);
             if (ret != OpeOk)
-                Console::Fatal(L"Error: OPUS_SET_VBR_CONSTRAINT %d failed: %hs\n", options_.withCvbr, OpeErrorString(ret));
+                Console::Fatal(CT_TEXT("Error: OPUS_SET_VBR_CONSTRAINT %d failed: %hs\n"), options_.withCvbr, OpeErrorString(ret));
         }
         ret = encoder.Ctl(OPUS_SET_SIGNAL_REQUEST, options_.signalType);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: OPUS_SET_SIGNAL failed: %hs\n", OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: OPUS_SET_SIGNAL failed: %hs\n"), OpeErrorString(ret));
         ret = encoder.Ctl(OPUS_SET_COMPLEXITY_REQUEST, options_.complexity);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: OPUS_SET_COMPLEXITY %d failed: %hs\n", options_.complexity, OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: OPUS_SET_COMPLEXITY %d failed: %hs\n"), options_.complexity, OpeErrorString(ret));
         ret = encoder.Ctl(OPUS_SET_PACKET_LOSS_PERC_REQUEST, options_.expectLoss);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: OPUS_SET_PACKET_LOSS_PERC %d failed: %hs\n", options_.expectLoss, OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: OPUS_SET_PACKET_LOSS_PERC %d failed: %hs\n"), options_.expectLoss, OpeErrorString(ret));
         {
             std::int32_t lsb = info.sampleBits < 24 ? info.sampleBits : 24;
             lsb              = lsb > 8 ? lsb : 8;
             ret              = encoder.Ctl(OPUS_SET_LSB_DEPTH_REQUEST, lsb);
             if (ret != OpeOk)
-                Console::Print(Stream::Error, L"Warning: OPUS_SET_LSB_DEPTH failed: %hs\n", OpeErrorString(ret));
+                Console::Print(Stream::Error, CT_TEXT("Warning: OPUS_SET_LSB_DEPTH failed: %hs\n"), OpeErrorString(ret));
         }
         if (options_.noPhaseInv) {
             ret = encoder.Ctl(OPUS_SET_PHASE_INVERSION_DISABLED_REQUEST, 1);
             if (ret != OpeOk)
-                Console::Print(Stream::Error, L"Warning: OPUS_SET_PHASE_INVERSION_DISABLED failed: %hs\n", OpeErrorString(ret));
+                Console::Print(Stream::Error, CT_TEXT("Warning: OPUS_SET_PHASE_INVERSION_DISABLED failed: %hs\n"), OpeErrorString(ret));
         }
 
         // the last SET ctls, so they can override the defaults
@@ -210,15 +218,15 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             if (target == -1) {
                 ret = encoder.Ctl(options_.optCtlValues[i * 3 + 1], options_.optCtlValues[i * 3 + 2]);
                 if (ret != OpeOk)
-                    Console::Fatal(L"Error: failed to set encoder ctl %d=%d: %hs\n", options_.optCtlValues[i * 3 + 1], options_.optCtlValues[i * 3 + 2],
+                    Console::Fatal(CT_TEXT("Error: failed to set encoder ctl %d=%d: %hs\n"), options_.optCtlValues[i * 3 + 1], options_.optCtlValues[i * 3 + 2],
                                    OpeErrorString(ret));
             } else if (target < data.nbStreams) {
                 ret = encoder.StreamCtl(target, options_.optCtlValues[i * 3 + 1], options_.optCtlValues[i * 3 + 2]);
                 if (ret != OPUS_OK)
-                    Console::Fatal(L"Error: failed to set stream %d encoder ctl %d=%d: %hs\n", target, options_.optCtlValues[i * 3 + 1],
+                    Console::Fatal(CT_TEXT("Error: failed to set stream %d encoder ctl %d=%d: %hs\n"), target, options_.optCtlValues[i * 3 + 1],
                                    options_.optCtlValues[i * 3 + 2], OpusStrError(ret));
             } else {
-                Console::Fatal(L"Error: --set-ctl-int stream %d is higher than the highest stream number %d\n", target, data.nbStreams - 1);
+                Console::Fatal(CT_TEXT("Error: --set-ctl-int stream %d is higher than the highest stream number %d\n"), target, data.nbStreams - 1);
             }
         }
 
@@ -226,43 +234,48 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         std::int32_t lookahead = 0;
         ret                    = encoder.Get(OPUS_GET_LOOKAHEAD_REQUEST, lookahead);
         if (ret != OpeOk)
-            Console::Fatal(L"Error: OPUS_GET_LOOKAHEAD failed: %hs\n", OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Error: OPUS_GET_LOOKAHEAD failed: %hs\n"), OpeErrorString(ret));
 
         if (!options_.quiet) {
             std::int32_t opusApp = 0;
-            Console::Print(Stream::Error, L"Encoding using %hs", options_.opusVersion);
+            Console::Print(Stream::Error, CT_TEXT("Encoding using %hs"), options_.opusVersion);
             ret = encoder.Get(OPUS_GET_APPLICATION_REQUEST, opusApp);
             if (ret != OpeOk)
-                Console::Print(Stream::Error, L"\n");
+                Console::Print(Stream::Error, CT_TEXT("\n"));
             else if (opusApp == OPUS_APPLICATION_VOIP)
-                Console::Print(Stream::Error, L" (VoIP)\n");
+                Console::Print(Stream::Error, CT_TEXT(" (VoIP)\n"));
             else if (opusApp == OPUS_APPLICATION_AUDIO)
-                Console::Print(Stream::Error, L" (audio)\n");
+                Console::Print(Stream::Error, CT_TEXT(" (audio)\n"));
             else if (opusApp == OPUS_APPLICATION_RESTRICTED_LOWDELAY)
-                Console::Print(Stream::Error, L" (low-delay)\n");
+                Console::Print(Stream::Error, CT_TEXT(" (low-delay)\n"));
             else
-                Console::Print(Stream::Error, L" (unknown application)\n");
-            Console::Print(Stream::Error, L"-----------------------------------------------------\n");
-            Console::Print(Stream::Error, L"   Input: %0.6g kHz, %d channel%hs\n", rate / 1000., chan, chan < 2 ? "" : "s");
-            Console::Print(Stream::Error, L"  Output: %d channel%hs (", chan, chan < 2 ? "" : "s");
+                Console::Print(Stream::Error, CT_TEXT(" (unknown application)\n"));
+            Console::Print(Stream::Error, CT_TEXT("-----------------------------------------------------\n"));
+            Console::Print(Stream::Error, CT_TEXT("   Input: %0.6g kHz, %d channel%hs\n"), rate / 1000., chan, chan < 2 ? "" : "s");
+            Console::Print(Stream::Error, CT_TEXT("  Output: %d channel%hs ("), chan, chan < 2 ? "" : "s");
             if (data.nbCoupled > 0)
-                Console::Print(Stream::Error, L"%d coupled", data.nbCoupled * 2);
+                Console::Print(Stream::Error, CT_TEXT("%d coupled"), data.nbCoupled * 2);
             if (data.nbStreams - data.nbCoupled > 0)
-                Console::Print(Stream::Error, L"%hs%d uncoupled", data.nbCoupled > 0 ? ", " : "", data.nbStreams - data.nbCoupled);
-            Console::Print(Stream::Error, L")\n          %0.2gms packets, %0.6g kbit/s%hs\n", options_.frameSize / (48000 / 1000.), options_.bitrate / 1000.,
+                Console::Print(Stream::Error, CT_TEXT("%hs%d uncoupled"), data.nbCoupled > 0 ? ", " : "", data.nbStreams - data.nbCoupled);
+            Console::Print(Stream::Error, CT_TEXT(")\n          %0.2gms packets, %0.6g kbit/s%hs\n"), options_.frameSize / (48000 / 1000.),
+                           options_.bitrate / 1000.,
                            options_.withHardCbr    ? " CBR"
                                : options_.withCvbr ? " CVBR"
                                                    : " VBR");
-            Console::Print(Stream::Error, L" Preskip: %d\n", lookahead);
-            Console::Print(Stream::Error, L"\n");
+            Console::Print(Stream::Error, CT_TEXT(" Preskip: %d\n"), lookahead);
+            Console::Print(Stream::Error, CT_TEXT("\n"));
         }
 
         if (std::strcmp(outFile, "-") == 0) {
-            data.out         = GetStdHandle(STD_OUTPUT_HANDLE);
+#if defined(_WIN32)
+            data.out = GetStdHandle(STD_OUTPUT_HANDLE);
+#else
+            data.out = STDOUT_FILENO;
+#endif
             data.outIsStdout = true;
         } else {
-            const std::uint32_t error = fileIo.CreateOutput(options_.argvWide[options_.outIndex]);
-            if (error != ERROR_SUCCESS) {
+            const std::uint32_t error = fileIo.CreateOutput(options_.argvNative[options_.outIndex]);
+            if (error != 0) {
                 PrintOpenError(outFile, error);
                 std::exit(1);
             }
@@ -271,7 +284,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
         HeapArray<float> input;
         if (!input.Allocate(static_cast<std::size_t>(options_.frameSize) * chan))
-            Console::Fatal(L"Error: failed to allocate sample buffer\n");
+            Console::Fatal(CT_TEXT("Error: failed to allocate sample buffer\n"));
 
         Progress progress;
         progress.data                   = &data;
@@ -297,7 +310,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         settings.complexity = options_.complexity;
         settings.progress   = encodeProgress;
         // the rest of the input file behind the WAV header through FileRead (not for stdin)
-        settings.asyncInput = fileIo.AttachInput(fin, options_.argvWide[options_.inIndex]);
+        settings.asyncInput = fileIo.AttachInput(fin, options_.argvNative[options_.inIndex]);
         fileIo.Start(*runtime.Io());
         stats_.WorkBegins();
         ret                = RunEncodeGraph(wav, encoder, settings, options_.sequential, input.Data(), options_.frameSize, *runtime.Io());
@@ -307,41 +320,39 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         if (ret == OpeOk && !written)
             ret = OpeCloseFail;
         if (progress.lastSpinLen != 0) {
-            Console::Print(Stream::Error, L"\r");
+            Console::Print(Stream::Error, CT_TEXT("\r"));
             for (std::int32_t i = 0; i < progress.lastSpinLen; ++i)
-                Console::Print(Stream::Error, L" ");
-            Console::Print(Stream::Error, L"\r");
+                Console::Print(Stream::Error, CT_TEXT(" "));
+            Console::Print(Stream::Error, CT_TEXT("\r"));
         }
 
         if (ret != OpeOk)
-            Console::Fatal(L"Encoding aborted: %hs\n", OpeErrorString(ret));
+            Console::Fatal(CT_TEXT("Encoding aborted: %hs\n"), OpeErrorString(ret));
         const std::time_t stopTime = std::time(nullptr);
 
         if (!options_.quiet) {
             const double codedSeconds = data.nbEncoded / 48000.;
             const double wallTime     = static_cast<double>(stopTime - options_.startTime);
-            Console::Print(Stream::Error, L"Encoding complete\n");
-            Console::Print(Stream::Error, L"-----------------------------------------------------\n");
-            Console::Print(Stream::Error, L"       Encoded:");
+            Console::Print(Stream::Error, CT_TEXT("Encoding complete\n"));
+            Console::Print(Stream::Error, CT_TEXT("-----------------------------------------------------\n"));
+            Console::Print(Stream::Error, CT_TEXT("       Encoded:"));
             PrintTime(codedSeconds);
-            Console::Print(Stream::Error, L"\n       Runtime:");
+            Console::Print(Stream::Error, CT_TEXT("\n       Runtime:"));
             PrintTime(wallTime);
-            Console::Print(Stream::Error, L"\n");
+            Console::Print(Stream::Error, CT_TEXT("\n"));
             if (wallTime > 0)
-                Console::Print(Stream::Error, L"                (%0.4gx realtime)\n", codedSeconds / wallTime);
-            Console::Print(Stream::Error, L"         Wrote: %lld bytes, %lld packets, %lld pages\n", data.bytesWritten, data.packetsOut, data.pagesOut);
+                Console::Print(Stream::Error, CT_TEXT("                (%0.4gx realtime)\n"), codedSeconds / wallTime);
+            Console::Print(Stream::Error, CT_TEXT("         Wrote: %lld bytes, %lld packets, %lld pages\n"), data.bytesWritten, data.packetsOut, data.pagesOut);
             if (data.nbEncoded > 0) {
-                Console::Print(Stream::Error, L"       Bitrate: %0.6g kbit/s (without overhead)\n", data.totalBytes * 8.0 / (codedSeconds) / 1000.0);
-                Console::Print(Stream::Error,
-                               L" Instant rates: %0.6g to %0.6g kbit/s\n"
-                               L"                (%d to %d bytes per packet)\n",
+                Console::Print(Stream::Error, CT_TEXT("       Bitrate: %0.6g kbit/s (without overhead)\n"), data.totalBytes * 8.0 / (codedSeconds) / 1000.0);
+                Console::Print(Stream::Error, CT_TEXT(" Instant rates: %0.6g to %0.6g kbit/s\n") CT_TEXT("                (%d to %d bytes per packet)\n"),
                                data.minBytes * (8 * 48000. / options_.frameSize / 1000.), data.peakBytes * (8 * 48000. / options_.frameSize / 1000.),
                                data.minBytes, data.peakBytes);
             }
             if (data.bytesWritten > 0)
-                Console::Print(Stream::Error, L"      Overhead: %0.3g%% (container+metadata)\n",
+                Console::Print(Stream::Error, CT_TEXT("      Overhead: %0.3g%% (container+metadata)\n"),
                                (data.bytesWritten - data.totalBytes) / static_cast<double>(data.bytesWritten) * 100.);
-            Console::Print(Stream::Error, L"\n");
+            Console::Print(Stream::Error, CT_TEXT("\n"));
         }
         if (options_.stats) {
             const std::uint32_t threads = options_.sequential ? 1u
@@ -357,7 +368,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         return result_ == Shared::ParseResult::Exit ? 0 : 1;
     }
 
-    void Application::ReportToStderr(const wchar_t* format, std::va_list args)
+    void Application::ReportToStderr(const Shared::Char* format, std::va_list args)
     {
         Console::PrintV(Stream::Error, format, args);
     }
@@ -370,19 +381,20 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         const auto minutes = static_cast<std::int64_t>(seconds / 60);
         seconds -= minutes * 60.;
         if (hours != 0)
-            Console::Print(Stream::Error, L" %lld hour%hs%hs", hours, hours != 1 ? "s" : "",
+            Console::Print(Stream::Error, CT_TEXT(" %lld hour%hs%hs"), hours, hours != 1 ? "s" : "",
                            minutes != 0 && seconds > 0       ? ","
                                : minutes != 0 || seconds > 0 ? " and"
                                                              : "");
         if (minutes != 0)
-            Console::Print(Stream::Error, L" %lld minute%hs%hs", minutes, minutes != 1 ? "s" : "", seconds > 0 ? (hours != 0 ? ", and" : " and") : "");
+            Console::Print(Stream::Error, CT_TEXT(" %lld minute%hs%hs"), minutes, minutes != 1 ? "s" : "", seconds > 0 ? (hours != 0 ? ", and" : " and") : "");
         if (seconds > 0 || (hours == 0 && minutes == 0))
-            Console::Print(Stream::Error, L" %0.4g second%hs", seconds, seconds != 1 ? "s" : "");
+            Console::Print(Stream::Error, CT_TEXT(" %0.4g second%hs"), seconds, seconds != 1 ? "s" : "");
     }
 
     // perror() for a file that cannot be opened
     void Application::PrintOpenError(const char* name, unsigned long error)
     {
+#if defined(_WIN32)
         const char* text = "Invalid argument";
         switch (error) {
             case ERROR_FILE_NOT_FOUND:
@@ -398,7 +410,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             case ERROR_DISK_FULL: text = "No space left on device"; break;
             default: break;
         }
-        Console::Print(Stream::Error, L"%hs: %hs\n", name, text);
+#else
+        const char* text = std::strerror(static_cast<int>(error)); // perror() of opusenc
+#endif
+        Console::Print(Stream::Error, CT_TEXT("%hs: %hs\n"), name, text);
     }
 
     bool Application::WriteCallback(void* user, const std::uint8_t* data, std::int32_t length)
@@ -408,8 +423,21 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         ++d->pagesOut;
         if (d->io != nullptr)
             return d->io->Write(data, length);
+#if defined(_WIN32)
         unsigned long written = 0; // DWORD of WriteFile
         return WriteFile(d->out, data, static_cast<unsigned long>(length), &written, nullptr) && written == static_cast<unsigned long>(length);
+#else
+        while (length > 0) {
+            const ssize_t written = ::write(d->out, data, static_cast<std::size_t>(length));
+            if (written < 0 && errno == EINTR)
+                continue;
+            if (written <= 0)
+                return false;
+            data += written;
+            length -= static_cast<std::int32_t>(written);
+        }
+        return true;
+#endif
     }
 
     bool Application::CloseCallback(void* user)
@@ -419,8 +447,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             d->io->EndOutput(); // FileIo::Finish waits for the last write and closes the file
             return true;
         }
+#if defined(_WIN32)
         const bool ok = CloseHandle(d->out) != 0;
         d->out        = INVALID_HANDLE_VALUE;
+#else
+        const bool ok = ::close(d->out) == 0;
+        d->out        = -1;
+#endif
         return ok;
     }
 
@@ -443,12 +476,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         const std::time_t stopTime = std::time(nullptr);
         if (stopTime <= p.lastSpin)
             return;
-        const EncData&           data         = *p.data;
-        double                   estBitrate   = 0;
-        const double             codedSeconds = data.nbEncoded / 48000.;
-        const double             wallTime     = static_cast<double>(stopTime - p.startTime);
-        wchar_t                  sbuf[55];
-        static constexpr wchar_t Spinner[] = L"|/-\\";
+        const EncData&                data         = *p.data;
+        double                        estBitrate   = 0;
+        const double                  codedSeconds = data.nbEncoded / 48000.;
+        const double                  wallTime     = static_cast<double>(stopTime - p.startTime);
+        Shared::Char                  sbuf[55];
+        static constexpr Shared::Char Spinner[] = CT_TEXT("|/-\\");
         if (p.withHardCbr) {
             estBitrate = data.lastLength * (8 * 48000. / p.frameSize);
         } else if (data.nbEncoded <= 0) {
@@ -457,20 +490,20 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             const double tweight = 1. / (1 + std::exp(-((codedSeconds / 10.) - 3.)));
             estBitrate           = (data.totalBytes * 8.0 / codedSeconds) * tweight + p.bitrate * (1. - tweight);
         }
-        Console::Print(Stream::Error, L"\r");
+        Console::Print(Stream::Error, CT_TEXT("\r"));
         for (std::int32_t i = 0; i < p.lastSpinLen; ++i)
-            Console::Print(Stream::Error, L" ");
+            Console::Print(Stream::Error, CT_TEXT(" "));
         if (p.totalSamplesPerChannel > 0 && data.nbEncoded < p.totalSamplesPerChannel + p.lookahead)
-            Formatter::Format(sbuf, 54, L"\r[%c] %2d%% ", Spinner[p.lastSpin & 3],
+            Formatter::Format(sbuf, 54, CT_TEXT("\r[%c] %2d%% "), Spinner[p.lastSpin & 3],
                               static_cast<int>(std::floor(data.nbEncoded / static_cast<double>(p.totalSamplesPerChannel + p.lookahead) * 100.)));
         else
-            Formatter::Format(sbuf, 54, L"\r[%c] ", Spinner[p.lastSpin & 3]);
-        p.lastSpinLen = static_cast<std::int32_t>(std::wcslen(sbuf));
-        Formatter::Format(sbuf + p.lastSpinLen, 54 - p.lastSpinLen, L"%02d:%02d:%02d.%02d %4.3gx realtime, %5.4g kbit/s", static_cast<int>(codedSeconds / 3600),
-                          static_cast<int>(codedSeconds / 60) % 60, static_cast<int>(codedSeconds) % 60, static_cast<int>(codedSeconds * 100) % 100,
-                          codedSeconds / (wallTime > 0 ? wallTime : 1e-6), estBitrate / 1000.);
-        Console::Print(Stream::Error, L"%ls", sbuf);
-        p.lastSpinLen = static_cast<std::int32_t>(std::wcslen(sbuf));
+            Formatter::Format(sbuf, 54, CT_TEXT("\r[%c] "), Spinner[p.lastSpin & 3]);
+        p.lastSpinLen = static_cast<std::int32_t>(Text::Length(sbuf));
+        Formatter::Format(sbuf + p.lastSpinLen, 54 - p.lastSpinLen, CT_TEXT("%02d:%02d:%02d.%02d %4.3gx realtime, %5.4g kbit/s"),
+                          static_cast<int>(codedSeconds / 3600), static_cast<int>(codedSeconds / 60) % 60, static_cast<int>(codedSeconds) % 60,
+                          static_cast<int>(codedSeconds * 100) % 100, codedSeconds / (wallTime > 0 ? wallTime : 1e-6), estBitrate / 1000.);
+        Console::Print(Stream::Error, CT_TEXT("%s"), sbuf);
+        p.lastSpinLen = static_cast<std::int32_t>(Text::Length(sbuf));
         p.lastSpin    = stopTime;
     }
 

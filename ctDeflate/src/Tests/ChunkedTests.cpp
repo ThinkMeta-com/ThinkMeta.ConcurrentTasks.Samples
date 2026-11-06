@@ -38,8 +38,8 @@ namespace DeflateTests {
                 ++firstDiff;
             if (expectedSize != actualSize || firstDiff != expectedSize) {
                 wchar_t msg[512];
-                swprintf_s(msg, L"%s size %zu level %d chunk %zu: oracle %zu bytes, chunked %zu bytes, first difference at byte %zu", label,
-                           data.size(), level, chunkSize, expectedSize, actualSize, firstDiff);
+                std::swprintf(msg, std::size(msg), L"%ls size %zu level %d chunk %zu: oracle %zu bytes, chunked %zu bytes, first difference at byte %zu",
+                              label, data.size(), level, chunkSize, expectedSize, actualSize, firstDiff);
                 Assert::Fail(msg);
             }
             return stats;
@@ -57,7 +57,8 @@ namespace DeflateTests {
                     repaired += stats.repairedBytes;
                 }
                 wchar_t msg[256];
-                swprintf_s(msg, L"%s chunk %zu: syncs %zu, repairs %zu, repaired bytes %zu (levels 1-9)\n", label, chunk, syncs, repairs, repaired);
+                std::swprintf(msg, std::size(msg), L"%ls chunk %zu: syncs %zu, repairs %zu, repaired bytes %zu (levels 1-9)\n", label, chunk, syncs, repairs,
+                              repaired);
                 Logger::WriteMessage(msg);
             }
         }

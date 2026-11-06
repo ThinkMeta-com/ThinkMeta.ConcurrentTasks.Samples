@@ -6,7 +6,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -30,7 +32,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// of a resolved frame (MDCT, stereo decision, quantization search, main data). The workers
     /// run at once, each on its own frame.
     /// </summary>
-    class WorkerTask : public Tasks::Task
+    class WorkerTask final : public Tasks::Task
     {
     public:
         WorkerTask(FrameRing& ring, const Encoder& encoder, TaskProfile* profile) noexcept : ring_(ring), encoder_(encoder), profile_(profile) {}

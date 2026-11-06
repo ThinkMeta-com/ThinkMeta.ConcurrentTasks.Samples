@@ -12,7 +12,9 @@
 // original spelling so the float rounding is the same.
 
 // k420Rescale is spelled with double literals in a float array, as in jpegli (C4305).
-#pragma warning(disable : 4305)
+#if defined(_MSC_VER)
+#    pragma warning(disable : 4305)
+#endif
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 

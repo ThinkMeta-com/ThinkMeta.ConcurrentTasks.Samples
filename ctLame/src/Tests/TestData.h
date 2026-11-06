@@ -6,18 +6,21 @@
 
 #pragma once
 
-#include <Windows.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <cwchar>
 
+#include "File.h"
+#include "Formatter.h"
+#include "Memory.h"
 #include "TestEnvironment.h"
+#include "Text.h"
 
 namespace LameTests {
 
-    using ThinkMeta::ConcurrentTasks::Samples::Shared::TestEnvironment;
+    namespace Shared = ThinkMeta::ConcurrentTasks::Samples::Shared;
+    using Shared::Char;
+    using Shared::TestEnvironment;
 
     // Helpers of the golden tests: the FNV-1a checksum and the test WAV files.
 
@@ -64,21 +67,17 @@ namespace LameTests {
         ~WavData()
         {
             if (file != nullptr)
-                HeapFree(GetProcessHeap(), 0, file);
+                Shared::Heap::Free(file);
         }
 
-        bool Load(const wchar_t* path)
+        bool Load(const Char* path)
         {
-            HANDLE const handle = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-            if (handle == INVALID_HANDLE_VALUE)
+            std::uint64_t length = 0;
+            if (!Shared::File::Size(path, length))
                 return false;
-            LARGE_INTEGER length{};
-            GetFileSizeEx(handle, &length);
-            file               = static_cast<std::byte*>(HeapAlloc(GetProcessHeap(), 0, static_cast<std::size_t>(length.QuadPart)));
-            unsigned long read = 0; // DWORD of ReadFile
-            const bool    ok   = file != nullptr && ReadFile(handle, file, static_cast<std::uint32_t>(length.QuadPart), &read, nullptr);
-            CloseHandle(handle);
-            if (!ok || read != length.QuadPart)
+            const auto read = static_cast<std::size_t>(length);
+            file            = static_cast<std::byte*>(Shared::Heap::Allocate(read));
+            if (file == nullptr || !Shared::File::Read(path, file, read))
                 return false;
 
             std::size_t pos = 12;
@@ -101,31 +100,38 @@ namespace LameTests {
     // The golden inputs come from the environment (Shared::TestEnvironment): CTLAME_TEST_CORPUS names the corpus file
     // the checksums were recorded with, CTLAME_TEST_SYNTH the folder of the synthetic files they were recorded
     // with. Without them the golden tests are skipped.
-    inline const wchar_t* CorpusFile()
+    inline const Char* CorpusFile()
     {
-        static wchar_t                     path[MAX_PATH];
-        [[maybe_unused]] static const bool set = TestEnvironment::Get(L"CTLAME_TEST_CORPUS", path);
+        static Char                        path[Shared::File::MaxPath];
+        [[maybe_unused]] static const bool set = TestEnvironment::Get(CT_TEXT("CTLAME_TEST_CORPUS"), path);
         return path;
     }
 
-    inline const wchar_t* SynthDir()
+    inline const Char* SynthDir()
     {
-        static wchar_t                     path[MAX_PATH];
-        [[maybe_unused]] static const bool set = TestEnvironment::Folder(L"CTLAME_TEST_SYNTH", path);
+        static Char                        path[Shared::File::MaxPath];
+        [[maybe_unused]] static const bool set = TestEnvironment::Folder(CT_TEXT("CTLAME_TEST_SYNTH"), path);
         return path;
+    }
+
+    // printf into a character array (Shared::Formatter), cut off at its end
+    template <std::size_t N, typename... T>
+    void FormatTo(Char (&text)[N], const Char* format, T... values) noexcept
+    {
+        Shared::Formatter::Format(text, static_cast<std::int32_t>(N), format, values...);
     }
 
     // The log line of a golden test whose input file is missing: the variable to set, or the file that is not there.
-    inline const wchar_t* MissingInputText(wchar_t (&text)[400], const wchar_t* test, const wchar_t* path)
+    inline const Char* MissingInputText(Char (&text)[400], const Char* test, const Char* path)
     {
         const bool corpus = path == CorpusFile();
-        if ((corpus ? CorpusFile() : SynthDir())[0] == L'\0') {
-            wchar_t skip[200];
-            TestEnvironment::SkipText(skip, corpus ? L"CTLAME_TEST_CORPUS" : L"CTLAME_TEST_SYNTH",
-                                      corpus ? L"the corpus file of the checksums" : L"the folder of the synthetic files of the checksums");
-            swprintf_s(text, L"%ls: %ls", test, skip);
+        if ((corpus ? CorpusFile() : SynthDir())[0] == 0) {
+            Char skip[200];
+            TestEnvironment::SkipText(skip, corpus ? CT_TEXT("CTLAME_TEST_CORPUS") : CT_TEXT("CTLAME_TEST_SYNTH"),
+                                      corpus ? CT_TEXT("the corpus file of the checksums") : CT_TEXT("the folder of the synthetic files of the checksums"));
+            FormatTo(text, CT_TEXT("%s: %s"), test, skip);
         } else
-            swprintf_s(text, L"%ls: skipped, %ls not found", test, path);
+            FormatTo(text, CT_TEXT("%s: skipped, %s not found"), test, path);
         return text;
     }
 

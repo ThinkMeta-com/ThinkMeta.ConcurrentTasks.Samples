@@ -9,6 +9,7 @@
 #include "OggOpusEncoder.h"
 #include "OpusDefines.h"
 #include "OpusHeaders.h"
+#include "File.h"
 #include "WavInput.h"
 
 // headers with imports last
@@ -28,7 +29,9 @@ namespace OpusTests {
     namespace {
 
         // A WAV file of 16-bit PCM: tones that glide, bursts and noise, the same on every run.
-        std::wstring WriteTestWav(const wchar_t* name, std::int32_t rate, std::int32_t channels, std::int64_t frames)
+        using Path = std::basic_string<Shared::Char>;
+
+        Path WriteTestWav(const wchar_t* name, std::int32_t rate, std::int32_t channels, std::int64_t frames)
         {
             std::vector<std::int16_t> pcm(static_cast<std::size_t>(frames * channels));
             std::uint32_t             seed = 12345;
@@ -61,14 +64,16 @@ namespace OpusTests {
             put32(40, dataBytes);
             std::memcpy(&file[44], pcm.data(), dataBytes);
 
-            wchar_t dir[MAX_PATH];
-            GetTempPathW(MAX_PATH, dir);
-            const std::wstring path = std::wstring(dir) + L"ctOpusGraphTests-" + std::to_wstring(GetCurrentProcessId()) + L"-" + name + L".wav";
-            HANDLE             h    = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-            Assert::IsTrue(h != INVALID_HANDLE_VALUE);
-            unsigned long written = 0; // DWORD of WriteFile
-            Assert::IsTrue(WriteFile(h, file.data(), static_cast<unsigned long>(file.size()), &written, nullptr) != 0);
-            CloseHandle(h);
+#if defined(_WIN32)
+            const auto process = GetCurrentProcessId();
+#else
+            const auto process = getpid();
+#endif
+            std::string fileName = "ctOpusGraphTests-" + std::to_string(process) + "-";
+            for (const wchar_t* c = name; *c != 0; ++c)
+                fileName += static_cast<char>(*c); // ASCII
+            const Path path = (std::filesystem::temp_directory_path() / (fileName + ".wav")).native();
+            Assert::IsTrue(Shared::File::Write(path.c_str(), file.data(), file.size()));
             return path;
         }
 
@@ -88,7 +93,7 @@ namespace OpusTests {
 
         // Encodes the file with the parallel graph on threads compute threads, or with the
         // sequential graph; the Ogg Opus bytes.
-        std::vector<std::uint8_t> Encode(const std::wstring& path, std::uint32_t threads, std::int32_t complexity)
+        std::vector<std::uint8_t> Encode(const Path& path, std::uint32_t threads, std::int32_t complexity)
         {
             InputFile file;
             Assert::IsTrue(file.Open(path.c_str()));
@@ -141,7 +146,7 @@ namespace OpusTests {
         void ExpectSameAsSequential(const wchar_t* name, std::int32_t rate, std::int32_t channels, std::int64_t frames, std::initializer_list<std::uint32_t> threadCounts,
                                     std::int32_t complexity = 10)
         {
-            const std::wstring              path      = WriteTestWav(name, rate, channels, frames);
+            const Path                      path      = WriteTestWav(name, rate, channels, frames);
             const std::vector<std::uint8_t> reference = Encode(path, Sequential, complexity);
             for (const std::uint32_t threads : threadCounts) {
                 const std::vector<std::uint8_t> parallel = Encode(path, threads, complexity);
@@ -149,7 +154,7 @@ namespace OpusTests {
                 Assert::AreEqual(reference.size(), parallel.size(), message.c_str());
                 Assert::IsTrue(reference == parallel, message.c_str());
             }
-            DeleteFileW(path.c_str());
+            Shared::File::Delete(path.c_str());
         }
 
     } // namespace

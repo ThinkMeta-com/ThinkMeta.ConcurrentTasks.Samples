@@ -1,6 +1,6 @@
 # ThinkMeta.ConcurrentTasks Samples
 
-Encoders built on **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler for Windows. Each
+Encoders built on **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler for Windows and Linux (x64). Each
 one is a new C++ port (rewritten, not linked) of a well-known reference encoder, writes *exactly*
 the same output as that reference (byte for byte) and spreads the work on a **single file** over
 all cores.
@@ -13,10 +13,10 @@ to the reference, but the code itself has not yet been reviewed line by line.
 
 | Folder | Reference | Contents |
 |---|---|---|
-| [`ctLame\`](ctLame) | LAME 4.0 (MP3, VBR) | source code, prebuilt binaries, benchmark |
-| [`ctOpus\`](ctOpus) | opusenc (opus-tools 0.2, libopus 1.6.1) | source code, prebuilt binaries, benchmark, live encoding |
-| [`ctDeflate\`](ctDeflate) | libdeflate 1.26 (gzip) | source code, prebuilt binaries, benchmark |
-| [`ctJpeg\`](ctJpeg) | jpegli (JPEG, google/jpegli @ 031a007) | source code, prebuilt binaries, benchmark |
+| [`ctLame\`](ctLame) | LAME 4.0 (MP3, VBR) | source code, prebuilt binaries for Windows and Linux, benchmark |
+| [`ctOpus\`](ctOpus) | opusenc (opus-tools 0.2, libopus 1.6.1) | source code, prebuilt binaries for Windows and Linux, benchmark, live encoding (Windows) |
+| [`ctDeflate\`](ctDeflate) | libdeflate 1.26 (gzip) | source code, prebuilt binaries for Windows and Linux, benchmark |
+| [`ctJpeg\`](ctJpeg) | jpegli (JPEG, google/jpegli @ 031a007) | source code, prebuilt binaries for Windows and Linux, benchmark |
 | [`Shared\`](Shared) | - | the code all four share (console output, version resource, CPU check, task setup, `--stats`), a static library |
 | [`ThinkMeta.ConcurrentTasks.API\`](https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.API) | - | the public API of the scheduler, as a submodule ([below](#thinkmetaconcurrenttasks-api)) |
 
@@ -42,7 +42,7 @@ and benchmark scripts in the `ct…` folders run without it; building from sourc
 (fresh copy of the input before every run), wall time of each program run, sum of the medians
 over all files, reference and ct… encoder with the same settings, every output bit-identical to
 the reference. Details, two more machines (Xeon E3-1275 v6, Core Ultra 7 155H) and the limits of
-each encoder are in the README of each folder.*
+each encoder are in the README of each folder. There are no Linux measurements yet.*
 
 ## Why fibers
 
@@ -63,24 +63,39 @@ on a fiber:
 * **Fine-grained work pays off.** A task switch costs a few hundred nanoseconds, so steps of a few
   microseconds are worth running as tasks of their own: with 16 threads, ctLame finishes a frame
   about every 13 µs.
-* **I/O without extra threads.** Files can be read and written asynchronously over I/O completion
-  ports (ctDeflate does); the task waiting for the data is resumed when it arrives.
+* **I/O without extra threads.** Files can be read and written asynchronously, over I/O completion
+  ports on Windows and io_uring on Linux; the task waiting for the data is resumed when it arrives.
 
-The scheduler core is a DLL of about 25 KB that depends on nothing but Windows. What fibers do in
-each encoder is described in the README of each folder.
+The scheduler core is a library of about 30 KB that depends on nothing but the operating system: a
+DLL on Windows, a shared library on Linux that needs only the C library. The encoders run on
+Windows x64 and Linux x64. What fibers do in each encoder is described in the README of each
+folder.
 
-Every folder is self-contained: its own README, prebuilt Windows x64 binaries in `bin\`, the
-source code of the ct… program with its tests and verification scripts, the reference source, a
-Visual Studio solution (for jpegli a CMake build script), and a benchmark script that compares
-speed and bit identity on your own files. The "Building" section of each README says how to build
-the programs yourself; they build against the API submodule. Results of your hardware are
-welcome.
+Every folder is self-contained: its own README, prebuilt binaries for Windows x64 (`bin\win-x64\`)
+and Linux x64 (`bin/linux-x64/`), the source code of the ct… program with its tests and
+verification scripts, the reference source, a Visual Studio solution and a CMake build for Linux
+(`CMakeLists.txt`), and a benchmark script that compares speed and bit identity on your own files.
+The "Building" sections of each README say how to build the programs yourself on either platform;
+they build against the API submodule. Results of your hardware are welcome.
 
-**Requirements:** Windows 10/11 or Windows Server 2016 and later, x64; no installation, the C
-runtime is linked statically. ctOpus and ctDeflate need a CPU with AVX2 (Intel Haswell, AMD
-Excavator or later) and say so at start-up on older CPUs; ctJpeg runs on any x64 CPU and uses
-AVX2 where available; ctLame runs on any x64 CPU and chooses scalar, SSE4.1 or AVX2 code at run
-time. The benchmark scripts run on Windows PowerShell 5.1 and later.
+**Requirements:**
+
+* **Windows:** Windows 10/11 or Windows Server 2016 and later, x64; no installation, the C runtime
+  is linked statically.
+* **Linux:** x64 with **glibc 2.38** or later (Ubuntu 24.04, Debian 13, Fedora 39, RHEL 10 or
+  newer), kernel 5.19 or later recommended; io_uring must be allowed (Docker's default seccomp
+  profile blocks it). No installation: libstdc++ is linked in, the programs need only the C
+  library and the scheduler core next to them.
+* **CPU:** ctOpus and ctDeflate need a CPU with AVX2 (Intel Haswell, AMD Excavator or later) and
+  say so at start-up on older CPUs; ctJpeg runs on any x64 CPU and uses AVX2 where available;
+  ctLame runs on any x64 CPU and chooses scalar, SSE4.1 or AVX2 code at run time.
+* **Scripts:** the verification scripts (`verify\`) need PowerShell 7 on both platforms; the
+  benchmark scripts are Windows only for now and run on Windows PowerShell 5.1 and later.
+
+Each platform checks its programs against its own reference build: the reference tables of
+Windows and Linux in `verify\` are separate files. For the test inputs they have the same
+contents; on real music the C math libraries can make LAME's output differ in a few cases (see
+ctLame's README).
 
 ## ThinkMeta.ConcurrentTasks API
 
@@ -91,7 +106,8 @@ included as a submodule. It holds what you need to build your own programs on th
 * `Core.h`, the ABI of the scheduler core;
 * the library as C++ modules: tasks, synchronization primitives, collections, virtual-memory
   pipes, asynchronous files and sockets;
-* the prebuilt core, `ThinkMeta.ConcurrentTasks.Core.dll`, with the .props file that binds it in;
+* the prebuilt core, `ThinkMeta.ConcurrentTasks.Core.dll` with the .props file that binds it in
+  (Windows) and `libThinkMeta.ConcurrentTasks.Core.so.2` with a CMake package (Linux);
 * small samples and the samples of the online documentation.
 
 The API is preliminary and may still change. Introduction, concepts, guides and the API reference
@@ -129,8 +145,8 @@ similar, with access to a shell and Visual Studio 2026) the same task for your o
 prompt to start with, adjust the parts in angle brackets:
 
 ```text
-Goal: a parallel version of <my program / function> on ThinkMeta.ConcurrentTasks (Windows x64,
-C++ modules, Visual Studio 2026) that produces exactly the same output as the current
+Goal: a parallel version of <my program / function> on ThinkMeta.ConcurrentTasks (C++ modules;
+Windows x64 with Visual Studio 2026 or Linux x64 with clang) that produces exactly the same output as the current
 sequential version, and is as fast as possible on one input.
 
 1. Clone https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.Samples with
@@ -153,24 +169,25 @@ sequential version, and is as fast as possible on one input.
    sequential tails). Keep floating-point operations in the same order.
 6. Measure cold (fresh copy of the input before each run), on all cores and on one, and report
    the speedup with the numbers, including what did not help.
-7. Use the scheduler as it is: the core is a prebuilt DLL, and the library modules of the API
+7. Use the scheduler as it is: the core is a prebuilt library, and the library modules of the API
    stay unchanged. If either seems to misbehave, write a small test that shows it and report
    it instead of working around it.
 ```
 
-The core DLL is free for private and non-commercial use; a program that you build this way and
+The scheduler core is free for private and non-commercial use; a program that you build this way and
 use commercially needs a license from ThinkMeta Software GmbH (see `LICENSE-Core.txt`).
 
 ## Licenses
 
 * **ctOpus, ctDeflate, ctJpeg:** source code and binaries under the MIT License (`LICENSE.txt` in
   each folder). Each port includes the license notice of its reference (`COPYING`).
-* **ctLame:** a port of LAME and therefore source code and `ctLame.exe` under the GNU LGPL
+* **ctLame:** a port of LAME and therefore source code and the ctLame programs under the GNU LGPL
   (`COPYING` and `src\ctLame-LICENSE.md` in the folder).
-* **`ThinkMeta.ConcurrentTasks.Core.dll`:** proprietary, under the provisional terms in
+* **The scheduler core** (`ThinkMeta.ConcurrentTasks.Core.dll`, `libThinkMeta.ConcurrentTasks.Core.so.2`):
+  proprietary, under the provisional terms in
   `LICENSE-Core.txt` of each folder, the same terms as in the API repository: free for private
   and non-commercial use, also for your own programs and for passing them on with the unchanged
-  DLL for private and non-commercial use; commercial use requires a license from ThinkMeta
+  core for private and non-commercial use; commercial use requires a license from ThinkMeta
   Software GmbH. All ct… programs need it to run.
 * **Benchmarks are explicitly permitted:** anyone may benchmark the programs, on any hardware and
   for any purpose, commercial evaluation included, and publish the results, including comparisons

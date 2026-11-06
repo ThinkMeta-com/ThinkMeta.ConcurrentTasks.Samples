@@ -5,6 +5,7 @@
 // version; see COPYING and ctLame-LICENSE.md.
 
 #include "VbrQuantize.h"
+#include "Compiler.h"
 
 #include <array>
 #include <cmath>
@@ -758,9 +759,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         // channel from what each used, scaled down (by sqrt of sqrt within a granule, by sqrt
         // between the granules) until granules and frame fit; the limits from on_pe (maxBits)
         // if that fails
-        __forceinline void DistributeBudget(std::int32_t nch, const GranuleChannel<std::int32_t>& maxBits, std::int32_t maxNbitsFr,
-                                            const GranuleChannel<std::int32_t>& useNbitsCh, const std::array<std::int32_t, 2>& useNbitsGr,
-                                            GranuleChannel<std::int32_t>& maxNbitsCh) noexcept
+        CT_FORCEINLINE void DistributeBudget(std::int32_t nch, const GranuleChannel<std::int32_t>& maxBits, std::int32_t maxNbitsFr,
+                                             const GranuleChannel<std::int32_t>& useNbitsCh, const std::array<std::int32_t, 2>& useNbitsGr,
+                                             GranuleChannel<std::int32_t>& maxNbitsCh) noexcept
         {
             const std::int32_t          ngr        = 2;
             std::array<std::int32_t, 2> maxNbitsGr = {0, 0};
@@ -869,9 +870,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         // the second loop of VBR_encode_frame: the out-of-bits strategy for every granule that
         // exceeds its limit, then reduce_bit_usage. Returns the bits of the frame, or -1 if a
         // granule's scalefactors could not be stored
-        __forceinline std::int32_t FitGranules(const SessionConfig& config, const QuantizeConstants& constants, SideInfo& side, GranuleGrid& granules,
-                                               GranuleChannel<GranuleSearch>& search, const GranuleChannel<std::int32_t>& maxBits,
-                                               const GranuleChannel<std::int32_t>& maxNbitsCh, std::int32_t maxNbitsFr) noexcept
+        CT_FORCEINLINE std::int32_t FitGranules(const SessionConfig& config, const QuantizeConstants& constants, SideInfo& side, GranuleGrid& granules,
+                                                GranuleChannel<GranuleSearch>& search, const GranuleChannel<std::int32_t>& maxBits,
+                                                const GranuleChannel<std::int32_t>& maxNbitsCh, std::int32_t maxNbitsFr) noexcept
         {
             const std::int32_t ngr = 2;
             const std::int32_t nch = config.channels_out;

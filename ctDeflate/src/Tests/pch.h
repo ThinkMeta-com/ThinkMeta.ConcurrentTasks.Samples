@@ -6,11 +6,19 @@
 #ifndef PCH_H
 #define PCH_H
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#else
+#    include <unistd.h>
+#endif
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cwchar>
+#include <filesystem>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <string_view>

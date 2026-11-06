@@ -1,0 +1,2 @@
+# shell scripts keep LF on every checkout, so they also run from a Windows clone in WSL
+*.sh text eol=lf

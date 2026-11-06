@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <Windows.h>
+#include "Memory.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
@@ -53,7 +53,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
             Reset();
             if (count == 0)
                 count = 1;
-            data_      = static_cast<T*>(HeapAlloc(GetProcessHeap(), zero ? HEAP_ZERO_MEMORY : 0, count * sizeof(T)));
+            data_      = static_cast<T*>(Shared::Heap::Allocate(count * sizeof(T), zero));
             size_      = data_ != nullptr ? count : 0;
             committed_ = size_;
             return data_ != nullptr;
@@ -68,7 +68,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
             if (count * sizeof(T) < LargeBytes)
                 return Allocate(count);
             Reset();
-            data_ = static_cast<T*>(VirtualAlloc(nullptr, count * sizeof(T), MEM_RESERVE, PAGE_READWRITE));
+            data_ = static_cast<T*>(Shared::AddressSpace::Reserve(count * sizeof(T)));
             if (data_ == nullptr)
                 return false;
             size_     = count;
@@ -89,7 +89,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
                 bytes = size_ * sizeof(T);
             std::byte* const  base = reinterpret_cast<std::byte*>(data_);
             const std::size_t from = committed_ * sizeof(T) / CommitStep * CommitStep;
-            if (VirtualAlloc(base + from, bytes - from, MEM_COMMIT, PAGE_READWRITE) == nullptr)
+            if (!Shared::AddressSpace::Commit(base + from, bytes - from))
                 return false;
             committed_ = bytes / sizeof(T);
             return committed_ >= count;
@@ -99,9 +99,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         {
             if (data_ != nullptr) {
                 if (reserved_)
-                    VirtualFree(data_, 0, MEM_RELEASE);
+                    Shared::AddressSpace::Release(data_, size_ * sizeof(T));
                 else
-                    HeapFree(GetProcessHeap(), 0, data_);
+                    Shared::Heap::Free(data_);
             }
             data_      = nullptr;
             size_      = 0;

@@ -5,9 +5,15 @@
 
 #include "CommandLine.h"
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#else
+#    include <unistd.h>
+#endif
 
-#include <process.h>
+#if defined(_WIN32)
+#    include <process.h>
+#endif
 
 #include <cmath>
 #include <cstdint>
@@ -148,12 +154,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                 }
             }
             if (ambig && !exact) {
-                Console::Print(Stream::Error, L"%hs: option `%hs' is ambiguous\n", argv_[0], arg);
+                Console::Print(Stream::Error, CT_TEXT("%hs: option `%hs' is ambiguous\n"), argv_[0], arg);
                 ++index_;
                 return -1;
             }
             if (found < 0) {
-                Console::Print(Stream::Error, L"%hs: unrecognized option `--%hs'\n", argv_[0], name);
+                Console::Print(Stream::Error, CT_TEXT("%hs: unrecognized option `--%hs'\n"), argv_[0], name);
                 ++index_;
                 return -1;
             }
@@ -161,7 +167,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             parsed.index = found;
             if (*nameEnd != 0) {
                 if (!LongOptions[found].hasArgument) {
-                    Console::Print(Stream::Error, L"%hs: option `--%hs' doesn't allow an argument\n", argv_[0], LongOptions[found].name);
+                    Console::Print(Stream::Error, CT_TEXT("%hs: option `--%hs' doesn't allow an argument\n"), argv_[0], LongOptions[found].name);
                     return -1;
                 }
                 parsed.argument = nameEnd + 1;
@@ -169,7 +175,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                 if (index_ < argc_) {
                     parsed.argument = argv_[index_++];
                 } else {
-                    Console::Print(Stream::Error, L"%hs: option `%hs' requires an argument\n", argv_[0], arg);
+                    Console::Print(Stream::Error, CT_TEXT("%hs: option `%hs' requires an argument\n"), argv_[0], arg);
                     return -1;
                 }
             }
@@ -184,7 +190,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                 shortPos_ = nullptr;
             }
             if (c != 'h' && c != 'V') {
-                Console::Print(Stream::Error, L"%hs: invalid option -- %c\n", argv_[0], c);
+                Console::Print(Stream::Error, CT_TEXT("%hs: invalid option -- %c\n"), argv_[0], c);
                 return -1;
             }
             parsed.shortOpt = c;
@@ -201,9 +207,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         std::int32_t positionalCount_ = 0;
     };
 
-    Shared::ParseResult CommandLine::Parse(int argc, wchar_t** argv, Options& options)
+    Shared::ParseResult CommandLine::Parse(int argc, Shared::Char** argv, Options& options)
     {
-        // the arguments as UTF-8, like opusenc's init_commandline_arguments_utf8 (WIN_UNICODE)
+        // the arguments as UTF-8, like opusenc's init_commandline_arguments_utf8 (WIN_UNICODE); on Linux they are UTF-8
+#if defined(_WIN32)
         std::size_t total = 0;
         for (int i = 0; i < argc; ++i)
             total += static_cast<std::size_t>(WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, nullptr, 0, nullptr, nullptr));
@@ -216,22 +223,33 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             pos += static_cast<std::size_t>(
                 WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, options.argvStorage.Data() + pos, static_cast<int>(total - pos), nullptr, nullptr));
         }
-        options.argvWide = argv;
+#else
+        if (!options.argvUtf8.Allocate(static_cast<std::size_t>(argc) + 1))
+            return Shared::ParseResult::Error;
+        for (int i = 0; i < argc; ++i)
+            options.argvUtf8[i] = argv[i];
+#endif
+        options.argvNative = argv;
 
         options.startTime = std::time(nullptr);
-        std::srand(((static_cast<unsigned>(_getpid()) & 65535) << 15) ^ static_cast<unsigned>(options.startTime));
+#if defined(_WIN32)
+        const auto process = static_cast<unsigned>(_getpid());
+#else
+        const auto process = static_cast<unsigned>(getpid());
+#endif
+        std::srand(((process & 65535) << 15) ^ static_cast<unsigned>(options.startTime));
         options.serialNo = std::rand();
 
         options.opusVersion = LibopusVersion;
         char vendor[1024];
         Formatter::Format(vendor, static_cast<std::int32_t>(sizeof(vendor)), "%s, %s", options.opusVersion, LibopusencVersion);
         if (!options.comments.Initialize(vendor))
-            Console::Fatal(L"Error: failed to allocate memory for comments\n");
+            Console::Fatal(CT_TEXT("Error: failed to allocate memory for comments\n"));
         // the vendor string names the library; the ENCODER comment names the tool
         char encoderString[EncoderStringSize];
         Formatter::Format(encoderString, EncoderStringSize, "opusenc from %s %s", PackageName, PackageVersion);
         if (!options.comments.Add("ENCODER", encoderString))
-            Console::Fatal(L"Error: failed to add ENCODER comment: %hs\n", OpeErrorString(OpeAllocFail));
+            Console::Fatal(CT_TEXT("Error: failed to add ENCODER comment: %hs\n"), OpeErrorString(OpeAllocFail));
 
         OptionParser parser(argc, options.argvUtf8.Data());
         if (std::getenv("POSIXLY_CORRECT") != nullptr)
@@ -275,7 +293,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                 PrintUsage();
                 return Shared::ParseResult::Exit;
             } else if (std::strcmp(optname, "help-picture") == 0) {
-                Console::Print(Stream::Output, L"  Pictures (--picture) are not supported by ctOpus.\n");
+                Console::Print(Stream::Output, CT_TEXT("  Pictures (--picture) are not supported by ctOpus.\n"));
                 return Shared::ParseResult::Exit;
             } else if (std::strcmp(optname, "version") == 0 || std::strcmp(optname, "version-short") == 0) {
                 PrintVersion(options.opusVersion);
@@ -288,9 +306,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                 if (std::strcmp(optname, "raw-bits") == 0) {
                     const std::int32_t bits = std::atoi(optarg);
                     if (bits != 8 && bits != 16 && bits != 24)
-                        Console::Fatal(L"Invalid bit-depth: %hs\n"
-                                       L"--raw-bits must be one of 8, 16, or 24\n",
-                                       optarg);
+                        Console::Fatal(CT_TEXT("Invalid bit-depth: %hs\n") CT_TEXT("--raw-bits must be one of 8, 16, or 24\n"), optarg);
                 }
                 options.rawMode = true;
                 saveCmd         = false;
@@ -309,15 +325,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             } else if (std::strcmp(optname, "expect-loss") == 0) {
                 options.expectLoss = std::atoi(optarg);
                 if (options.expectLoss > 100 || options.expectLoss < 0)
-                    Console::Fatal(L"Invalid expect-loss: %hs\n"
-                                   L"Expected loss is a percentage in the range 0 to 100.\n",
-                                   optarg);
+                    Console::Fatal(CT_TEXT("Invalid expect-loss: %hs\n") CT_TEXT("Expected loss is a percentage in the range 0 to 100.\n"), optarg);
             } else if (std::strcmp(optname, "comp") == 0 || std::strcmp(optname, "complexity") == 0) {
                 options.complexity = std::atoi(optarg);
                 if (options.complexity > 10 || options.complexity < 0)
-                    Console::Fatal(L"Invalid complexity: %hs\n"
-                                   L"Complexity must be in the range 0 to 10.\n",
-                                   optarg);
+                    Console::Fatal(CT_TEXT("Invalid complexity: %hs\n") CT_TEXT("Complexity must be in the range 0 to 10.\n"), optarg);
             } else if (std::strcmp(optname, "framesize") == 0) {
                 if (std::strcmp(optarg, "2.5") == 0)
                     options.opusFrameParam = OPUS_FRAMESIZE_2_5_MS;
@@ -332,17 +344,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                 else if (std::strcmp(optarg, "60") == 0)
                     options.opusFrameParam = OPUS_FRAMESIZE_60_MS;
                 else
-                    Console::Fatal(L"Invalid framesize: %hs\n"
-                                   L"Value is in milliseconds and must be 2.5, 5, 10, 20, 40, or 60.\n",
-                                   optarg);
+                    Console::Fatal(CT_TEXT("Invalid framesize: %hs\n") CT_TEXT("Value is in milliseconds and must be 2.5, 5, 10, 20, 40, or 60.\n"), optarg);
                 options.frameSize = options.opusFrameParam <= OPUS_FRAMESIZE_40_MS ? 120 << (options.opusFrameParam - OPUS_FRAMESIZE_2_5_MS)
                                                                                    : (options.opusFrameParam - OPUS_FRAMESIZE_20_MS + 1) * 960;
             } else if (std::strcmp(optname, "max-delay") == 0) {
                 const double val = std::atof(optarg);
                 if (val < 0. || val > 1000.)
-                    Console::Fatal(L"Invalid max-delay: %hs\n"
-                                   L"Value is in milliseconds and must be in the range 0 to 1000.\n",
-                                   optarg);
+                    Console::Fatal(CT_TEXT("Invalid max-delay: %hs\n") CT_TEXT("Value is in milliseconds and must be in the range 0 to 1000.\n"), optarg);
                 options.maxOggDelay = static_cast<std::int32_t>(std::floor(val * 48.));
             } else if (std::strcmp(optname, "serial") == 0) {
                 options.serialNo = std::atoi(optarg);
@@ -350,9 +358,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                 const std::size_t len  = std::strlen(optarg);
                 const char*       spos = std::strchr(optarg, '=');
                 if (len < 3 || spos == nullptr || (spos - optarg) < 1 || static_cast<std::size_t>(spos - optarg) >= len)
-                    Console::Fatal(L"Invalid set-ctl-int: %hs\n"
-                                   L"Syntax is --set-ctl-int intX=intY\n"
-                                   L"       or --set-ctl-int intS:intX=intY\n",
+                    Console::Fatal(CT_TEXT("Invalid set-ctl-int: %hs\n") CT_TEXT("Syntax is --set-ctl-int intX=intY\n")
+                                       CT_TEXT("       or --set-ctl-int intS:intX=intY\n"),
                                    optarg);
                 const char*  tpos   = std::strchr(optarg, ':');
                 std::int32_t target = -1;
@@ -362,30 +369,28 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                     target = std::atoi(optarg);
                 const std::int32_t request = std::atoi(tpos + 1);
                 if (!IsValidCtl(request))
-                    Console::Fatal(L"Invalid set-ctl-int: %hs\n", optarg);
+                    Console::Fatal(CT_TEXT("Invalid set-ctl-int: %hs\n"), optarg);
                 if (options.optCtls >= 64)
-                    Console::Fatal(L"Error: failed to allocate memory for ctls\n");
+                    Console::Fatal(CT_TEXT("Error: failed to allocate memory for ctls\n"));
                 options.optCtlValues[options.optCtls * 3]     = target;
                 options.optCtlValues[options.optCtls * 3 + 1] = request;
                 options.optCtlValues[options.optCtls * 3 + 2] = std::atoi(spos + 1);
                 ++options.optCtls;
             } else if (std::strcmp(optname, "save-range") == 0) {
-                Console::Fatal(L"Error: --save-range is not supported by ctOpus\n");
+                Console::Fatal(CT_TEXT("Error: --save-range is not supported by ctOpus\n"));
             } else if (std::strcmp(optname, "comment") == 0) {
                 saveCmd = false;
                 if (std::strchr(optarg, '=') == nullptr)
-                    Console::Fatal(L"Invalid comment: %hs\n"
-                                   L"Comments must be of the form name=value\n",
-                                   optarg);
+                    Console::Fatal(CT_TEXT("Invalid comment: %hs\n") CT_TEXT("Comments must be of the form name=value\n"), optarg);
                 if (!options.comments.AddString(optarg))
-                    Console::Fatal(L"Error: failed to add comment: %hs\n", OpeErrorString(OpeAllocFail));
+                    Console::Fatal(CT_TEXT("Error: failed to add comment: %hs\n"), OpeErrorString(OpeAllocFail));
             } else if (std::strcmp(optname, "artist") == 0 || std::strcmp(optname, "title") == 0 || std::strcmp(optname, "album") == 0
                        || std::strcmp(optname, "tracknumber") == 0 || std::strcmp(optname, "date") == 0 || std::strcmp(optname, "genre") == 0) {
                 saveCmd = false;
                 if (!options.comments.Add(optname, optarg))
-                    Console::Fatal(L"Error: failed to add %hs comment: %hs\n", optname, OpeErrorString(OpeAllocFail));
+                    Console::Fatal(CT_TEXT("Error: failed to add %hs comment: %hs\n"), optname, OpeErrorString(OpeAllocFail));
             } else if (std::strcmp(optname, "picture") == 0) {
-                Console::Fatal(L"Error: --picture is not supported by ctOpus\n");
+                Console::Fatal(CT_TEXT("Error: --picture is not supported by ctOpus\n"));
             } else if (std::strcmp(optname, "padding") == 0) {
                 options.commentPadding = std::atoi(optarg);
             } else if (std::strcmp(optname, "discard-comments") == 0 || std::strcmp(optname, "discard-pictures") == 0) {
@@ -393,9 +398,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             } else if (std::strcmp(optname, "threads") == 0) {
                 options.threads = std::atoi(optarg);
                 if (options.threads < 1 || options.threads > 1024)
-                    Console::Fatal(L"Invalid threads: %hs\n"
-                                   L"The number of worker threads must be in the range 1 to 1024.\n",
-                                   optarg);
+                    Console::Fatal(CT_TEXT("Invalid threads: %hs\n") CT_TEXT("The number of worker threads must be in the range 1 to 1024.\n"), optarg);
                 saveCmd = false; // ctOpus options: no effect on the output, not recorded
             } else if (std::strcmp(optname, "sequential") == 0) {
                 options.sequential = true;
@@ -429,75 +432,75 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         options.outIndex = parser.Positional(1);
 
         if (cline > 0 && !options.comments.Add("ENCODER_OPTIONS", encoderString))
-            Console::Fatal(L"Error: failed to add ENCODER_OPTIONS comment: %hs\n", OpeErrorString(OpeAllocFail));
+            Console::Fatal(CT_TEXT("Error: failed to add ENCODER_OPTIONS comment: %hs\n"), OpeErrorString(OpeAllocFail));
         return Shared::ParseResult::Run;
     }
 
     void CommandLine::PrintUsage()
     {
-        const auto p = [](const wchar_t* text) { Console::Print(Stream::Output, L"%ls", text); };
-        p(L"Usage: opusenc [options] input_file output_file.opus\n");
-        p(L"\n");
-        p(L"Encode audio using Opus.\n");
-        p(L"The input format can be Wave.\n");
-        p(L"\ninput_file can be:\n");
-        p(L"  filename.wav      file\n");
-        p(L"  -                 stdin\n");
-        p(L"\noutput_file can be:\n");
-        p(L"  filename.opus     compressed file\n");
-        p(L"  -                 stdout\n");
-        p(L"\nGeneral options:\n");
-        p(L" -h, --help         Show this help\n");
-        p(L" -V, --version      Show version information\n");
-        p(L" --help-picture     Show help on attaching album art\n");
-        p(L" --quiet            Enable quiet mode\n");
-        p(L"\nEncoding options:\n");
-        p(L" --bitrate n.nnn    Set target bitrate in kbit/s (6-256/channel)\n");
-        p(L" --vbr              Use variable bitrate encoding (default)\n");
-        p(L" --cvbr             Use constrained variable bitrate encoding\n");
-        p(L" --hard-cbr         Use hard constant bitrate encoding\n");
-        p(L" --music            Tune low bitrates for music (override automatic detection)\n");
-        p(L" --speech           Tune low bitrates for speech (override automatic detection)\n");
-        p(L" --comp n           Set encoding complexity (0-10, default: 10 (slowest))\n");
-        p(L" --framesize n      Set maximum frame size in milliseconds\n");
-        p(L"                      (2.5, 5, 10, 20, 40, 60, default: 20)\n");
-        p(L" --expect-loss n    Set expected packet loss in percent (default: 0)\n");
-        p(L" --downmix-mono     Downmix to mono\n");
-        p(L" --downmix-stereo   Downmix to stereo (if >2 channels)\n");
-        p(L" --no-phase-inv     Disable use of phase inversion for intensity stereo\n");
-        p(L" --max-delay n      Set maximum container delay in milliseconds\n");
-        p(L"                      (0-1000, default: 1000)\n");
-        p(L"\nMetadata options:\n");
-        p(L" --title title      Set track title\n");
-        p(L" --artist artist    Set artist or author, may be used multiple times\n");
-        p(L" --album album      Set album or collection\n");
-        p(L" --tracknumber n    Set track number\n");
-        p(L" --genre genre      Set genre, may be used multiple times\n");
-        p(L" --date YYYY-MM-DD  Set date of track (YYYY, YYYY-MM, or YYYY-MM-DD)\n");
-        p(L" --comment tag=val  Add the given string as an extra comment\n");
-        p(L"                      This may be used multiple times\n");
-        p(L" --padding n        Reserve n extra bytes for metadata (default: 512)\n");
-        p(L" --discard-comments Don't keep metadata when transcoding\n");
-        p(L" --discard-pictures Don't keep pictures when transcoding\n");
-        p(L"\nInput options:\n");
-        p(L" --ignorelength     Ignore the data length in Wave headers\n");
-        p(L"\nDiagnostic options:\n");
-        p(L" --serial n         Force use of a specific stream serial number\n");
-        p(L" --set-ctl-int x=y  Pass the encoder control x with value y (advanced)\n");
-        p(L"                      Preface with s: to direct the ctl to multistream s\n");
-        p(L"                      This may be used multiple times\n");
-        p(L"\nctOpus options (not stored in ENCODER_OPTIONS):\n");
-        p(L" --threads n        Number of worker threads (default: all logical processors)\n");
-        p(L" --sequential       Encode on one thread (the reference path)\n");
-        p(L" --stats            Print the times, the thread count and the peak memory\n");
+        const auto p = [](const Shared::Char* text) { Console::Print(Stream::Output, CT_TEXT("%s"), text); };
+        p(CT_TEXT("Usage: opusenc [options] input_file output_file.opus\n"));
+        p(CT_TEXT("\n"));
+        p(CT_TEXT("Encode audio using Opus.\n"));
+        p(CT_TEXT("The input format can be Wave.\n"));
+        p(CT_TEXT("\ninput_file can be:\n"));
+        p(CT_TEXT("  filename.wav      file\n"));
+        p(CT_TEXT("  -                 stdin\n"));
+        p(CT_TEXT("\noutput_file can be:\n"));
+        p(CT_TEXT("  filename.opus     compressed file\n"));
+        p(CT_TEXT("  -                 stdout\n"));
+        p(CT_TEXT("\nGeneral options:\n"));
+        p(CT_TEXT(" -h, --help         Show this help\n"));
+        p(CT_TEXT(" -V, --version      Show version information\n"));
+        p(CT_TEXT(" --help-picture     Show help on attaching album art\n"));
+        p(CT_TEXT(" --quiet            Enable quiet mode\n"));
+        p(CT_TEXT("\nEncoding options:\n"));
+        p(CT_TEXT(" --bitrate n.nnn    Set target bitrate in kbit/s (6-256/channel)\n"));
+        p(CT_TEXT(" --vbr              Use variable bitrate encoding (default)\n"));
+        p(CT_TEXT(" --cvbr             Use constrained variable bitrate encoding\n"));
+        p(CT_TEXT(" --hard-cbr         Use hard constant bitrate encoding\n"));
+        p(CT_TEXT(" --music            Tune low bitrates for music (override automatic detection)\n"));
+        p(CT_TEXT(" --speech           Tune low bitrates for speech (override automatic detection)\n"));
+        p(CT_TEXT(" --comp n           Set encoding complexity (0-10, default: 10 (slowest))\n"));
+        p(CT_TEXT(" --framesize n      Set maximum frame size in milliseconds\n"));
+        p(CT_TEXT("                      (2.5, 5, 10, 20, 40, 60, default: 20)\n"));
+        p(CT_TEXT(" --expect-loss n    Set expected packet loss in percent (default: 0)\n"));
+        p(CT_TEXT(" --downmix-mono     Downmix to mono\n"));
+        p(CT_TEXT(" --downmix-stereo   Downmix to stereo (if >2 channels)\n"));
+        p(CT_TEXT(" --no-phase-inv     Disable use of phase inversion for intensity stereo\n"));
+        p(CT_TEXT(" --max-delay n      Set maximum container delay in milliseconds\n"));
+        p(CT_TEXT("                      (0-1000, default: 1000)\n"));
+        p(CT_TEXT("\nMetadata options:\n"));
+        p(CT_TEXT(" --title title      Set track title\n"));
+        p(CT_TEXT(" --artist artist    Set artist or author, may be used multiple times\n"));
+        p(CT_TEXT(" --album album      Set album or collection\n"));
+        p(CT_TEXT(" --tracknumber n    Set track number\n"));
+        p(CT_TEXT(" --genre genre      Set genre, may be used multiple times\n"));
+        p(CT_TEXT(" --date YYYY-MM-DD  Set date of track (YYYY, YYYY-MM, or YYYY-MM-DD)\n"));
+        p(CT_TEXT(" --comment tag=val  Add the given string as an extra comment\n"));
+        p(CT_TEXT("                      This may be used multiple times\n"));
+        p(CT_TEXT(" --padding n        Reserve n extra bytes for metadata (default: 512)\n"));
+        p(CT_TEXT(" --discard-comments Don't keep metadata when transcoding\n"));
+        p(CT_TEXT(" --discard-pictures Don't keep pictures when transcoding\n"));
+        p(CT_TEXT("\nInput options:\n"));
+        p(CT_TEXT(" --ignorelength     Ignore the data length in Wave headers\n"));
+        p(CT_TEXT("\nDiagnostic options:\n"));
+        p(CT_TEXT(" --serial n         Force use of a specific stream serial number\n"));
+        p(CT_TEXT(" --set-ctl-int x=y  Pass the encoder control x with value y (advanced)\n"));
+        p(CT_TEXT("                      Preface with s: to direct the ctl to multistream s\n"));
+        p(CT_TEXT("                      This may be used multiple times\n"));
+        p(CT_TEXT("\nctOpus options (not stored in ENCODER_OPTIONS):\n"));
+        p(CT_TEXT(" --threads n        Number of worker threads (default: all logical processors)\n"));
+        p(CT_TEXT(" --sequential       Encode on one thread (the reference path)\n"));
+        p(CT_TEXT(" --stats            Print the times, the thread count and the peak memory\n"));
     }
 
     void CommandLine::PrintVersion(const char* opusVersion)
     {
-        Console::Print(Stream::Output, L"ctOpus %hs, compatible with opusenc %hs %hs (using %hs)\n", CTOPUS_VERSION_STRING, PackageName, PackageVersion,
+        Console::Print(Stream::Output, CT_TEXT("ctOpus %hs, compatible with opusenc %hs %hs (using %hs)\n"), CTOPUS_VERSION_STRING, PackageName, PackageVersion,
                        opusVersion);
-        Console::Print(Stream::Output, L"%hs\n", CT_SAMPLES_COPYRIGHT);
-        Console::Print(Stream::Output, L"opusenc: Copyright (C) 2008-2018 Xiph.Org Foundation\n");
+        Console::Print(Stream::Output, CT_TEXT("%hs\n"), CT_SAMPLES_COPYRIGHT);
+        Console::Print(Stream::Output, CT_TEXT("opusenc: Copyright (C) 2008-2018 Xiph.Org Foundation\n"));
     }
 
     // is_valid_ctl

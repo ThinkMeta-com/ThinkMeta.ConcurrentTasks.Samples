@@ -4,9 +4,12 @@
 #ifndef PCH_H
 #define PCH_H
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 #include <cfloat>
+#include <climits>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>

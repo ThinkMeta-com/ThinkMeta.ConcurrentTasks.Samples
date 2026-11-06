@@ -43,6 +43,9 @@
     <ClInclude Include="TestTasks.h" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\src\Shared\ThinkMeta.ConcurrentTasks.Samples.Shared.vcxproj">
+      <Project>{5a4ed000-0001-4000-8000-000000000001}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(CT_ApiDir)Library\ThinkMeta.ConcurrentTasks\ThinkMeta.ConcurrentTasks.vcxproj">
       <Project>{8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2}</Project>
     </ProjectReference>

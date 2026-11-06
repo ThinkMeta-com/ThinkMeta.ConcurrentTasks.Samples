@@ -8,7 +8,7 @@
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
-    /// <summary>A growing byte buffer on the process heap (HeapAlloc/HeapReAlloc).</summary>
+    /// <summary>A growing byte buffer on the process heap (Shared::Heap: HeapAlloc/HeapReAlloc or malloc/realloc).</summary>
     class ByteBuffer
     {
     public:

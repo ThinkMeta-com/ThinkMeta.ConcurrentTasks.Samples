@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Builds the standalone benchmark package for other PCs: bin\ (ctOpus, ctOpusGui,
+    Builds the standalone benchmark package for other PCs (Windows): bin\ (from bin\win-x64\: ctOpus, ctOpusGui,
     ctOpusLiveBench, opusenc, scheduler core) with the benchmark script.
 
 .DESCRIPTION
@@ -11,7 +11,7 @@
     .\New-BenchPackage.ps1
 #>
 param(
-    [string]$BinDir = (Join-Path $PSScriptRoot 'bin'),
+    [string]$BinDir = (Join-Path $PSScriptRoot 'bin\win-x64'),
     [string]$OutDir = (Join-Path $PSScriptRoot 'dist\ctOpus-Bench'),
     [switch]$NoZip
 )

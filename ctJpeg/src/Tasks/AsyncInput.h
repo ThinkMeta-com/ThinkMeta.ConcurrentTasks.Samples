@@ -3,7 +3,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -11,6 +13,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+
+#include "Memory.h"
+#include "Text.h"
 
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 import ThinkMeta.ConcurrentTasks.AsyncIo.AsyncFile;
@@ -40,9 +45,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
         /// <summary>
         /// Sizes the file; granularity is the step in which waiters are woken. False on an error
-        /// (a Windows error code in Error()).
+        /// (an error code of the operating system in Error()).
         /// </summary>
-        bool Open(const wchar_t* path, std::size_t granularity) noexcept;
+        bool Open(const Shared::Char* path, std::size_t granularity) noexcept;
 
         void Run() noexcept override;
 
@@ -72,8 +77,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         void       SetEndOfStream() noexcept override;
 
     private:
-        const wchar_t*                                       path_   = nullptr;
-        std::uint8_t*                                        buffer_ = nullptr; // VirtualAlloc, by Initialize
+        const Shared::Char*                                  path_   = nullptr;
+        std::uint8_t*                                        buffer_ = nullptr; // Shared::AddressSpace, by Initialize
         std::size_t                                          size_   = 0;
         std::size_t                                          step_   = 0;
         std::size_t                                          steps_  = 0;

@@ -7,12 +7,14 @@
 
 #include <cstdarg>
 
+#include "Text.h"
+
 namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     /// <summary>Receives printf-style messages of the library (the frontend writes them to stderr).</summary>
-    using ReportFunction = void (*)(const wchar_t* format, std::va_list args);
+    using ReportFunction = void (*)(const Shared::Char* format, std::va_list args);
 
-    inline void Report(ReportFunction report, const wchar_t* format, ...)
+    inline void Report(ReportFunction report, const Shared::Char* format, ...)
     {
         if (report == nullptr)
             return;

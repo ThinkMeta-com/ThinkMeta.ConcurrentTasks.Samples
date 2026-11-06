@@ -43,15 +43,15 @@ param(
     [string]$CtArgs = '',         # further ctDeflate arguments, e.g. '--in-memory'
     [switch]$Recurse,             # also the files in subfolders of a folder
     [switch]$Warm,                # read the inputs from the file cache instead of a fresh unbuffered copy per run
-    [string]$GzipExe = '',        # default: bin\gzip.exe next to the script or one level up
-    [string]$CtDeflateExe = '',   # default: bin\ctDeflate.exe next to the script or one level up, else your own build (build\Release\bin)
+    [string]$GzipExe = '',        # default: bin\gzip.exe next to the script, or bin\win-x64\gzip.exe one level up
+    [string]$CtDeflateExe = '',   # default: bin\ctDeflate.exe next to the script, or bin\win-x64 one level up, else your own build (build\Release\bin)
     [switch]$KeepPowerPlan        # do not switch the power plan
 )
 
 $ErrorActionPreference = 'Stop'
 # Paths that depend on the script folder are resolved here, not in param() (Windows PowerShell 5.1):
-# bin\ next to the script (benchmark package) or one level up (ctDeflate folder, benchmark\); for
-# ctDeflate.exe also the build of the ctDeflate folder (build\Release\bin).
+# bin\ next to the script (benchmark package) or bin\win-x64\ one level up (ctDeflate folder, benchmark\);
+# for ctDeflate.exe also the build of the ctDeflate folder (build\Release\bin).
 $root    = $PSScriptRoot
 $work    = Join-Path $root 'work'
 $results = Join-Path $root 'results'
@@ -62,11 +62,11 @@ function Find-Program([string]$name, [string[]]$dirs) {
     }
     return Join-Path $dirs[0] $name
 }
-$binDirs = @((Join-Path $root 'bin'), (Join-Path (Split-Path $root) 'bin'))
+$binDirs = @((Join-Path $root 'bin'), (Join-Path (Split-Path $root) 'bin\win-x64'))
 if (-not $GzipExe) { $GzipExe = Find-Program 'gzip.exe' $binDirs }
 if (-not $CtDeflateExe) { $CtDeflateExe = Find-Program 'ctDeflate.exe' ($binDirs + @(Join-Path (Split-Path $root) 'build\Release\bin')) }
 foreach ($exe in $GzipExe, $CtDeflateExe) {
-    if (-not (Test-Path -LiteralPath $exe)) { throw "program not found: $exe (expected in bin\ next to the script or one level up; or give -GzipExe / -CtDeflateExe)" }
+    if (-not (Test-Path -LiteralPath $exe)) { throw "program not found: $exe (expected in bin\ next to the script or in bin\win-x64\ one level up; or give -GzipExe / -CtDeflateExe)" }
 }
 New-Item -ItemType Directory -Force -Path $work, $results | Out-Null
 

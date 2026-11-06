@@ -4,12 +4,17 @@
 #ifndef PCH_H
 #define PCH_H
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#else
+#    include <unistd.h>
+#endif
 
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>

@@ -5,7 +5,11 @@
 
 #include <cstdint>
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#else
+#    include <sched.h>
+#endif
 
 #include <ThinkMeta.ConcurrentTasks/Core.h>
 
@@ -60,7 +64,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
     /// <list type="number">
     /// <item>ConvertThreadToTask: the calling thread becomes a task, so it can wait for the task graph (TaskGroup::Wait)
     /// and on its events.</item>
-    /// <item>EnableAsyncIo: the core's completion port, for the overlapped file I/O of the nodes that read and write.</item>
+    /// <item>EnableAsyncIo: the core's completion port (Windows) or io_uring (Linux), for the asynchronous file I/O of
+    /// the nodes that read and write. Without it (Linux: io_uring not allowed, e.g. in a container) the setup fails.</item>
     /// <item>An I/O scheduler for those nodes, started. The compute scheduler is a RunningScheduler of the sample: some
     /// samples create it only once their graph knows its thread count.</item>
     /// </list>
@@ -104,8 +109,22 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
             }
         }
 
-        /// <summary>The default number of worker threads: one per logical processor in all processor groups.</summary>
-        static std::uint32_t LogicalProcessors() noexcept { return GetActiveProcessorCount(ALL_PROCESSOR_GROUPS); }
+        /// <summary>
+        /// The default number of worker threads: one per logical processor in all processor groups (Windows), or per
+        /// processor the process may run on (Linux: its affinity, so taskset and container limits count).
+        /// </summary>
+        static std::uint32_t LogicalProcessors() noexcept
+        {
+#if defined(_WIN32)
+            return GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+#else
+            cpu_set_t set;
+            CPU_ZERO(&set);
+            if (sched_getaffinity(0, sizeof(set), &set) != 0)
+                return 1;
+            return static_cast<std::uint32_t>(CPU_COUNT(&set));
+#endif
+        }
 
     private:
         bool             converted_;

@@ -9,6 +9,7 @@
 #include <cstdint>
 
 #include "CpuFeatures.h"
+#include "Text.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
@@ -29,9 +30,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     SimdLevel ChooseSimdLevel(SimdLevel requested, const CpuFeatures& features) noexcept;
 
     /// <summary>Name of a level, as --simd takes it: scalar, sse4.1, avx2.</summary>
-    const wchar_t* SimdLevelName(SimdLevel level) noexcept;
+    const Shared::Char* SimdLevelName(SimdLevel level) noexcept;
 
     /// <summary>The level of a name as --simd takes it; false for an unknown name.</summary>
-    bool ParseSimdLevel(const wchar_t* name, SimdLevel& level) noexcept;
+    bool ParseSimdLevel(const Shared::Char* name, SimdLevel& level) noexcept;
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

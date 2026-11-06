@@ -3,32 +3,43 @@
 
 #include "AsyncInput.h"
 
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <new>
 
-import ThinkMeta.ConcurrentTasks.Windows.Error;
+#include "File.h"
+
+import ThinkMeta.ConcurrentTasks.Platform.Error;
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
-    using Windows::Error;
+    using Platform::Error;
+
+    // the codes of the reader's own errors
+#if defined(_WIN32)
+    constexpr std::uint32_t OutOfMemory = ERROR_OUTOFMEMORY;
+    constexpr std::uint32_t FileChanged = ERROR_FILE_INVALID;
+#else
+    constexpr std::uint32_t OutOfMemory = ENOMEM;
+    constexpr std::uint32_t FileChanged = EIO;
+#endif
 
     AsyncInput::~AsyncInput()
     {
-        if (buffer_ != nullptr)
-            VirtualFree(buffer_, 0, MEM_RELEASE);
+        Shared::AddressSpace::Release(buffer_, size_);
     }
 
-    bool AsyncInput::Open(const wchar_t* path, std::size_t granularity) noexcept
+    bool AsyncInput::Open(const Shared::Char* path, std::size_t granularity) noexcept
     {
-        WIN32_FILE_ATTRIBUTE_DATA info{};
-        if (!GetFileAttributesExW(path, GetFileExInfoStandard, &info)) {
-            error_ = GetLastError();
+        std::uint64_t size = 0;
+        if (!Shared::File::Size(path, size)) {
+            error_ = Error::GetLastError();
             return false;
         }
-        size_ = (static_cast<std::size_t>(info.nFileSizeHigh) << 32) | info.nFileSizeLow;
+        size_ = static_cast<std::size_t>(size);
         if (size_ == 0) {
-            error_ = ERROR_HANDLE_EOF;
+            error_ = Error::EndOfFile;
             return false;
         }
         path_  = path;
@@ -36,7 +47,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         steps_ = (size_ + step_ - 1) / step_;
         arrived_.reset(new (std::nothrow) Synchronization::ManualResetEvent[steps_]);
         if (!arrived_) {
-            error_ = ERROR_OUTOFMEMORY;
+            error_ = OutOfMemory;
             return false;
         }
         return true;
@@ -45,11 +56,15 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     void AsyncInput::Run() noexcept
     {
         // the library's default shape (1 MB x 5 in flight)
+#if defined(_WIN32)
         const std::uint32_t result = AsyncIo::AsyncFile::ReadFile(path_, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, this);
+#else
+        const std::uint32_t result = AsyncIo::AsyncFile::ReadFile(path_, Platform::FileOptions{}, this);
+#endif
         // The error of the file (open, size, a read) wins over the end-of-stream and size codes set
-        // above; ERROR_NOT_ENOUGH_MEMORY is the library's answer to a refused block, whose reason
+        // above; Error::NotEnoughMemory is the library's answer to a refused block, whose reason
         // error_ already holds.
-        if (Error::Failed(result) && (result != ERROR_NOT_ENOUGH_MEMORY || error_ == 0))
+        if (Error::Failed(result) && (result != static_cast<std::uint32_t>(Error::NotEnoughMemory) || error_ == 0))
             error_ = result;
         SetEndOfStream(); // ReadFile has called it already, unless it failed before Initialize
     }
@@ -59,16 +74,16 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         if (initialSize == 0) // the file could not be opened or sized: Run takes the error of ReadFile
             return;
         if (initialSize != size_) // the file changed since Open: the reads beyond it fail
-            error_ = ERROR_FILE_INVALID;
-        buffer_ = static_cast<std::uint8_t*>(VirtualAlloc(nullptr, size_, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+            error_ = FileChanged;
+        buffer_ = static_cast<std::uint8_t*>(Shared::AddressSpace::Allocate(size_));
         if (buffer_ == nullptr)
-            error_ = ERROR_OUTOFMEMORY;
+            error_ = OutOfMemory;
     }
 
     std::byte* AsyncInput::RequestWriteMemory(std::size_t size) noexcept
     {
         // no memory, or a file that grew since Open (error_ is set either way): ReadFile ends the
-        // read with ERROR_NOT_ENOUGH_MEMORY after the requests in flight
+        // read with Error::NotEnoughMemory after the requests in flight
         if (buffer_ == nullptr || requested_ + size > size_)
             return nullptr;
         std::byte* at = reinterpret_cast<std::byte*>(buffer_) + requested_;
@@ -87,7 +102,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     void AsyncInput::SetEndOfStream() noexcept
     {
         if (arrivedBytes_ < size_ && error_ == 0)
-            error_ = ERROR_HANDLE_EOF;
+            error_ = Error::EndOfFile;
         while (signalled_ < steps_)
             arrived_[signalled_++].Set();
     }
@@ -104,8 +119,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     void AsyncInput::Release() noexcept
     {
         WaitFor(size_);
-        if (buffer_ != nullptr)
-            VirtualFree(buffer_, 0, MEM_RELEASE);
+        Shared::AddressSpace::Release(buffer_, size_);
         buffer_ = nullptr;
     }
 

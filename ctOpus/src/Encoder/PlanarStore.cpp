@@ -5,9 +5,9 @@
 
 #include "PlanarStore.h"
 
-#include <Windows.h>
-
 #include <cstdint>
+
+#include "Memory.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
@@ -25,8 +25,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     PlanarStore::~PlanarStore()
     {
         for (std::int32_t c = 0; c < count_; ++c)
-            if (channels_[c] != nullptr)
-                VirtualFree(channels_[c], 0, MEM_RELEASE);
+            Shared::AddressSpace::Release(channels_[c], static_cast<std::size_t>(capacity_) * sizeof(float));
     }
 
     bool PlanarStore::Initialize(std::int32_t channels, std::int64_t capacity) noexcept
@@ -36,7 +35,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             return false;
         count_ = channels;
         for (std::int32_t c = 0; c < channels; ++c) {
-            channels_[c] = static_cast<float*>(VirtualAlloc(nullptr, static_cast<std::size_t>(capacity_) * sizeof(float), MEM_RESERVE, PAGE_READWRITE));
+            channels_[c] = static_cast<float*>(Shared::AddressSpace::Reserve(static_cast<std::size_t>(capacity_) * sizeof(float)));
             if (channels_[c] == nullptr)
                 return false;
         }
@@ -52,7 +51,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         if (end < frames)
             return false;
         for (std::int32_t c = 0; c < count_; ++c) {
-            if (VirtualAlloc(channels_[c] + committed_, static_cast<std::size_t>(end - committed_) * sizeof(float), MEM_COMMIT, PAGE_READWRITE) == nullptr)
+            if (!Shared::AddressSpace::Commit(channels_[c] + committed_, static_cast<std::size_t>(end - committed_) * sizeof(float)))
                 return false;
         }
         committed_ = end;
@@ -66,7 +65,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         if (end <= decommitted_)
             return;
         for (std::int32_t c = 0; c < count_; ++c)
-            VirtualFree(channels_[c] + decommitted_, static_cast<std::size_t>(end - decommitted_) * sizeof(float), MEM_DECOMMIT);
+            Shared::AddressSpace::Decommit(channels_[c] + decommitted_, static_cast<std::size_t>(end - decommitted_) * sizeof(float));
         decommitted_ = end;
     }
 

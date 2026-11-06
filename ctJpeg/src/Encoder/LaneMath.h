@@ -9,6 +9,7 @@
 
 #include <immintrin.h>
 
+#include "Compiler.h"
 #include "SimdFeatures.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
@@ -24,7 +25,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     struct Lane {
         static constexpr int Width = L == SimdLevel::Avx2 ? 8 : 4;
 
-        static __forceinline float MulAdd(float mul, float x, float add) noexcept
+        static CT_FORCEINLINE float MulAdd(float mul, float x, float add) noexcept
         {
             if constexpr (L == SimdLevel::Avx2) // vfmadd: the same rounding as std::fma, without the CRT call
                 return _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(mul), _mm_set_ss(x), _mm_set_ss(add)));
@@ -32,7 +33,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
                 return mul * x + add;
         }
 
-        static __forceinline float SumOfLanes(const float* v) noexcept
+        static CT_FORCEINLINE float SumOfLanes(const float* v) noexcept
         {
             if constexpr (L == SimdLevel::Avx2) {
                 const float u0 = v[0] + v[4], u1 = v[1] + v[5], u2 = v[2] + v[6], u3 = v[3] + v[7];

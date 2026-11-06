@@ -6,7 +6,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -35,7 +37,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// the MP3 pipe. The same encoder and the same edges as the parallel graph, on one thread: the
     /// reference for bisecting the parallel path.
     /// </summary>
-    class SequentialEncodeTask : public Tasks::Task
+    class SequentialEncodeTask final : public Tasks::Task
     {
     public:
         SequentialEncodeTask(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format, Encoder& encoder, FrameEncoder& frameEncoder,

@@ -6,7 +6,7 @@
 
 #include "SampleStream.h"
 
-#include <Windows.h>
+#include "Memory.h"
 
 #include <array>
 #include <cstddef>
@@ -56,8 +56,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     SampleStream::~SampleStream()
     {
         for (auto*& base : base_) {
-            if (base != nullptr)
-                VirtualFree(base, 0, MEM_RELEASE);
+            Shared::AddressSpace::Release(base, reserved_);
             base = nullptr;
         }
     }
@@ -93,7 +92,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     {
         reserved_ = RoundUp(static_cast<std::size_t>(samples) * sizeof(sample_t), CommitChunk);
         for (std::int32_t ch = 0; ch < channels_; ++ch) {
-            base_[ch] = static_cast<sample_t*>(VirtualAlloc(nullptr, reserved_, MEM_RESERVE, PAGE_NOACCESS));
+            base_[ch] = static_cast<sample_t*>(Shared::AddressSpace::Reserve(reserved_));
             if (base_[ch] == nullptr)
                 return false;
         }
@@ -113,7 +112,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             commit = reserved_;
         for (std::int32_t ch = 0; ch < channels_; ++ch) {
             auto* const start = reinterpret_cast<std::byte*>(base_[ch]) + committed_;
-            if (VirtualAlloc(start, commit - committed_, MEM_COMMIT, PAGE_READWRITE) == nullptr)
+            if (!Shared::AddressSpace::Commit(start, commit - committed_))
                 return false;
         }
         committed_ = commit;
@@ -201,7 +200,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         if (bound <= decommitted_)
             return;
         for (std::int32_t ch = 0; ch < channels_; ++ch)
-            VirtualFree(reinterpret_cast<std::byte*>(base_[ch]) + decommitted_, bound - decommitted_, MEM_DECOMMIT);
+            Shared::AddressSpace::Decommit(reinterpret_cast<std::byte*>(base_[ch]) + decommitted_, bound - decommitted_);
         decommitted_ = bound;
     }
 

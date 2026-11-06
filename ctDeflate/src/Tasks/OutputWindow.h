@@ -5,7 +5,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -18,10 +20,12 @@
 
 // headers with imports last
 #include "InputWindow.h"
+#include "Text.h"
 
 import ThinkMeta.ConcurrentTasks.AsyncIo.AsyncFile;
 import ThinkMeta.ConcurrentTasks.Synchronization.AutoResetEvent;
-import ThinkMeta.ConcurrentTasks.Windows.Error;
+import ThinkMeta.ConcurrentTasks.Platform.Error;
+import ThinkMeta.ConcurrentTasks.Platform.VirtualMemory;
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
 
@@ -51,19 +55,20 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
         static constexpr std::size_t MaxUnwritten = 16 * SegmentSize;
 
         OutputWindow() = default;
-        ~OutputWindow()
-        {
-            if (base_ != nullptr && !attached_)
-                VirtualFree(base_, 0, MEM_RELEASE);
-        }
+
         OutputWindow(const OutputWindow&)            = delete;
         OutputWindow& operator=(const OutputWindow&) = delete;
 
         /// <summary>Creates the file and reserves bound bytes of address space for the output.</summary>
-        std::uint32_t Open(const wchar_t* path, std::size_t bound) noexcept
+        std::uint32_t Open(const Shared::Char* path, std::size_t bound) noexcept
         {
-            using Windows::Error;
+            using Platform::Error;
+#if defined(_WIN32)
             const std::uint32_t error = file_.Create(path, GENERIC_WRITE, 0, CREATE_ALWAYS, FILE_FLAG_SEQUENTIAL_SCAN);
+#else
+            const std::uint32_t error = file_.Create(
+                path, Platform::FileOptions{.access = Platform::FileAccess::Write, .creation = Platform::FileCreation::CreateAlways, .shareRead = false});
+#endif
             if (Error::Failed(error))
                 return error;
             return Reserve(bound);
@@ -97,7 +102,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
             if (end > committed_) {
                 // Out of memory: the bitstream cannot continue. The sample ends the process instead of unwinding the
                 // graph (see the README, "Error handling").
-                if (VirtualAlloc(base_ + committed_, end - committed_, MEM_COMMIT, PAGE_READWRITE) == nullptr)
+                if (Platform::Error::Failed(Platform::VirtualMemory::Commit(base_ + committed_, end - committed_)))
                     std::abort();
                 committed_ = end;
             }
@@ -167,7 +172,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
                 error_ = error;
             const std::size_t whole = end / SegmentSize * SegmentSize;
             if (whole > decommitted_) {
-                VirtualFree(base_ + decommitted_, whole - decommitted_, MEM_DECOMMIT);
+                Platform::VirtualMemory::Decommit(base_ + decommitted_, whole - decommitted_);
                 decommitted_ = whole;
             }
             written_.store(end, std::memory_order_seq_cst);
@@ -183,13 +188,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
     private:
         std::uint32_t Reserve(std::size_t bound) noexcept
         {
-            using Windows::Error;
-            reserved_ = (bound + SegmentSize - 1) / SegmentSize * SegmentSize + SegmentSize;
-            base_     = static_cast<std::uint8_t*>(VirtualAlloc(nullptr, reserved_, MEM_RESERVE, PAGE_READWRITE));
-            return base_ != nullptr ? Error::Success : Error::GetLastError();
+            reserved_                 = (bound + SegmentSize - 1) / SegmentSize * SegmentSize + SegmentSize;
+            const std::uint32_t error = memory_.Reserve(reserved_);
+            base_                     = static_cast<std::uint8_t*>(memory_.GetAllocationBase());
+            return error;
         }
 
         AsyncIo::AsyncFile                file_;
+        Platform::VirtualMemory           memory_; // the reserved range, unless attached
         IOutputSink*                      sink_      = nullptr;
         std::uint8_t*                     base_      = nullptr;
         bool                              attached_  = false;

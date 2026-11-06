@@ -6,7 +6,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -31,7 +33,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// slot and input window. A serial node, so it runs with High priority: the pipeline drains
     /// before the input runs further ahead.
     /// </summary>
-    class EncodeTask : public Tasks::Task
+    class EncodeTask final : public Tasks::Task
     {
     public:
         EncodeTask(FrameRing& ring, SampleStream& stream, FrameEncoder& frameEncoder, TaskProfile* profile) noexcept

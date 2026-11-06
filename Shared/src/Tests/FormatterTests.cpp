@@ -8,8 +8,9 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using ThinkMeta::ConcurrentTasks::Samples::Shared::Formatter;
 
-// Formatter against the UCRT (snprintf, swprintf) as the oracle: every case must give the same text and the same
-// length. The floating-point cases cover the formats of the samples and more, with fixed, random and tie values.
+// Formatter against the C runtime (snprintf, swprintf; the UCRT on Windows, glibc on Linux) as the oracle: every case
+// must give the same text and the same length. The floating-point cases cover the formats of the samples and more, with
+// fixed, random and tie values.
 namespace SharedTests {
 
     TEST_CLASS(FormatterTests)
@@ -23,7 +24,7 @@ namespace SharedTests {
                                       "%8.3d", "%-08d|", "%04X", "%x",    "%X",   "%u",   "%10u", "%hd", "%hhd", "%hu",  "%hhu"})
                     m.Narrow(f, v);
             }
-            for (const long long v : {0ll, -1ll, 1234567890123ll, INT64_MAX, INT64_MIN}) {
+            for (const long long v : {0ll, -1ll, 1234567890123ll, LLONG_MAX, LLONG_MIN}) {
                 m.Narrow("%lld", v);
                 m.Narrow("%llu", v);
                 m.Narrow("%20lld|", v);
@@ -198,15 +199,19 @@ namespace SharedTests {
                 ++cases_;
             }
 
+            // Windows only: glibc's swprintf reads %s in a wide format as a narrow string (C standard), the UCRT as a
+            // wide one, as the Formatter does. On Linux the samples format narrow (UTF-8) text.
             template <typename... Args>
-            void Wide(const wchar_t* format, Args... args)
+            void Wide([[maybe_unused]] const wchar_t* format, [[maybe_unused]] Args... args)
             {
+#if defined(_WIN32)
                 wchar_t    expected[1024], actual[1024];
                 const int  e = std::swprintf(expected, 1024, format, args...);
                 const auto a = Formatter::Format(actual, 1024, format, args...);
                 if (e != a || std::wcscmp(expected, actual) != 0)
                     Add(std::wstring(format) + L": expected \"" + expected + L"\", got \"" + actual + L"\"");
                 ++cases_;
+#endif
             }
 
             void Check() const

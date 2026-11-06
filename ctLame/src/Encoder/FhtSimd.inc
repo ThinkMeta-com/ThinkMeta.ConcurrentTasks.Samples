@@ -155,7 +155,6 @@ namespace {
 void FHT_SIMD_NAME(float* fz, std::int32_t n) noexcept
 {
     const Twiddles& tw  = GetTwiddles();
-    const float*    tri = FhtCostab.data();
     n <<= 1; // to get BLKSIZE, because of 3DNow! ASM routine
     float* const fn    = fz + n;
     std::int32_t k4    = 4;
@@ -209,7 +208,6 @@ void FHT_SIMD_NAME(float* fz, std::int32_t n) noexcept
             for (; i < kx; i++)
                 ButterflyScalar(base + i, base + k1 - i, k1, k2, k3, tc1[i], ts1[i], tc2[i], ts2[i]);
         }
-        tri += 2;
         ++stage;
     } while (k4 < n);
 }

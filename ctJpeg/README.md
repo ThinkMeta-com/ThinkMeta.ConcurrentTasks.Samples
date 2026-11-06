@@ -1,6 +1,6 @@
 # ctJpeg: jpegli, bit for bit, one image on many cores
 
-**ctJpeg** is a JPEG encoder for Windows x64 that writes *exactly* the same `.jpg` files as **jpegli** (google/jpegli @ 031a007, the `cjpegli` tool), byte for byte, and spreads the encoding of a **single image** over all cores. It is a new C++ port (rewritten, not linked) of the jpegli encoder, built on **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler for Windows.
+**ctJpeg** is a JPEG encoder for Windows and Linux (x64) that writes *exactly* the same `.jpg` files as **jpegli** (google/jpegli @ 031a007, the `cjpegli` tool), byte for byte, and spreads the encoding of a **single image** over all cores. It is a new C++ port (rewritten, not linked) of the jpegli encoder, built on **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler for Windows and Linux (x64).
 
 ctJpeg was created **AI-assisted**, using ThinkMeta.ConcurrentTasks: AI coding agents wrote the port, its parallelization and optimizations, measured and tuned the code under the direction of ThinkMeta's developers, and every step was checked byte for byte against the reference. **An in-depth code review is still pending:** the output is verified to be identical to the reference, but the code itself has not yet been reviewed line by line.
 
@@ -21,15 +21,30 @@ jpegli is the JPEG encoder from the JPEG XL team: at the same visual quality its
 
 ## Try it
 
-No installation and no runtime to install: all programs in `bin\` link the C runtime statically and need nothing but Windows (10 or 11, or Windows Server 2016 and later, x64). Any x64 CPU runs ctJpeg (SSE2); the faster `avx2` feature set needs AVX2 and FMA (Intel since Haswell, 2013; AMD since Excavator and Zen).
+No installation and no runtime to install. Any x64 CPU runs ctJpeg (SSE2); the faster `avx2` feature set needs AVX2 and FMA (Intel since Haswell, 2013; AMD since Excavator and Zen).
+
+| | Windows (`bin\win-x64\`) | Linux (`bin/linux-x64/`) |
+|---|---|---|
+| System | Windows 10 or 11, or Windows Server 2016 and later, x64 | Linux x64 with **glibc 2.38** or later (Ubuntu 24.04, Debian 13, Fedora 39, RHEL 10 or newer); kernel 5.19 or later recommended. ctJpeg uses io_uring, which must be allowed (Docker's default seccomp profile blocks it; ctJpeg then reports an error at start) |
+| Runtime | all programs link the C runtime statically | libstdc++ is linked in; the programs need only `libc.so.6` and `libm.so.6`, ctJpeg also `libThinkMeta.ConcurrentTasks.Core.so.2`, which it finds next to itself |
+
+Windows:
 
 ```cmd
-bin\cjpegli --target avx2 input.ppm ref.jpg -q 85
-bin\ctJpeg  input.ppm ct.jpg -q 85 --simd avx2
+bin\win-x64\cjpegli --target avx2 input.ppm ref.jpg -q 85
+bin\win-x64\ctJpeg  input.ppm ct.jpg -q 85 --simd avx2
 fc /b ref.jpg ct.jpg
 ```
 
-`fc /b` finds no differences (in PowerShell write `fc.exe`, since `fc` is `Format-Custom` there). Input is binary PPM (8-bit RGB) or PGM (8-bit gray); the full option list is in [Command line](#command-line).
+Linux:
+
+```sh
+bin/linux-x64/cjpegli --target avx2 input.ppm ref.jpg -q 85
+bin/linux-x64/ctJpeg  input.ppm ct.jpg -q 85 --simd avx2
+cmp ref.jpg ct.jpg
+```
+
+`fc /b` and `cmp` find no differences (in PowerShell write `fc.exe`, since `fc` is `Format-Custom` there). Input is binary PPM (8-bit RGB) or PGM (8-bit gray); the full option list is in [Command line](#command-line). If the Linux programs lost their executable bit on the way (an archive unpacked on Windows, for example): `chmod +x bin/linux-x64/*`.
 
 ### Feature sets
 
@@ -38,18 +53,20 @@ jpegli does not write the same bytes on every CPU: its SIMD library (Highway) us
 * `--simd avx2` writes the bytes of jpegli on AVX2 (`cjpegli --target avx2`), the default on CPUs with AVX2 and FMA;
 * `--simd sse2` writes the bytes of jpegli on SSE2, SSSE3 or SSE4 (`cjpegli --target sse2`).
 
-A feature set the CPU does not have is an error, not a silent fallback, because the output would differ. AVX-512 is not supported (Highway disables it when jpegli is built with MSVC).
+A feature set the CPU does not have is an error, not a silent fallback, because the output would differ. AVX-512 is not supported (Highway disables it when jpegli is built with MSVC). Both feature sets work on both platforms, and jpegli writes the same bytes on Windows and Linux: the reference tables of the two platforms in `verify\` have the same contents.
 
 **On a CPU without AVX2** ctJpeg uses the `sse2` feature set by default and writes the bytes of jpegli on SSE2; `--simd avx2` stops with `ctJpeg: feature set avx2 is not supported by this CPU` and exit code 1 instead of crashing. Only the AVX2 kernels of the pixel phase are compiled for AVX2, and they run only after the feature set is chosen; we checked the binary for AVX2 and FMA instructions outside them (only C runtime functions that choose their code path at run time contain any).
 
 ### Benchmark on your own images
+
+The benchmark script is Windows only for now; on Linux there is the bit check (`verify/`) so far.
 
 ```cmd
 benchmark\run.cmd "D:\Images"
 benchmark\run.cmd "D:\Images" -Quality 90 -Simd sse2 -Sequential
 ```
 
-The script encodes every PPM/PGM image of the folder with jpegli, ctJpeg, mozjpeg and libjpeg-turbo, measures the wall time with the images read cold (a fresh unbuffered copy before every run, so it is not in the file cache; `-Warm` reads them from the cache) and checks for every image that the ctJpeg output is identical to jpegli on the same SIMD target. Other formats can be converted first, e.g. `magick mogrify -format ppm *.png` with ImageMagick. The script switches to the High Performance power plan during the run (or a temporary copy where the plan is hidden) and restores the previous plan afterwards; if Windows refuses the switch, for example on Windows Server without administrator rights, the report says so and the run goes on with the current plan (`-KeepPowerPlan` leaves the plan alone). It runs on Windows PowerShell 5.1 and later. Report and CSV go to `benchmark\results\`. The exit code of `Compare-Folder.ps1` and `run.cmd` is 0 if every image is bit-identical, 2 if one differs or a program failed on it, and 1 for other errors (a program missing in `bin\`, reported before the power plan is touched; wrong parameters; no images). Results of your hardware are welcome.
+The script encodes every PPM/PGM image of the folder with jpegli, ctJpeg, mozjpeg and libjpeg-turbo, measures the wall time with the images read cold (a fresh unbuffered copy before every run, so it is not in the file cache; `-Warm` reads them from the cache) and checks for every image that the ctJpeg output is identical to jpegli on the same SIMD target. Other formats can be converted first, e.g. `magick mogrify -format ppm *.png` with ImageMagick. The script switches to the High Performance power plan during the run (or a temporary copy where the plan is hidden) and restores the previous plan afterwards; if Windows refuses the switch, for example on Windows Server without administrator rights, the report says so and the run goes on with the current plan (`-KeepPowerPlan` leaves the plan alone). It runs on Windows PowerShell 5.1 and later. Report and CSV go to `benchmark\results\`. The exit code of `Compare-Folder.ps1` and `run.cmd` is 0 if every image is bit-identical, 2 if one differs or a program failed on it, and 1 for other errors (a program missing in `bin\win-x64\`, reported before the power plan is touched; wrong parameters; no images). Results of your hardware are welcome.
 
 ---
 
@@ -60,7 +77,7 @@ The script encodes every PPM/PGM image of the folder with jpegli, ctJpeg, mozjpe
 
 Two measurements, both with whole process time (including reading the PPM file and writing the JPEG), quality 85, the High Performance power plan, and every ctJpeg output compared byte for byte with jpegli on the same SIMD target:
 
-* **Benchmark package on three machines** (the main results below, 2026-10-17): `benchmark\Compare-Folder.ps1` from the package of `New-BenchPackage.ps1`, 6 photos, SSE2 and AVX2, ctJpeg with all logical processors, encoders interleaved image by image, **median of 5**. Every image is read **cold**: before each run the script writes a fresh copy of it with unbuffered I/O, so no program finds it in the file cache. The programs are the ones in `bin\`.
+* **Benchmark package on three machines** (the main results below, 2026-10-17): `benchmark\Compare-Folder.ps1` from the package of `New-BenchPackage.ps1`, 6 photos, SSE2 and AVX2, ctJpeg with all logical processors, encoders interleaved image by image, **median of 5**. Every image is read **cold**: before each run the script writes a fresh copy of it with unbuffered I/O, so no program finds it in the file cache. The programs are the ones in `bin\win-x64\`. All numbers in this README are from Windows; there are no Linux measurements yet.
 * **Development machine** (i9-11900K, no other load, 2026-10-08): an internal benchmark script, all 14 photos, SSE2 and AVX2, also `ctJpeg --sequential`, best of 3 (scaling: best of 5). These numbers were measured **warm** (images in the file cache) with an earlier ctJpeg build that mapped the input into memory and had no asynchronous reading; they show the relations between the encoders and the scaling, not today's absolute times.
 
 jpegli is `cjpegli --target sse2|avx2` (unmodified jpegli with the SIMD target fixed), ctJpeg `--simd sse2|avx2`, mozjpeg runs with its defaults, libjpeg-turbo with `-optimize -progressive`; mozjpeg and libjpeg-turbo write the same bytes on every SIMD level.
@@ -213,7 +230,7 @@ Count reads the tokens as Stitch left them and counts what each chunk of a refin
 
 ## The reference
 
-**jpegli** is google/jpegli at commit `031a007`, the unmodified source in `jpeg\jpegli\` with its bundled third-party libraries (Highway, skcms, Little CMS, libpng, zlib). The reference program is jpegli's own command line tool `cjpegli` (`tools\cjpegli.cc`), also unmodified. `jpeg\jpegli-oracle\` adds one thing around it: `cjpegli --target <name>` fixes the Highway SIMD target (`sse2`, `ssse3`, `sse4`, `avx2`) before cjpegli runs, so the output of each target can be reproduced on any CPU that has it, and a target the CPU lacks is refused instead of replaced by another; `cjpegli --list` shows the targets of the CPU. `jpeg\jpegli-oracle\Build-Jpegli.cmd` builds it with CMake and Visual Studio 2026 (static C runtime; with MSVC, Highway leaves out AVX-512).
+**jpegli** is google/jpegli at commit `031a007`, the unmodified source in `jpeg\jpegli\` with its bundled third-party libraries (Highway, skcms, Little CMS, libpng, zlib). The reference program is jpegli's own command line tool `cjpegli` (`tools\cjpegli.cc`), also unmodified. `jpeg\jpegli-oracle\` adds one thing around it: `cjpegli --target <name>` fixes the Highway SIMD target (`sse2`, `ssse3`, `sse4`, `avx2`) before cjpegli runs, so the output of each target can be reproduced on any CPU that has it, and a target the CPU lacks is refused instead of replaced by another; `cjpegli --list` shows the targets of the CPU. `jpeg\jpegli-oracle\Build-Jpegli.cmd` builds it with CMake and Visual Studio 2026 (static C runtime; with MSVC, Highway leaves out AVX-512), `jpeg/jpegli-oracle/Build-Jpegli.sh` with clang on Linux (no FMA contraction outside Highway's own code, as with MSVC; AVX-512 left out by `--target`).
 
 ctJpeg ports the default path of cjpegli; options and inputs outside it are refused with an error message.
 
@@ -229,7 +246,7 @@ ctJpeg ports the default path of cjpegli; options and inputs outside it are refu
 
 </details>
 
-**mozjpeg 4.1.5** and **libjpeg-turbo 3.2.0** (`jpeg\mozjpeg-4.1.5\`, `jpeg\libjpeg-turbo-3.2.0\`) are unmodified sources with Visual Studio projects that build `cjpeg.exe` and `cjpeg-turbo.exe` with their NASM SIMD code. They are other encoders, in this repository only for the speed comparison.
+**mozjpeg 4.1.5** and **libjpeg-turbo 3.2.0** (`jpeg\mozjpeg-4.1.5\`, `jpeg\libjpeg-turbo-3.2.0\`) are unmodified sources with Visual Studio projects that build `cjpeg.exe` and `cjpeg-turbo.exe` with their NASM SIMD code; on Linux their own CMake builds do the same (`cjpeg-static`). They are other encoders, in this repository only for the speed comparison.
 
 ---
 
@@ -288,26 +305,59 @@ msbuild ctJpeg.slnx /p:Configuration=Release /p:Platform=x64
 
 Clone to a short path such as `C:\src`; deeply nested folders can exceed the 260-character limit of the build tools. Run `msbuild` in a Developer Command Prompt or Developer PowerShell for Visual Studio 2026, or open `ctJpeg.slnx` in Visual Studio. The output goes to `build\Release\bin\`: `ctJpeg.exe` with `ThinkMeta.ConcurrentTasks.Core.dll` next to it, `GenTestImages.exe` (test images for `verify\`) and the unit tests `ThinkMeta.ConcurrentTasks.Samples.ctJpeg.Tests.dll` (Test Explorer, or `vstest.console.exe` with the DLL).
 
-Your `ctJpeg.exe` is not byte for byte the file in `bin\` (that one links the C runtime statically and comes from our build machine), but every JPEG it writes must be byte for byte the one of jpegli: check it as below.
+Your `ctJpeg.exe` is not byte for byte the file in `bin\win-x64\` (that one links the C runtime statically and comes from our build machine), but every JPEG it writes must be byte for byte the one of jpegli: check it as below.
 
 The reference programs: `jpeg\jpegli-oracle\Build-Jpegli.cmd` builds `cjpegli.exe` with CMake, `jpeg\Reference.slnx` builds `cjpeg.exe` and `cjpeg-turbo.exe` (output in `jpeg\build\Release\bin`).
 
+### Building on Linux
+
+Requirements: **clang 19 or later** (tested with clang 20), **CMake 3.28 or later** and **Ninja**, as for the C++ modules of the API submodule; on Ubuntu 24.04 `sudo apt install cmake ninja-build nasm` and a clang from [apt.llvm.org](https://apt.llvm.org) (the distribution's clang 18 is too old). NASM is for mozjpeg and libjpeg-turbo only.
+
+```sh
+git clone --recurse-submodules https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.Samples.git
+cd ThinkMeta.ConcurrentTasks.Samples/ctJpeg
+cmake -S . -B build/linux-release -G Ninja -DCMAKE_CXX_COMPILER=clang++
+cmake --build build/linux-release
+ctest --test-dir build/linux-release
+```
+
+The output: `build/linux-release/bin/ctJpeg` (it finds the scheduler core in the API submodule, `../ThinkMeta.ConcurrentTasks.API/Core/bin/linux-x64`) and `GenTestImages`; `ctest` runs the unit tests of ctJpeg and `../Shared`. `bin/linux-x64/ctJpeg` links libstdc++ statically and finds the core next to itself (`-DCT_SAMPLE_PUBLISH=ON` builds it that way). Here, too, your build is not byte for byte that file, but its output must be the one of jpegli.
+
+The reference programs on Linux:
+
+```sh
+bash jpeg/jpegli-oracle/Build-Jpegli.sh
+cmake -S jpeg/mozjpeg-4.1.5 -B jpeg/build/mozjpeg -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DENABLE_SHARED=OFF -DPNG_SUPPORTED=OFF -DWITH_TURBOJPEG=OFF
+cmake --build jpeg/build/mozjpeg --target cjpeg-static
+cmake -S jpeg/libjpeg-turbo-3.2.0 -B jpeg/build/libjpeg-turbo -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DENABLE_SHARED=OFF -DWITH_TURBOJPEG=OFF
+cmake --build jpeg/build/libjpeg-turbo --target cjpeg-static
+```
+
+(`jpeg/jpegli-oracle/build/linux-release/cjpegli-oracle` is `bin/linux-x64/cjpegli`; `cjpeg-static` of the two others is `cjpeg` and `cjpeg-turbo`.)
+
 ### Verifying
 
-`verify\` checks a ctJpeg build against jpegli. By default the scripts take your build in `build\Release\bin\`; `-Exe ..\bin\ctJpeg.exe` checks the published one.
+`verify\` checks a ctJpeg build against jpegli, on Windows and Linux. By default the scripts take your build (`build\Release\bin\` on Windows, `build/linux-release/bin/` on Linux); `-Exe bin\win-x64\ctJpeg.exe` or `-Exe bin/linux-x64/ctJpeg` checks the published one. On Linux run them with `pwsh` ([PowerShell 7 for Linux](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-linux)).
 
-1. **Test images.** Download the 8-bit RGB set of [imagecompression.info](https://imagecompression.info/test_images/) (`rgb8bit`, 14 photos as PPM) and unpack it, then build `ctJpeg.slnx` and run:
+1. **Test images.** Download the 8-bit RGB set of [imagecompression.info](https://imagecompression.info/test_images/) (`rgb8bit`, 14 photos as PPM) and unpack it, then build `ctJpeg.slnx` (on Linux the CMake build above) and run:
    ```cmd
    powershell -ExecutionPolicy Bypass -File verify\Prepare-Inputs.ps1 -Photos D:\Downloads\rgb8bit
    ```
-   It copies the photos to `testdata\`, makes 15 synthetic images with `GenTestImages.exe` and checks all 29 against `verify\Input-Hashes.csv`.
-2. **Bit compare** (needs PowerShell 7, `pwsh`): every output must have the SHA-256 that jpegli's `cjpegli` gave on the same SIMD target (`verify\Reference-Hashes-*.csv`).
+   ```sh
+   pwsh verify/Prepare-Inputs.ps1 -Photos ~/Downloads/rgb8bit
+   ```
+   It copies the photos to `testdata\`, makes 15 synthetic images with `GenTestImages` (the same files on both platforms) and checks all 29 against `verify\Input-Hashes.csv`.
+2. **Bit compare** (needs PowerShell 7, `pwsh`): every output must have the SHA-256 that jpegli's `cjpegli` gave on the same SIMD target. Each platform has its tables, written with its own `cjpegli` (`verify\Reference-Hashes-<Matrix>-<simd>-win-x64.csv`, `-linux-x64.csv`); the script takes the one of the platform it runs on.
    ```cmd
    pwsh verify\Verify-Jpeg.ps1 -Matrix Quick -Simd sse2
    pwsh verify\Verify-Jpeg.ps1 -Matrix Quick -Simd avx2
    ```
+   ```sh
+   pwsh verify/Verify-Jpeg.ps1 -Matrix Quick -Simd avx2
+   pwsh verify/Verify-Jpeg.ps1 -Matrix Quick -Simd avx2 -Exe bin/linux-x64/ctJpeg
+   ```
    `-Matrix Full` runs 870 cases per feature set, `-Matrix Smoke` a short subset for other paths (`-ExtraArgs '--sequential'`, `'--threads 1'`), `-Repeat 3` encodes every case three times and catches output that depends on thread timing. `avx2` needs a CPU with AVX2 and FMA. The Verify scripts of all samples take the same parameters: `-Mode Compare` (default) or `Reference`, `-Matrix`, `-Exe` (the program to check, default: your Release build), `-Oracle` (the reference program), `-HashFile`, `-ExtraArgs` (options for `-Exe` only), `-Repeat n` (every case n times; all outputs must match), `-ThrottleLimit`, `-WorkDir` and `-TimeoutSec` (a run beyond it counts as a hang).
-3. **Your own images** (Windows PowerShell 5.1 is enough): compares ctJpeg with `bin\cjpegli.exe` on every PPM/PGM image of a folder, for several qualities and subsamplings.
+3. **Your own images** (Windows PowerShell 5.1 is enough; on Linux `pwsh`): compares ctJpeg with `cjpegli` of `bin\` on every PPM/PGM image of a folder, for several qualities and subsamplings.
    ```cmd
    powershell -ExecutionPolicy Bypass -File verify\Compare-WithCjpegli.ps1 D:\Images -Simd avx2
    ```
@@ -320,16 +370,18 @@ The reference programs: `jpeg\jpegli-oracle\Build-Jpegli.cmd` builds `cjpegli.ex
 |---|---|
 | `src\` | The ctJpeg sources: `App\` (the program: command line and the setup of ThinkMeta.ConcurrentTasks), `Encoder\` (the port of jpegli, without task code), `Tasks\` (the task graph), `Tests\` (the unit tests), `GenTestImages\` (test images for `verify\`); the code all samples share (console output, version resource, CPU check, task setup, `--stats`) is in [`..\Shared`](../Shared/README.md); see [Reading the code](#reading-the-code) |
 | `ctJpeg.slnx` | Builds ctJpeg, its unit tests and `GenTestImages` with Visual Studio 2026; see [Building](#building) |
+| `CMakeLists.txt` | The same on Linux with clang, CMake and Ninja; see [Building on Linux](#building-on-linux) |
 | `ThinkMeta.SolutionFiles\` | Shared build settings and the `.clang-format` of the sources |
 | `docs\` | [How the task graph grew](docs/task-graph.md), step by step, and [where each jpegli function went](docs/porting.md) |
-| `verify\` | Bit-compare scripts with the reference hashes of jpegli; see [Verifying](#verifying) |
-| `bin\` | `ctJpeg.exe` (encoder, same command line as cjpegli), `cjpegli.exe` (the reference: unmodified jpegli and cjpegli with `--target` to choose the SIMD target, built from `jpeg\`), `cjpeg.exe` (mozjpeg 4.1.5) and `cjpeg-turbo.exe` (libjpeg-turbo 3.2.0) for comparison and `ThinkMeta.ConcurrentTasks.Core.dll` (scheduler core), all with the static C runtime |
+| `verify\` | Bit-compare scripts with the reference hashes of jpegli, one table per platform and feature set; see [Verifying](#verifying) |
+| `bin\win-x64\` | Windows: `ctJpeg.exe` (encoder, same command line as cjpegli), `cjpegli.exe` (the reference: unmodified jpegli and cjpegli with `--target` to choose the SIMD target, built from `jpeg\`), `cjpeg.exe` (mozjpeg 4.1.5) and `cjpeg-turbo.exe` (libjpeg-turbo 3.2.0) for comparison and `ThinkMeta.ConcurrentTasks.Core.dll` (scheduler core), all with the static C runtime |
+| `bin/linux-x64/` | Linux: the same programs without `.exe`, the core as `libThinkMeta.ConcurrentTasks.Core.so.2` |
 | `jpeg\jpegli\` | Unmodified jpegli source (google/jpegli @ 031a007) with its bundled third-party libraries |
-| `jpeg\jpegli-oracle\` | The small wrapper that builds `cjpegli.exe` with `--target` (CMake), and `Build-Jpegli.cmd` |
+| `jpeg\jpegli-oracle\` | The small wrapper that builds `cjpegli` with `--target` (CMake), and `Build-Jpegli.cmd` / `Build-Jpegli.sh` |
 | `jpeg\mozjpeg-4.1.5\`, `jpeg\libjpeg-turbo-3.2.0\` | Unmodified sources with Visual Studio projects |
 | `jpeg\Reference.slnx` | Builds `cjpeg.exe` and `cjpeg-turbo.exe` from these sources (Visual Studio 2026, x64, needs [NASM](https://www.nasm.us); output in `jpeg\build\Release\bin`) |
-| `benchmark\` | `Compare-Folder.ps1` and `run.cmd`: speed and bit identity on your own images |
-| `New-BenchPackage.ps1` | Packs `bin\` and the benchmark into a zip for other PCs |
+| `benchmark\` | `Compare-Folder.ps1` and `run.cmd`: speed and bit identity on your own images (Windows only for now) |
+| `New-BenchPackage.ps1` | Packs `bin\win-x64\` and the benchmark into a zip for other PCs (Windows) |
 | `COPYING`, `LICENSE-Core.txt`, `LICENSE.txt`, `THIRD-PARTY-NOTICES.txt` | the licenses and the notices for the binaries, see [License](#license) |
 
 ---
@@ -355,7 +407,7 @@ The parallel version adds a small task layer (`src\Tasks\`) around a port that d
 
 ### Error handling
 
-ctJpeg stops at the first error, reports it and ends with exit code 1; it does not try to recover. Memory is allocated without exceptions: when an allocation fails, the failing step returns an error and ctJpeg stops with `out of memory`. An input that cannot be opened is reported before the graph starts. If a read fails later, the tiles of the pixel phase that wait for the missing rows end without computing, the graph stops after the Pixel stage, and ctJpeg reports `cannot read 'FILE' (error N)` with the Windows error code (both cases). The output file is only created once the JPEG is complete (after Assemble), so after these errors no output file is written. A write error is reported as `cannot write 'FILE'`.
+ctJpeg stops at the first error, reports it and ends with exit code 1; it does not try to recover. Memory is allocated without exceptions: when an allocation fails, the failing step returns an error and ctJpeg stops with `out of memory`. An input that cannot be opened is reported before the graph starts. If a read fails later, the tiles of the pixel phase that wait for the missing rows end without computing, the graph stops after the Pixel stage, and ctJpeg reports `cannot read 'FILE' (error N)` with the error code of the operating system (both cases). The output file is only created once the JPEG is complete (after Assemble), so after these errors no output file is written. A write error is reported as `cannot write 'FILE'`.
 
 ---
 
@@ -367,6 +419,7 @@ ctJpeg is not finished; the measurements point to these next steps:
 * **Hybrid CPUs:** on the Core Ultra 7 155H (performance and efficiency cores) ctJpeg reaches 4.7× over the six test photos against 5.0× on the other machines, although large images scale as well as elsewhere (6.6× on the 39-megapixel photo); the small photos pull it down.
 * **Pixel phase and tokenization in one pass:** today the pixel phase writes all quantized coefficients to memory and the tokenization reads them back; tokenizing each band while it is still in the cache should save another 10 to 15 % on large images.
 * **Single-thread tokenizer:** on one thread the tokenization takes about as long as in jpegli; more SIMD there helps at every thread count.
+* **Linux:** no measurements yet, and the benchmark script is Windows only; a Linux benchmark script would come first. The Linux programs need glibc 2.38 because libstdc++ is linked in from Ubuntu 24.04; a build against an older glibc (in a container) would let them run on Ubuntu 22.04 and Debian 12 as well.
 
 Every step keeps the output bit-identical to jpegli.
 
@@ -378,9 +431,9 @@ Every step keeps the output bit-identical to jpegli.
 
 At its core ctJpeg is fork-join: the encode is a fixed sequence of phases (pixel tiles, token bands, the stitches, counting, write chunks, splicing, freeing), each a list of up to several hundred independent jobs that one task per worker claims from a shared counter, and no job waits for another job. The graph is run by the main thread, converted to a task: it runs the short serial steps itself and waits for each parallel phase on a task group, so the encoder reads as plain sequential code. That thread is not one of the compute scheduler's threads, so its waiting takes nothing from the workers. Reading and writing the files are tasks on an I/O scheduler of their own: the reader waits for its overlapped reads to complete, and a pixel job whose rows have not arrived yet waits on an event. Such a wait suspends only the fiber of the waiting task, not a thread of the scheduler, and the job goes on where it stopped once its rows are in. A thread pool with one barrier per phase and blocking file I/O could do the same work; we have not measured it against such a version.
 
-`ctJpeg` is a showcase for **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler and concurrency runtime by ThinkMeta Software GmbH. Tasks run on lightweight user-mode fibers: a task waiting for another yields without blocking its worker thread, and a task switch costs a few hundred nanoseconds.
+`ctJpeg` is a showcase for **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler and concurrency runtime by ThinkMeta Software GmbH for Windows and Linux (x64); `ctJpeg` runs on both. Tasks run on lightweight user-mode fibers: a task waiting for another yields without blocking its worker thread, and a task switch costs a few hundred nanoseconds.
 
-The library's API (headers, C++ modules and the scheduler core) is in [ThinkMeta.ConcurrentTasks.API](https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.API), included in this repository as the submodule `ThinkMeta.ConcurrentTasks.API`. The `bin\` programs must be used with the `ThinkMeta.ConcurrentTasks.Core.dll` next to them: a newer or older core does not run them.
+The library's API (headers, C++ modules and the scheduler core) is in [ThinkMeta.ConcurrentTasks.API](https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.API), included in this repository as the submodule `ThinkMeta.ConcurrentTasks.API`. The programs in `bin\` must be used with the core next to them (`ThinkMeta.ConcurrentTasks.Core.dll`, `libThinkMeta.ConcurrentTasks.Core.so.2`): a newer or older core does not run them.
 
 👉 **Get in touch:** [www.thinkmeta.com](https://www.thinkmeta.com)
 
@@ -388,10 +441,10 @@ The library's API (headers, C++ modules and the scheduler core) is in [ThinkMeta
 
 ## License
 
-* **jpegli source and `bin\cjpegli.exe`** (`jpeg\jpegli\`, `jpeg\jpegli-oracle\`): BSD 3-Clause License of the JPEG XL Project Authors ([`COPYING`](COPYING)), with the patent grant in [`jpeg\jpegli\PATENTS`](jpeg/jpegli/PATENTS); the bundled libraries in `jpeg\jpegli\third_party\` under their own licenses (Highway, skcms, Little CMS, libpng, zlib). `bin\cjpegli.exe` compiles the libjpeg API headers of libjpeg-turbo: *this software is based in part on the work of the Independent JPEG Group.*
-* **mozjpeg and libjpeg-turbo** (`jpeg\mozjpeg-4.1.5\`, `jpeg\libjpeg-turbo-3.2.0\`, `bin\cjpeg.exe`, `bin\cjpeg-turbo.exe`): the IJG License, the Modified BSD License and the zlib License, see `LICENSE.md` and `README.ijg` in each folder. `bin\cjpeg.exe` and `bin\cjpeg-turbo.exe`: *this software is based in part on the work of the Independent JPEG Group.*
+* **jpegli source and `cjpegli` in `bin\`** (`jpeg\jpegli\`, `jpeg\jpegli-oracle\`): BSD 3-Clause License of the JPEG XL Project Authors ([`COPYING`](COPYING)), with the patent grant in [`jpeg\jpegli\PATENTS`](jpeg/jpegli/PATENTS); the bundled libraries in `jpeg\jpegli\third_party\` under their own licenses (Highway, skcms, Little CMS, libpng, zlib). `bin\cjpegli.exe` compiles the libjpeg API headers of libjpeg-turbo: *this software is based in part on the work of the Independent JPEG Group.*
+* **mozjpeg and libjpeg-turbo** (`jpeg\mozjpeg-4.1.5\`, `jpeg\libjpeg-turbo-3.2.0\`, `cjpeg` and `cjpeg-turbo` in `bin\`): the IJG License, the Modified BSD License and the zlib License, see `LICENSE.md` and `README.ijg` in each folder. `bin\cjpeg.exe` and `bin\cjpeg-turbo.exe`: *this software is based in part on the work of the Independent JPEG Group.*
 * **Notices for the binaries:** [`THIRD-PARTY-NOTICES.txt`](THIRD-PARTY-NOTICES.txt) holds the statement above and the full license texts the programs in `bin\` require (libjpeg-turbo, mozjpeg with their Modified BSD and IJG licenses, jpegli and the libraries linked into `cjpegli.exe`); the benchmark packages carry it too.
-* **ctJpeg** (`src\`, `bin\ctJpeg.exe`) and the scripts (`verify\`, `benchmark\`, `New-BenchPackage.ps1`): MIT License, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE.txt`](LICENSE.txt)). ctJpeg contains code ported from jpegli, whose BSD notice is in [`COPYING`](COPYING) and in the header of the ported files. jpegli's patent grant ([`jpeg\jpegli\PATENTS`](jpeg/jpegli/PATENTS)) covers jpegli itself; whether it extends to this port has not been assessed.
-* **Scheduler core** (`bin\ThinkMeta.ConcurrentTasks.Core.dll`, and the same DLL in the submodule `ThinkMeta.ConcurrentTasks.API`): proprietary, see [`LICENSE-Core.txt`](LICENSE-Core.txt).
+* **ctJpeg** (`src\`, `ctJpeg` in `bin\`) and the scripts (`verify\`, `benchmark\`, `New-BenchPackage.ps1`): MIT License, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE.txt`](LICENSE.txt)). ctJpeg contains code ported from jpegli, whose BSD notice is in [`COPYING`](COPYING) and in the header of the ported files. jpegli's patent grant ([`jpeg\jpegli\PATENTS`](jpeg/jpegli/PATENTS)) covers jpegli itself; whether it extends to this port has not been assessed.
+* **Scheduler core** (`ThinkMeta.ConcurrentTasks.Core.dll` and `libThinkMeta.ConcurrentTasks.Core.so.2` in `bin\`, and the same files in the submodule `ThinkMeta.ConcurrentTasks.API`): proprietary, see [`LICENSE-Core.txt`](LICENSE-Core.txt).
 
 **Benchmarks are explicitly permitted:** anyone may run benchmark tests of any kind with the programs in `bin\`, on any hardware and for any purpose, commercial evaluation included, and publish the results, including comparisons with other software, without asking ThinkMeta Software GmbH first (point 2 of [`LICENSE-Core.txt`](LICENSE-Core.txt)).

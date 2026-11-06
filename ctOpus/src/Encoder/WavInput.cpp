@@ -5,6 +5,13 @@
 
 #include "WavInput.h"
 
+#if !defined(_WIN32)
+#    include <cerrno>
+#    include <fcntl.h>
+#    include <sys/stat.h>
+#    include <unistd.h>
+#endif
+
 #include <climits>
 #include <cstdint>
 #include <cstring>
@@ -58,7 +65,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                 const std::uint32_t chunkLength = ReadU32(header + 4);
                 if (std::memcmp(header, type, 4) != 0) {
                     SanitizeFourcc(header);
-                    Report(report, L"Skipping chunk of type \"%.4hs\", length %u\n", reinterpret_cast<const char*>(header), chunkLength);
+                    Report(report, CT_TEXT("Skipping chunk of type \"%.4hs\", length %u\n"), reinterpret_cast<const char*>(header), chunkLength);
                     if (!file.SeekForward(static_cast<std::int64_t>(chunkLength) + (chunkLength & 1)))
                         return false;
                 } else {
@@ -85,10 +92,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     // --- InputFile -------------------------------------------------------------------------------
 
-    bool InputFile::Open(const wchar_t* path) noexcept
+    bool InputFile::Open(const Shared::Char* path) noexcept
     {
         Close();
-        if (path[0] == L'-' && path[1] == 0) {
+#if defined(_WIN32)
+        if (path[0] == '-' && path[1] == 0) {
             handle_   = GetStdHandle(STD_INPUT_HANDLE);
             ownsFile_ = false;
         } else {
@@ -96,13 +104,36 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             ownsFile_ = true;
         }
         if (handle_ == INVALID_HANDLE_VALUE || handle_ == nullptr) {
-            handle_ = INVALID_HANDLE_VALUE;
+            lastError_ = GetLastError();
+            handle_    = INVALID_HANDLE_VALUE;
             return false;
         }
         canSeek_ = GetFileType(handle_) == FILE_TYPE_DISK;
+#else
+        if (path[0] == '-' && path[1] == 0) {
+            handle_   = STDIN_FILENO;
+            ownsFile_ = false;
+        } else {
+            handle_   = ::open(path, O_RDONLY | O_CLOEXEC);
+            ownsFile_ = true;
+        }
+        if (handle_ < 0) {
+            lastError_ = static_cast<std::uint32_t>(errno);
+            handle_    = -1;
+            return false;
+        }
+        struct stat status{};
+        canSeek_ = fstat(handle_, &status) == 0 && S_ISREG(status.st_mode);
+        if (canSeek_)
+            posix_fadvise(handle_, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
         if (!buffer_.Allocate(InputBufferSize)) {
             Close();
-            SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+#if defined(_WIN32)
+            lastError_ = ERROR_NOT_ENOUGH_MEMORY;
+#else
+            lastError_ = ENOMEM;
+#endif
             return false;
         }
         begin_ = end_ = 0;
@@ -112,9 +143,15 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
 
     void InputFile::Close() noexcept
     {
+#if defined(_WIN32)
         if (ownsFile_ && handle_ != INVALID_HANDLE_VALUE)
             CloseHandle(handle_);
-        handle_   = INVALID_HANDLE_VALUE;
+        handle_ = INVALID_HANDLE_VALUE;
+#else
+        if (ownsFile_ && handle_ >= 0)
+            ::close(handle_);
+        handle_ = -1;
+#endif
         ownsFile_ = false;
     }
 
@@ -135,11 +172,22 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                     begin_ = 0;
                     end_   = got;
                 } else {
+#if defined(_WIN32)
                     unsigned long got = 0; // DWORD of ReadFile
                     if (!ReadFile(handle_, buffer_.Data(), static_cast<unsigned long>(buffer_.Size()), &got, nullptr) || got == 0) {
                         eof_ = true;
                         break;
                     }
+#else
+                    ssize_t got = 0;
+                    do
+                        got = ::read(handle_, buffer_.Data(), buffer_.Size());
+                    while (got < 0 && errno == EINTR);
+                    if (got <= 0) {
+                        eof_ = true;
+                        break;
+                    }
+#endif
                     data_  = buffer_.Data();
                     begin_ = 0;
                     end_   = got;
@@ -172,9 +220,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             return true;
         }
         if (canSeek_) {
+#if defined(_WIN32)
             LARGE_INTEGER distance;
             distance.QuadPart = length - buffered;
             if (SetFilePointerEx(handle_, distance, nullptr, FILE_CURRENT)) {
+#else
+            if (lseek(handle_, static_cast<off_t>(length - buffered), SEEK_CUR) >= 0) {
+#endif
                 begin_ = end_ = 0;
                 eof_          = false;
                 return true;
@@ -197,6 +249,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     {
         if (!canSeek_)
             return -1;
+#if defined(_WIN32)
         LARGE_INTEGER zero;
         zero.QuadPart = 0;
         LARGE_INTEGER position;
@@ -204,18 +257,32 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         if (!SetFilePointerEx(handle_, zero, &position, FILE_CURRENT) || !GetFileSizeEx(handle_, &size))
             return -1;
         return size.QuadPart - (position.QuadPart - static_cast<std::int64_t>(end_ - begin_));
+#else
+        struct stat status{};
+        const off_t position = lseek(handle_, 0, SEEK_CUR);
+        if (position < 0 || fstat(handle_, &status) != 0)
+            return -1;
+        return static_cast<std::int64_t>(status.st_size) - (static_cast<std::int64_t>(position) - static_cast<std::int64_t>(end_ - begin_));
+#endif
     }
 
     std::int64_t InputFile::HandlePosition() const noexcept
     {
         if (!canSeek_)
             return -1;
+#if defined(_WIN32)
         LARGE_INTEGER zero;
         zero.QuadPart = 0;
         LARGE_INTEGER position;
         if (!SetFilePointerEx(handle_, zero, &position, FILE_CURRENT))
             return -1;
         return eof_ ? -1 : position.QuadPart;
+#else
+        const off_t position = lseek(handle_, 0, SEEK_CUR);
+        if (position < 0)
+            return -1;
+        return eof_ ? -1 : static_cast<std::int64_t>(position);
+#endif
     }
 
     // --- WavInput --------------------------------------------------------------------------------
@@ -233,19 +300,19 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         // wav_open
         std::uint32_t length = 0;
         if (!FindWavChunk(file, "fmt ", length, report)) {
-            Report(report, L"ERROR: No format chunk found in WAV file\n");
+            Report(report, CT_TEXT("ERROR: No format chunk found in WAV file\n"));
             return false;
         }
         if (length < 16) {
-            Report(report, L"ERROR: Unrecognised format chunk in WAV header\n");
+            Report(report, CT_TEXT("ERROR: Unrecognised format chunk in WAV header\n"));
             return false;
         }
         if (length != 16 && length != 18 && length != 40)
-            Report(report, L"Warning: INVALID format chunk in wav header.\n Trying to read anyway (may not work)...\n");
+            Report(report, CT_TEXT("Warning: INVALID format chunk in wav header.\n Trying to read anyway (may not work)...\n"));
 
         std::uint8_t buf[40] = {};
         if (!ReadChunk(file, buf, sizeof(buf), length)) {
-            Report(report, L"ERROR: Incomplete format chunk in WAV header\n");
+            Report(report, CT_TEXT("ERROR: Incomplete format chunk in WAV header\n"));
             return false;
         }
         std::uint32_t       format     = ReadU16(buf);
@@ -255,12 +322,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         const std::uint32_t sampleBits = ReadU16(buf + 14);
         std::int32_t        validBits  = 0;
         if (channels == 0) {
-            Report(report, L"ERROR: Zero channels in WAV header\n");
+            Report(report, CT_TEXT("ERROR: Zero channels in WAV header\n"));
             return false;
         }
         if (format == 0xfffe) { // WAVE_FORMAT_EXTENSIBLE
             if (length < 40) {
-                Report(report, L"ERROR: Extended WAV format header invalid (too small)\n");
+                Report(report, CT_TEXT("ERROR: Extended WAV format header invalid (too small)\n"));
                 return false;
             }
             validBits = static_cast<std::int32_t>(ReadU16(buf + 18));
@@ -270,23 +337,21 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             switch (mask) {
                 case 1539:
                     Report(report,
-                           L"WARNING: WAV file uses side surround instead of rear for quadraphonic;\n"
-                           L"remapping side speakers to rear in encoding.\n");
+                           CT_TEXT("WARNING: WAV file uses side surround instead of rear for quadraphonic;\n")
+                               CT_TEXT("remapping side speakers to rear in encoding.\n"));
                     break;
                 case 1551:
                     Report(report,
-                           L"WARNING: WAV file uses side surround instead of rear for 5.1;\n"
-                           L"remapping side speakers to rear in encoding.\n");
+                           CT_TEXT("WARNING: WAV file uses side surround instead of rear for 5.1;\n")
+                               CT_TEXT("remapping side speakers to rear in encoding.\n"));
                     break;
                 case 319:
                     Report(report,
-                           L"WARNING: WAV file uses rear surround instead of side for 6.1;\n"
-                           L"remapping rear speakers to side in encoding.\n");
+                           CT_TEXT("WARNING: WAV file uses rear surround instead of side for 6.1;\n")
+                               CT_TEXT("remapping rear speakers to side in encoding.\n"));
                     break;
                 case 255:
-                    Report(report,
-                           L"WARNING: WAV file is a 7.1 'Widescreen' channel mapping;\n"
-                           L"remapping speakers to Vorbis 7.1 format.\n");
+                    Report(report, CT_TEXT("WARNING: WAV file is a 7.1 'Widescreen' channel mapping;\n") CT_TEXT("remapping speakers to Vorbis 7.1 format.\n"));
                     break;
                 case 0:
                 case 1:
@@ -299,8 +364,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                 case 1599: break;
                 default:
                     Report(report,
-                           L"WARNING: Unknown WAV surround channel mask: %u\n"
-                           L"Blindly mapping speakers using default SMPTE/ITU ordering.\n",
+                           CT_TEXT("WARNING: Unknown WAV surround channel mask: %u\n") CT_TEXT("Blindly mapping speakers using default SMPTE/ITU ordering.\n"),
                            mask);
                     break;
             }
@@ -318,30 +382,25 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             sampleBytes = 4;
             ieeeFloat_  = true;
         } else {
-            Report(report,
-                   L"ERROR: Unsupported WAV file type.\n"
-                   L"Must be standard PCM or type 3 floating point PCM.\n");
+            Report(report, CT_TEXT("ERROR: Unsupported WAV file type.\n") CT_TEXT("Must be standard PCM or type 3 floating point PCM.\n"));
             return false;
         }
         if (sampleRate > INT_MAX) {
-            Report(report, L"ERROR: Preposterous sample rate in WAV header: %u Hz\n", sampleRate);
+            Report(report, CT_TEXT("ERROR: Preposterous sample rate in WAV header: %u Hz\n"), sampleRate);
             return false;
         }
         if (!FindWavChunk(file, "data", length, report)) {
-            Report(report, L"ERROR: No data chunk found in WAV file\n");
+            Report(report, CT_TEXT("ERROR: No data chunk found in WAV file\n"));
             return false;
         }
         if (align != channels * static_cast<std::uint32_t>(sampleBytes))
             Report(report,
-                   L"Warning: WAV 'block alignment' value is incorrect, ignoring.\n"
-                   L"The software that created this file is incorrect.\n");
+                   CT_TEXT("Warning: WAV 'block alignment' value is incorrect, ignoring.\n") CT_TEXT("The software that created this file is incorrect.\n"));
 
         const bool supported = sampleBits == static_cast<std::uint32_t>(sampleBytes) * 8
             && (sampleBits == 24 || sampleBits == 16 || sampleBits == 8 || (sampleBits == 32 && format == 3));
         if (!supported) {
-            Report(report,
-                   L"ERROR: Unsupported WAV sample size.\n"
-                   L"Must be 8, 16, or 24 bit PCM or 32 bit floating point PCM.\n");
+            Report(report, CT_TEXT("ERROR: Unsupported WAV sample size.\n") CT_TEXT("Must be 8, 16, or 24 bit PCM or 32 bit floating point PCM.\n"));
             return false;
         }
 
@@ -378,11 +437,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     {
         const std::int32_t inChannels = info_.channels;
         if (inChannels <= outChannels || outChannels > 2 || inChannels <= 0 || outChannels <= 0) {
-            Report(report, L"Downmix must actually downmix and only knows mono/stereo out.\n");
+            Report(report, CT_TEXT("Downmix must actually downmix and only knows mono/stereo out.\n"));
             return 0;
         }
         if (outChannels == 2 && inChannels > 8) {
-            Report(report, L"Downmix only knows how to mix >8ch to mono.\n");
+            Report(report, CT_TEXT("Downmix only knows how to mix >8ch to mono.\n"));
             return 0;
         }
         if (!downmixBuffer_.Allocate(static_cast<std::size_t>(inChannels) * 4096)

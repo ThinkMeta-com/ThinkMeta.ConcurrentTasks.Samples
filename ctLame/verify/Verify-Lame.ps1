@@ -1,21 +1,23 @@
 <#
 .SYNOPSIS
-    Checks that ctLame.exe writes exactly the MP3 files of the reference lame.exe.
+    Checks that ctLame writes exactly the MP3 files of the reference lame, on Windows or Linux.
 
 .DESCRIPTION
     Encodes a matrix of options and compares exit code and SHA-256 of every output. Any
     difference fails the run (exit code 1). Two sources of truth:
 
     -Signals   the synthetic test signals of New-TestSignals.ps1 (computed, the same on every
-               machine) against Reference-Hashes-Signals.csv, the hashes the published
-               bin\lame.exe writes for them.
+               machine and platform) against Reference-Hashes-Signals-<platform>.csv, the hashes
+               the published lame of that platform writes for them (bin\win-x64\lame.exe,
+               bin/linux-x64/lame). The script takes the table of the platform it runs on.
     -WavDir    WAV files of your own: every case is encoded by lame.exe and by ctLame.exe and the
                two outputs are compared.
 
     Both can be given in one run. By default both programs come from this repository's Release
-    build (build\Release\bin): lame.exe built from lame\, the reduced LAME 4.0 that ctLame is a
-    port of, and ctLame.exe built from src\. The reduced lame.exe writes the same files as
-    unmodified LAME 4.0 with '--resample <input rate>' where LAME would resample.
+    build: on Windows build\Release\bin (lame.exe built from lame\, the reduced LAME 4.0 that
+    ctLame is a port of, and ctLame.exe built from src\), on Linux lame/build/linux-release/bin/lame
+    and build/linux-release/bin/ctLame. The reduced lame writes the same files as unmodified LAME
+    4.0 with '--resample <input rate>' where LAME would resample.
 
     Matrices:
       Smoke  three -V/-q pairs and three option cases (3 of your files, all signals)
@@ -25,13 +27,15 @@
     Your files are spread evenly over the sorted list.
 
     -Mode Reference encodes the signal cases of Quick and Full with -Oracle and writes the table;
-    this is how Reference-Hashes-Signals.csv was made with bin\lame.exe.
+    this is how the tables were made, with the lame of bin\ on each platform.
 
     Parameters, the same in the Verify script of every sample:
       -Mode Compare|Reference  Compare (default) checks -Exe; Reference writes the table with -Oracle.
       -Matrix                  the test matrix; -HashFile the table (default: the one of the matrix here).
-      -Exe                     the program to check (default: ..\build\Release\bin\ctLame.exe).
-      -Oracle                  the reference program (default: ..\build\Release\bin\lame.exe).
+      -Exe                     the program to check (default: ..\build\Release\bin\ctLame.exe,
+                               on Linux ../build/linux-release/bin/ctLame).
+      -Oracle                  the reference program (default: ..\build\Release\bin\lame.exe,
+                               on Linux ../lame/build/linux-release/bin/lame).
       -ExtraArgs               options for -Exe only (e.g. '--threads 4', '--sequential').
       -Repeat n                every case n times; all outputs must match (catches thread-timing dependent output).
       -ThrottleLimit, -WorkDir cases run at once and the folder of the temporary outputs.
@@ -45,14 +49,16 @@
     .\Verify-Lame.ps1 -Signals
     .\Verify-Lame.ps1 -WavDir D:\music\wav -Matrix Full
     .\Verify-Lame.ps1 -Signals -WavDir D:\music\wav -Matrix Smoke -ExtraArgs '--threads 1' -Repeat 3
+    pwsh verify/Verify-Lame.ps1 -Signals -Exe bin/linux-x64/ctLame
 #>
 #Requires -Version 7
 param(
     [ValidateSet('Reference', 'Compare')][string]$Mode = 'Compare',
     [ValidateSet('Smoke', 'Quick', 'Full')][string]$Matrix = 'Quick',
-    [Alias('CtLame')][string]$Exe = (Join-Path $PSScriptRoot '..\build\Release\bin\ctLame.exe'),
-    [Alias('Lame')][string]$Oracle = (Join-Path $PSScriptRoot '..\build\Release\bin\lame.exe'),
-    [Alias('Table')][string]$HashFile = (Join-Path $PSScriptRoot 'Reference-Hashes-Signals.csv'),
+    [Alias('CtLame')][string]$Exe = $(if ($IsLinux) { Join-Path $PSScriptRoot '../build/linux-release/bin/ctLame' } else { Join-Path $PSScriptRoot '..\build\Release\bin\ctLame.exe' }),
+    [Alias('Lame')][string]$Oracle = $(if ($IsLinux) { Join-Path $PSScriptRoot '../lame/build/linux-release/bin/lame' } else { Join-Path $PSScriptRoot '..\build\Release\bin\lame.exe' }),
+    # each platform's table, written by its own lame
+    [Alias('Table')][string]$HashFile = (Join-Path $PSScriptRoot "Reference-Hashes-Signals-$(if ($IsLinux) { 'linux-x64' } else { 'win-x64' }).csv"),
     [Alias('CtLameArgs')][string]$ExtraArgs = '', # options for ctLame only, e.g. '--threads 1' or '--sequential'
     [ValidateRange(1, 100)][int]$Repeat = 1,
     [int]$ThrottleLimit = [Environment]::ProcessorCount,
@@ -71,7 +77,10 @@ if ($WriteTable) { $Signals = $true }
 if (-not $Signals -and $WavDir.Count -eq 0) { throw 'nothing to check: pass -Signals and/or -WavDir <folder>' }
 
 function Resolve-Exe([string]$Path) {
-    if (-not (Test-Path -LiteralPath $Path)) { throw "$Path not found - build ctLame.slnx (Release, x64) first or pass -Exe/-Oracle" }
+    if (-not (Test-Path -LiteralPath $Path)) {
+        $how = if ($IsLinux) { 'build CMakeLists.txt and lame/CMakeLists.txt (README, Building on Linux)' } else { 'build ctLame.slnx (Release, x64)' }
+        throw "$Path not found - $how first or pass -Exe/-Oracle"
+    }
     (Resolve-Path -LiteralPath $Path).Path
 }
 $needLame = $WriteTable -or $WavDir.Count -gt 0
@@ -171,7 +180,7 @@ $results = $cases | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
                elseif ($unstable) { "output differs between the $($using:Repeat) runs" }
                elseif ($expected.ExitCode -ne $actual.ExitCode) { "exit code $($expected.ExitCode) -> $($actual.ExitCode)" }
                elseif ($expected.Sha256 -ne $actual.Sha256) { 'output differs' }
-    $source = if ($c.Against -eq 'lame') { 'lame.exe' } else { 'table' }
+    $source = if ($c.Against -eq 'lame') { 'lame' } else { 'table' }
     [pscustomobject]@{ Case = "$($c.Args) | $($c.Name)"; Against = $source; Problem = $problem }
 }
 

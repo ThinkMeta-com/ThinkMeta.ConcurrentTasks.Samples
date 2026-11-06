@@ -1,17 +1,18 @@
-Third-party notices for the programs in bin\
+Third-party notices for the programs in bin\win-x64\ and bin/linux-x64/
 
-bin\cjpeg.exe (mozjpeg 4.1.5), bin\cjpeg-turbo.exe (libjpeg-turbo 3.2.0) and bin\cjpegli.exe
-(jpegli, which compiles the libjpeg API headers of libjpeg-turbo):
+cjpeg (mozjpeg 4.1.5), cjpeg-turbo (libjpeg-turbo 3.2.0) and cjpegli (jpegli, which compiles the
+libjpeg API headers of libjpeg-turbo), on both platforms:
 
     This software is based in part on the work of the Independent JPEG Group.
 
-bin\ctJpeg.exe contains code ported from jpegli (BSD 3-Clause License, see COPYING and below);
-it contains no code of libjpeg, libjpeg-turbo or mozjpeg. bin\ThinkMeta.ConcurrentTasks.Core.dll:
-see LICENSE-Core.txt.
+ctJpeg contains code ported from jpegli (BSD 3-Clause License, see COPYING and below); it contains
+no code of libjpeg, libjpeg-turbo or mozjpeg. The scheduler core (ThinkMeta.ConcurrentTasks.Core.dll,
+libThinkMeta.ConcurrentTasks.Core.so.2): see LICENSE-Core.txt. The Linux programs contain the GNU C++
+library (libstdc++) and libgcc, linked in under the GCC Runtime Library Exception.
 
 The license texts follow, as they come with the sources in jpeg\.
 ==============================================================================
-libjpeg-turbo 3.2.0 (bin\cjpeg-turbo.exe): LICENSE.md
+libjpeg-turbo 3.2.0 (cjpeg-turbo): LICENSE.md
 ==============================================================================
 
 libjpeg-turbo Licenses
@@ -428,7 +429,7 @@ TO DO
 Please send bug reports, offers of help, etc. to jpeg-info@jpegclub.org.
 
 ==============================================================================
-mozjpeg 4.1.5 (bin\cjpeg.exe): LICENSE.md
+mozjpeg 4.1.5 (cjpeg): LICENSE.md
 ==============================================================================
 
 libjpeg-turbo Licenses
@@ -828,7 +829,7 @@ TO DO
 Please send bug reports, offers of help, etc. to jpeg-info@jpegclub.org.
 
 ==============================================================================
-jpegli (bin\cjpegli.exe, and the code ported into bin\ctJpeg.exe): LICENSE
+jpegli (cjpegli, and the code ported into ctJpeg): LICENSE
 ==============================================================================
 
 Copyright (c) the JPEG XL Project Authors.
@@ -860,7 +861,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ==============================================================================
-jpegli third_party\highway (linked into bin\cjpegli.exe): LICENSE
+jpegli third_party\highway (linked into cjpegli): LICENSE
 ==============================================================================
 
 This project is primarily dual-licensed under your choice of either the Apache
@@ -1236,7 +1237,7 @@ express Statement of Purpose.
     this CC0 or use of the Work.
 
 ==============================================================================
-jpegli third_party\skcms (linked into bin\cjpegli.exe): LICENSE
+jpegli third_party\skcms (linked into cjpegli): LICENSE
 ==============================================================================
 
 // Copyright (c) 2018 Google Inc. All rights reserved.
@@ -1270,7 +1271,7 @@ jpegli third_party\skcms (linked into bin\cjpegli.exe): LICENSE
 --------------------------------------------------------------------------------
 
 ==============================================================================
-jpegli third_party\lcms (linked into bin\cjpegli.exe): LICENSE
+jpegli third_party\lcms (linked into cjpegli): LICENSE
 ==============================================================================
 
 MIT License
@@ -1297,7 +1298,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ==============================================================================
-jpegli third_party\libpng (linked into bin\cjpegli.exe): LICENSE
+jpegli third_party\libpng (linked into cjpegli): LICENSE
 ==============================================================================
 
 COPYRIGHT NOTICE, DISCLAIMER, and LICENSE
@@ -1436,7 +1437,7 @@ this source code in a product, acknowledgment is not required but would
 be appreciated.
 
 ==============================================================================
-jpegli third_party\zlib (linked into bin\cjpegli.exe): LICENSE
+jpegli third_party\zlib (linked into cjpegli): LICENSE
 ==============================================================================
 
 Copyright notice:
@@ -1463,7 +1464,7 @@ Copyright notice:
   jloup@gzip.org          madler@alumni.caltech.edu
 
 ==============================================================================
-jpegli third_party\libjpeg-turbo (headers compiled into bin\cjpegli.exe): README.ijg
+jpegli third_party\libjpeg-turbo (headers compiled into cjpegli): README.ijg
 ==============================================================================
 
 libjpeg-turbo note:  This file has been modified by The libjpeg-turbo Project

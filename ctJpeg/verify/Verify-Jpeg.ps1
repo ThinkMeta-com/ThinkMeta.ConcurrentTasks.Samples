@@ -3,7 +3,7 @@
 <#
 .SYNOPSIS
     Bit-compare harness for ctJpeg: every output must be byte for byte the output of jpegli
-    (cjpegli) on the same SIMD target. Needs PowerShell 7 (cases run in parallel).
+    (cjpegli) on the same SIMD target. Needs PowerShell 7 (cases run in parallel), on Windows or Linux.
 
 .DESCRIPTION
     Encodes a fixed test matrix with a cjpegli-compatible encoder and records the SHA256 of every
@@ -11,8 +11,10 @@
 
     -Mode Reference  writes the hash table (CSV) with the oracle: the unmodified jpegli library and
                      cjpegli (google/jpegli @ 031a007) with the Highway target fixed by
-                     cjpegli --target <simd> (bin\cjpegli.exe, or built from jpeg\jpegli-oracle).
-                     The tables in this folder were written that way.
+                     cjpegli --target <simd> (cjpegli in bin\win-x64\ and bin/linux-x64/, or built from
+                     jpeg\jpegli-oracle). The tables in this folder were written that way, on each platform
+                     with its own cjpegli: Reference-Hashes-<Matrix>-<simd>-win-x64.csv and -linux-x64.csv. The
+                     script takes the one of the platform it runs on.
     -Mode Compare    encodes the same matrix with a candidate binary and reports every case whose
                      hash, size or exit code differs from the table. Exit code 1 on any difference.
 
@@ -39,8 +41,9 @@
     Parameters, the same in the Verify script of every sample:
       -Mode Compare|Reference  Compare (default) checks -Exe; Reference writes the table with -Oracle.
       -Matrix                  the test matrix; -HashFile the table (default: the one of the matrix here).
-      -Exe                     the program to check (default: ..\build\Release\bin\ctJpeg.exe).
-      -Oracle                  the reference program (default: ..\bin\cjpegli.exe).
+      -Exe                     the program to check (default: ..\build\Release\bin\ctJpeg.exe on Windows,
+                               ../build/linux-release/bin/ctJpeg on Linux).
+      -Oracle                  the reference program (default: cjpegli of ..\bin\win-x64\ or ../bin/linux-x64/).
       -ExtraArgs               options for -Exe only (e.g. '--threads 4', '--sequential').
       -Repeat n                every case n times; all outputs must match (catches thread-timing dependent output).
       -ThrottleLimit, -WorkDir cases run at once and the folder of the temporary outputs.
@@ -48,15 +51,17 @@
 
 .EXAMPLE
     .\Verify-Jpeg.ps1 -Simd avx2
-    .\Verify-Jpeg.ps1 -Matrix Full -Simd sse2 -Exe ..\bin\ctJpeg.exe
+    .\Verify-Jpeg.ps1 -Matrix Full -Simd sse2 -Exe ..\bin\win-x64\ctJpeg.exe
+    pwsh verify/Verify-Jpeg.ps1 -Simd avx2 -Exe bin/linux-x64/ctJpeg
     .\Verify-Jpeg.ps1 -Mode Reference -Matrix Quick -Simd sse2 -HashFile my-table.csv
 #>
 [CmdletBinding()]
 param(
     [ValidateSet('Reference', 'Compare')][string]$Mode = 'Compare',
     [ValidateSet('Smoke', 'Quick', 'Full')][string]$Matrix = 'Quick',
-    [string]$Exe = (Join-Path $PSScriptRoot '..\build\Release\bin\ctJpeg.exe'), # your build; ..\bin\ctJpeg.exe for the published one
-    [string]$Oracle = (Join-Path $PSScriptRoot '..\bin\cjpegli.exe'),
+    # your build; bin\win-x64\ctJpeg.exe or bin/linux-x64/ctJpeg for the published one
+    [string]$Exe = $(if ($IsLinux) { Join-Path $PSScriptRoot '../build/linux-release/bin/ctJpeg' } else { Join-Path $PSScriptRoot '..\build\Release\bin\ctJpeg.exe' }),
+    [string]$Oracle = $(if ($IsLinux) { Join-Path $PSScriptRoot '../bin/linux-x64/cjpegli' } else { Join-Path $PSScriptRoot '..\bin\win-x64\cjpegli.exe' }),
     [string]$HashFile,
     [string]$ExtraArgs = '',
     [ValidateRange(1, 100)][int]$Repeat = 1,
@@ -64,7 +69,7 @@ param(
     [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) 'JpegVerify'),
     [int]$TimeoutSec = 300,
     [Parameter(Mandatory)][ValidateSet('sse2', 'avx2')][string]$Simd,
-    [string]$InputRoot = (Join-Path $PSScriptRoot '..\testdata')
+    [string]$InputRoot = (Join-Path $PSScriptRoot '../testdata')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -80,7 +85,8 @@ if ($Mode -eq 'Reference' -and -not $isOracle) { throw 'Reference tables are wri
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Verify-Jpeg.ps1 needs PowerShell 7 (pwsh).' }
 if (-not $HashFile) {
     $tableMatrix = if ($Matrix -eq 'Smoke') { 'Quick' } else { $Matrix } # Smoke cases are Quick cases
-    $HashFile = Join-Path $PSScriptRoot "Reference-Hashes-$tableMatrix-$Simd.csv"
+    $platform = if ($IsLinux) { 'linux-x64' } else { 'win-x64' } # each platform's table, written with its own cjpegli
+    $HashFile = Join-Path $PSScriptRoot "Reference-Hashes-$tableMatrix-$Simd-$platform.csv"
 }
 
 function Get-Inputs([string]$Sub, [string]$Filter) {

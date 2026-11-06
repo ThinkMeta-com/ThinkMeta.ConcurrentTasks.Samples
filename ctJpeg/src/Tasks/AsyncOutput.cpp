@@ -6,15 +6,20 @@
 #include <cstddef>
 #include <cstdint>
 
-import ThinkMeta.ConcurrentTasks.Windows.Error;
+import ThinkMeta.ConcurrentTasks.Platform.Error;
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
-    using Windows::Error;
+    using Platform::Error;
 
     void AsyncOutput::Run() noexcept
     {
+#if defined(_WIN32)
         const std::uint32_t result = AsyncIo::AsyncFile::WriteFile(path_, GENERIC_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, this);
+#else
+        const std::uint32_t result = AsyncIo::AsyncFile::WriteFile(
+            path_, Platform::FileOptions{.access = Platform::FileAccess::Write, .creation = Platform::FileCreation::CreateAlways, .shareRead = false}, this);
+#endif
         if (Error::Failed(result))
             error_ = result;
     }

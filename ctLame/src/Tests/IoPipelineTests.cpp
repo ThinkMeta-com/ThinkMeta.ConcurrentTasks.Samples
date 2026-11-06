@@ -9,6 +9,13 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <memory>
+
+#if !defined(_WIN32)
+#    include <unistd.h>
+#endif
 
 #include "TestData.h"
 
@@ -30,16 +37,25 @@ namespace LameTests {
 
     namespace {
 
+        // a new empty file in the temp directory, deleted at the end of the test
         struct TempFile {
-            wchar_t path[MAX_PATH];
+            Char path[Shared::File::MaxPath];
 
-            explicit TempFile(const wchar_t* prefix)
+            explicit TempFile(const Char* prefix)
             {
+#if defined(_WIN32)
                 wchar_t directory[MAX_PATH];
                 GetTempPathW(MAX_PATH, directory);
                 GetTempFileNameW(directory, prefix, 0, path);
+#else
+                const char* directory = std::getenv("TMPDIR");
+                FormatTo(path, "%s/%sXXXXXX", directory != nullptr && *directory != 0 ? directory : "/tmp", prefix);
+                const int file = mkstemp(path);
+                Assert::IsTrue(file >= 0);
+                close(file);
+#endif
             }
-            ~TempFile() { DeleteFileW(path); }
+            ~TempFile() { Shared::File::Delete(path); }
         };
 
         std::byte PatternByte(std::uint64_t position)
@@ -47,20 +63,12 @@ namespace LameTests {
             return static_cast<std::byte>((position * 2654435761ull) >> 13);
         }
 
-        void WritePattern(const wchar_t* path, std::uint64_t size)
+        void WritePattern(const Char* path, std::uint64_t size)
         {
-            HANDLE file = CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-            Assert::IsTrue(file != INVALID_HANDLE_VALUE);
-            static std::byte buffer[65536];
-            for (std::uint64_t position = 0; position < size;) {
-                const std::uint32_t chunk = static_cast<std::uint32_t>(size - position < sizeof(buffer) ? size - position : sizeof(buffer));
-                for (std::uint32_t i = 0; i < chunk; ++i)
-                    buffer[i] = PatternByte(position + i);
-                unsigned long written = 0; // DWORD of WriteFile
-                WriteFile(file, buffer, chunk, &written, nullptr);
-                position += chunk;
-            }
-            CloseHandle(file);
+            const auto data = std::make_unique<std::byte[]>(static_cast<std::size_t>(size));
+            for (std::uint64_t position = 0; position < size; ++position)
+                data[position] = PatternByte(position);
+            Assert::IsTrue(Shared::File::Write(path, data.get(), static_cast<std::size_t>(size)));
         }
 
         // Copies the blocks of one pipe into another, like the encoder will turn PCM blocks into
@@ -70,14 +78,14 @@ namespace LameTests {
             BlockPipe::ReadBlock block{};
             while (from.AcquireReadBlock(block)) {
                 std::byte* const out = to.AcquireWriteBlock();
-                CopyMemory(out, block.data, block.size);
+                std::memcpy(out, block.data, block.size);
                 to.CommitWriteBlock(block.size);
                 from.ReleaseReadBlock();
             }
             to.SetEndOfStream();
         }
 
-        void RunCopy(const wchar_t* source, const wchar_t* target, std::uint64_t offset, std::uint64_t limit, std::uint32_t blockCount, std::uint32_t blockSize,
+        void RunCopy(const Char* source, const Char* target, std::uint64_t offset, std::uint64_t limit, std::uint32_t blockCount, std::uint32_t blockSize,
                      IoStats& readStats, IoStats& writeStats, const std::byte* header, std::uint32_t headerSize)
         {
             Shared::TaskRuntime      runtime(1);
@@ -115,35 +123,25 @@ namespace LameTests {
             compute.Stop();
             runtime.End();
 
-            Assert::AreEqual(static_cast<std::uint32_t>(ERROR_SUCCESS), reader.Error());
-            Assert::AreEqual(static_cast<std::uint32_t>(ERROR_SUCCESS), writer.Error());
+            Assert::AreEqual(0u, reader.Error());
+            Assert::AreEqual(0u, writer.Error());
             readStats  = reader.Stats();
             writeStats = writer.Stats();
         }
 
-        void AssertCopied(const wchar_t* target, std::uint64_t offset, std::uint64_t size, const std::byte* header, std::uint32_t headerSize)
+        void AssertCopied(const Char* target, std::uint64_t offset, std::uint64_t size, const std::byte* header, std::uint32_t headerSize)
         {
-            HANDLE file = CreateFileW(target, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-            Assert::IsTrue(file != INVALID_HANDLE_VALUE);
-            LARGE_INTEGER fileSize{};
-            GetFileSizeEx(file, &fileSize);
-            Assert::AreEqual(size, static_cast<std::uint64_t>(fileSize.QuadPart));
+            std::uint64_t fileSize = 0;
+            Assert::IsTrue(Shared::File::Size(target, fileSize));
+            Assert::AreEqual(size, fileSize);
 
-            static std::byte buffer[65536];
-            std::uint64_t    position = 0;
-            bool             same     = true;
-            while (position < size) {
-                unsigned long read = 0; // DWORD of ReadFile
-                ReadFile(file, buffer, sizeof(buffer), &read, nullptr);
-                if (read == 0)
-                    break;
-                for (std::uint32_t i = 0; i < read; ++i) {
-                    const std::byte expected = position + i < headerSize ? header[position + i] : PatternByte(offset + position + i);
-                    same                     = same && buffer[i] == expected;
-                }
-                position += read;
+            const auto data = std::make_unique<std::byte[]>(static_cast<std::size_t>(size));
+            Assert::IsTrue(Shared::File::Read(target, data.get(), static_cast<std::size_t>(size)));
+            bool same = true;
+            for (std::uint64_t position = 0; position < size; ++position) {
+                const std::byte expected = position < headerSize ? header[position] : PatternByte(offset + position);
+                same                     = same && data[position] == expected;
             }
-            CloseHandle(file);
             Assert::IsTrue(same, L"copied bytes differ");
         }
 
@@ -196,8 +194,8 @@ namespace LameTests {
 // overwrites its first bytes.
 TEST_METHOD(CopiesDataRangeAndHeader)
 {
-    const TempFile source(L"ctr");
-    const TempFile target(L"ctw");
+    const TempFile source(CT_TEXT("ctr"));
+    const TempFile target(CT_TEXT("ctw"));
     std::uint64_t constexpr Size = 3 * 1024 * 1024 + 12345;
     WritePattern(source.path, Size);
 
@@ -216,8 +214,8 @@ TEST_METHOD(CopiesDataRangeAndHeader)
 // file goes on.
 TEST_METHOD(StopsAtByteLimit)
 {
-    const TempFile source(L"ctr");
-    const TempFile target(L"ctw");
+    const TempFile source(CT_TEXT("ctr"));
+    const TempFile target(CT_TEXT("ctw"));
     WritePattern(source.path, 500000);
 
     IoStats readStats;
@@ -229,8 +227,8 @@ TEST_METHOD(StopsAtByteLimit)
 
 TEST_METHOD(EmptyData)
 {
-    const TempFile source(L"ctr");
-    const TempFile target(L"ctw");
+    const TempFile source(CT_TEXT("ctr"));
+    const TempFile target(CT_TEXT("ctw"));
     WritePattern(source.path, 44);
 
     IoStats readStats;

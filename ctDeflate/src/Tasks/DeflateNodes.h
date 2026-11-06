@@ -5,7 +5,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -34,7 +36,7 @@
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 import ThinkMeta.ConcurrentTasks.Synchronization.Semaphore;
 import ThinkMeta.ConcurrentTasks.AsyncIo.AsyncFile;
-import ThinkMeta.ConcurrentTasks.Windows.Error;
+import ThinkMeta.ConcurrentTasks.Platform.Error;
 
 // The nodes of DeflateGraph (DeflateGraph.h). Each class names the node it is.
 namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
@@ -163,7 +165,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
     /// Node Read: reads the input with overlapped AsyncFile reads (Depth segments in flight) up to the end Resolve allows,
     /// and marks the chunks whose input is loaded.
     /// </summary>
-    class ReadTask : public Tasks::Task
+    class ReadTask final : public Tasks::Task
     {
     public:
         static constexpr std::size_t Block = SegmentSize; // bytes per read
@@ -173,7 +175,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
 
         void Run() noexcept override
         {
-            using Windows::Error;
+            using Platform::Error;
             std::uint8_t*     data         = input_.Writable();
             const std::size_t size         = input_.Size();
             std::size_t       issuedTo     = 0;
@@ -194,10 +196,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
                     req.SetOffset(issuedTo);
                     std::uint32_t result = Error::Success;
                     for (; committed < issuedTo + bytes[slot] && Error::Succeeded(result); committed += SegmentSize)
-                        if (!input_.CommitSegment(committed))
-                            result = Error::GetLastError();
+                        result = input_.CommitSegment(committed);
                     if (Error::Succeeded(result))
-                        result = Error::Succeeded(error) ? input_.File().ReadAsync(data + issuedTo, static_cast<unsigned long>(bytes[slot]), req) : error;
+                        result = Error::Succeeded(error)
+                            ? input_.File().ReadAsync(data + issuedTo, static_cast<AsyncIo::AsyncFile::ByteCount>(bytes[slot]), req)
+                            : error;
                     if (Error::Failed(result) && !Error::IsPending(result))
                         req.RequestCompleted(result, 0);
                     issuedTo += bytes[slot];
@@ -211,7 +214,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
                 auto&             req  = requests_[slot];
                 req.Wait();
                 if (Error::Succeeded(error) && (Error::Failed(req.GetError()) || req.GetTransferredBytes() != bytes[slot])) {
-                    error = Error::Failed(req.GetError()) ? req.GetError() : ERROR_HANDLE_EOF;
+                    error = Error::Failed(req.GetError()) ? req.GetError() : Error::EndOfFile;
                     input_.SetReadError(error);
                 }
                 loaded += bytes[slot];
@@ -235,7 +238,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
     /// change is missed.
     /// </para>
     /// </summary>
-    class WorkerTask : public Tasks::Task
+    class WorkerTask final : public Tasks::Task
     {
     public:
         WorkerTask(const LevelParams& params, InputWindow& input, ChunkLogs& logs, BlockRing& ring, Stitch& stitch, Synchronization::Semaphore& work) noexcept
@@ -296,7 +299,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
     /// is stitched. It is not a task: DeflateGraph::Run calls Run on the task that runs the graph, so Resolve has a
     /// thread of its own beside the workers' threads.
     /// </summary>
-    class ResolveNode : IChunkLogs, IBlockSink
+    class ResolveNode final : IChunkLogs, IBlockSink
     {
     public:
         ResolveNode(const LevelParams& params, InputWindow& input, ChunkLogs& logs, BlockRing& ring, Stitch& stitch, Synchronization::Semaphore& work,
@@ -388,7 +391,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
     /// Node Write: writes the final output with overlapped AsyncFile writes (Depth segments in flight), or hands it to the
     /// sink segment by segment, and decommits what is written; ends when the graph has set the end of the output.
     /// </summary>
-    class WriteTask : public Tasks::Task
+    class WriteTask final : public Tasks::Task
     {
     public:
         static constexpr std::size_t Block = SegmentSize; // bytes per write
@@ -398,7 +401,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
 
         void Run() noexcept override
         {
-            using Windows::Error;
+            using Platform::Error;
             std::uint8_t* const base = output_.Data();
             for (;;) {
                 // Nothing new to write: complete the writes in flight first, so their memory is freed at once.
@@ -421,9 +424,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
                     auto&             req  = requests_[slot];
                     req.Reset();
                     req.SetOffset(pos);
-                    ranges_[slot] = {pos, bytes};
-                    const std::uint32_t result
-                        = Error::Succeeded(output_.Error()) ? output_.File().WriteAsync(base + pos, static_cast<unsigned long>(bytes), req) : output_.Error();
+                    ranges_[slot]              = {pos, bytes};
+                    const std::uint32_t result = Error::Succeeded(output_.Error())
+                        ? output_.File().WriteAsync(base + pos, static_cast<AsyncIo::AsyncFile::ByteCount>(bytes), req)
+                        : output_.Error();
                     if (Error::Failed(result) && !Error::IsPending(result))
                         req.RequestCompleted(result, 0);
                     ++issued_;
@@ -444,7 +448,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
 
         void CompleteOldest() noexcept
         {
-            using Windows::Error;
+            using Platform::Error;
             const std::size_t slot  = completed_ % Depth;
             auto&             req   = requests_[slot];
             std::uint32_t     error = Error::Success;
@@ -452,7 +456,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
             if (Error::Failed(req.GetError()))
                 error = req.GetError();
             else if (req.GetTransferredBytes() != ranges_[slot].bytes)
-                error = ERROR_WRITE_FAULT;
+                error = Error::WriteFault;
             output_.CompleteWriteTo(ranges_[slot].pos + ranges_[slot].bytes, error);
             ++completed_;
         }
@@ -470,7 +474,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
     /// Write; the input behind the matchfinder window is freed. So it overlaps with the file I/O, and the memory stays
     /// bounded, while the compressor itself is the same as for a buffer in memory.
     /// </summary>
-    class SequentialCompressTask : public Tasks::Task, ICompressProgress
+    class SequentialCompressTask final : public Tasks::Task, ICompressProgress
     {
     public:
         static constexpr std::size_t ReadAhead  = 8 * SegmentSize; // input Read may load past the block being compressed

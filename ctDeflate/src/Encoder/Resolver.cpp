@@ -147,7 +147,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
 
     // ---- Resolver ----
 
-    Resolver::Resolver(const LevelParams& params, const std::uint8_t* in, std::size_t inSize) : params_(params), in_(in), inSize_(inSize)
+    Resolver::Resolver(const LevelParams& params, const std::uint8_t* in, std::size_t inSize) : in_(in), inSize_(inSize)
     {
         tracker_.Init(params, in, inSize);
         repairParser_.Init(params, in, inSize);

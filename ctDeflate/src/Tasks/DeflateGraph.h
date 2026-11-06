@@ -5,7 +5,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -87,7 +89,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
             std::uint64_t inSize  = 0;
             std::uint64_t outSize = 0;
             std::uint32_t crc     = 0; // CRC-32 of the input
-            std::uint32_t error   = 0; // Windows error code of the file I/O
+            std::uint32_t error   = 0; // error code of the file I/O (Platform::ErrorCode)
         };
 
         explicit DeflateGraph(const Settings& settings) noexcept;
@@ -98,9 +100,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
         // The edges input and output; the input first, its size bounds the output. A file streams through the nodes
         // Read and Write; Write can hand the output to a sink instead of a file; bytes in memory are attached, and then
         // the graph has no Read or Write.
-        std::uint32_t OpenInput(const wchar_t* path) noexcept { return input_.Open(path); }
+        std::uint32_t OpenInput(const Shared::Char* path) noexcept { return input_.Open(path); }
         void          AttachInput(const std::uint8_t* data, std::size_t size) noexcept { input_.Attach(data, size); }
-        std::uint32_t OpenOutput(const wchar_t* path) noexcept { return output_.Open(path, OutputBound()); }
+        std::uint32_t OpenOutput(const Shared::Char* path) noexcept { return output_.Open(path, OutputBound()); }
         std::uint32_t OpenOutput(IOutputSink& sink) noexcept { return output_.Open(sink, OutputBound()); }
         void          AttachOutput(std::uint8_t* out) noexcept { output_.Attach(out); }
         std::size_t   OutputBound() const noexcept;

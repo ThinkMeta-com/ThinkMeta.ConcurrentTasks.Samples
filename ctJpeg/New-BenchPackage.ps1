@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Builds the standalone benchmark package for other PCs: bin\ (ctJpeg, cjpegli, cjpeg,
+    Builds the standalone benchmark package for other PCs (Windows): bin\ (from bin\win-x64\: ctJpeg, cjpegli, cjpeg,
     cjpeg-turbo and the scheduler core; all link the C runtime statically, so no Visual C++
     runtime is needed) with the benchmark script and the licenses.
 
@@ -19,7 +19,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 # defaults here, not in param(): $PSScriptRoot may be empty there under Windows PowerShell 5.1
-if (-not $BinDir) { $BinDir = Join-Path $PSScriptRoot 'bin' }
+if (-not $BinDir) { $BinDir = Join-Path $PSScriptRoot 'bin\win-x64' }
 if (-not $OutDir) { $OutDir = Join-Path $PSScriptRoot 'dist\ctJpeg-Bench' }
 $OutDir = [IO.Path]::GetFullPath($OutDir)
 if (Test-Path $OutDir) { Remove-Item -Recurse -Force -LiteralPath $OutDir }

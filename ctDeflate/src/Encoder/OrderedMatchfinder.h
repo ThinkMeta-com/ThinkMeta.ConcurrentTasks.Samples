@@ -87,8 +87,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
         /// positions before pos must be inserted. With insert (no other search at pos follows) it also inserts pos, as
         /// libdeflate does in the search.
         /// </summary>
-        __forceinline std::uint32_t LongestMatch(std::size_t pos, std::uint32_t bestLen, std::uint32_t maxLen, std::uint32_t niceLen,
-                                                 std::uint32_t maxSearchDepth, std::uint32_t* offsetRet, bool insert = false) noexcept
+        CT_FORCEINLINE std::uint32_t LongestMatch(std::size_t pos, std::uint32_t bestLen, std::uint32_t maxLen, std::uint32_t niceLen,
+                                                  std::uint32_t maxSearchDepth, std::uint32_t* offsetRet, bool insert = false) noexcept
         {
             *offsetRet = 0;
             if (maxLen < 5)

@@ -1,6 +1,6 @@
 # ctOpus: Opus, bit for bit, one file on many cores
 
-**ctOpus** is an Opus encoder for Windows x64 that writes *exactly* the same `.opus` files as `opusenc` (opus-tools 0.2 with libopusenc 0.2.1 and libopus 1.6.1), byte for byte, and spreads the encoding of a **single file** over all cores. It is a new C++ port (rewritten, not linked) of the Opus encoder and of the opusenc frontend, built on **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler for Windows.
+**ctOpus** is an Opus encoder for Windows and Linux (x64) that writes *exactly* the same `.opus` files as `opusenc` (opus-tools 0.2 with libopusenc 0.2.1 and libopus 1.6.1), byte for byte, and spreads the encoding of a **single file** over all cores. It is a new C++ port (rewritten, not linked) of the Opus encoder and of the opusenc frontend, built on **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler for Windows and Linux (x64).
 
 ctOpus was created **AI-assisted**, using ThinkMeta.ConcurrentTasks: AI coding agents wrote the port, its parallelization and optimizations, measured and tuned the code under the direction of ThinkMeta's developers, and every step was checked byte for byte against the reference. **An in-depth code review is still pending:** the output is verified to be identical to the reference, but the code itself has not yet been reviewed line by line.
 
@@ -24,31 +24,52 @@ On a corpus of 343 music files (45.1 hours), `--comp 10 --bitrate 128`, measured
 
 | Folder / file | Contents |
 |---|---|
-| `bin\` | `ctOpus.exe` (encoder, same command line as opusenc), `opusenc.exe` (the reference, built from `opus\`), `ThinkMeta.ConcurrentTasks.Core.dll` (scheduler core) and two extras: `ctOpusGui.exe` (live encoding and multi-stream load test) and `ctOpusLiveBench.exe` (live latency benchmark) |
-| `opus\` | Unmodified sources of the reference: opus-tools 0.2, libopusenc 0.2.1, libogg 1.3.6 and libopus 1.6.1, with Visual Studio projects ([The reference](#the-reference)) |
+| `bin\win-x64\` | Windows: `ctOpus.exe` (encoder, same command line as opusenc), `opusenc.exe` (the reference, built from `opus\`), `ThinkMeta.ConcurrentTasks.Core.dll` (scheduler core) and two extras: `ctOpusGui.exe` (live encoding and multi-stream load test) and `ctOpusLiveBench.exe` (live latency benchmark) |
+| `bin/linux-x64/` | Linux: `ctOpus`, `opusenc` and `libThinkMeta.ConcurrentTasks.Core.so.2` (the extras are Windows only) |
+| `opus\` | Unmodified sources of the reference: opus-tools 0.2, libopusenc 0.2.1, libogg 1.3.6 and libopus 1.6.1, with Visual Studio projects and a CMake build of opusenc for Linux ([The reference](#the-reference)) |
 | `src\` | The source code of ctOpus: `App\` (the program `ctOpus.exe` with its opusenc frontend), `Encoder\` (the codec, the Ogg container and the WAV reader, a static library without task code), `Tasks\` (the task graph), `Tests\` (unit tests of the graph and its edges) and the extras `Gui\` and `LiveBench\`; the code all samples share (console output, version resource, CPU check, task setup, `--stats`) is in [`..\Shared`](../Shared/README.md) ([Reading the code](#reading-the-code)) |
 | `docs\` | [`task-graph.md`](docs/task-graph.md) (how the graph grew, step by step) and [`porting.md`](docs/porting.md) (which libopus, libopusenc and opus-tools function became which ctOpus function) |
 | `ctOpus.slnx` | Builds everything: ctOpus and its unit tests, the extras ctOpusGui and ctOpusLiveBench (solution folder `Extras`) and the reference opusenc ([Building](#building)) |
+| `CMakeLists.txt` | Builds ctOpus and its unit tests on Linux with clang, CMake and Ninja ([Building on Linux](#building-on-linux)) |
 | `ThinkMeta.SolutionFiles\` | Forwards the build settings to the `ThinkMeta.ConcurrentTasks.API` submodule of this repository |
-| `verify\` | `Verify-Opus.ps1`: bit-identity check of a build against opusenc, with synthetic test files and reference hashes ([Checking a build](#checking-a-build)) |
-| `benchmark\` | `Compare-Folder.ps1` and `run.cmd`: speed and bit identity on your own WAV files |
-| `New-BenchPackage.ps1` | Packs `bin\` and the benchmark into a zip for other PCs |
+| `verify\` | `Verify-Opus.ps1`: bit-identity check of a build against opusenc, with synthetic test files and reference hashes, one table per platform ([Checking a build](#checking-a-build)) |
+| `benchmark\` | `Compare-Folder.ps1` and `run.cmd`: speed and bit identity on your own WAV files (Windows only for now) |
+| `New-BenchPackage.ps1` | Packs `bin\win-x64\` and the benchmark into a zip for other PCs (Windows) |
 
 ---
 
 ## Try it
 
-No installation: the programs in `bin\` are built with the static C runtime and need only Windows and the scheduler core next to them. Requirements: Windows 10 or 11, or Windows Server 2016 or later, x64, and a CPU with AVX2 (Intel from Haswell, 2013; AMD from Excavator and Zen). The encoder is built for AVX2 together with FMA, BMI1/BMI2, LZCNT, MOVBE and F16C; the programs check for all of them, and for an operating system that saves the AVX registers, before anything else runs. Without them they stop with a message instead of crashing: `ctOpus` and `ctOpusLiveBench` on the console (exit code 3), `ctOpusGui` in a message box. `opusenc.exe` runs on any x64 CPU.
+No installation: the programs in `bin\` need only the operating system and the scheduler core next to them.
+
+| | Windows (`bin\win-x64\`) | Linux (`bin/linux-x64/`) |
+|---|---|---|
+| System | Windows 10 or 11, or Windows Server 2016 or later, x64 | Linux x64 with **glibc 2.38** or later (Ubuntu 24.04, Debian 13, Fedora 39, RHEL 10 or newer); kernel 5.19 or later recommended. ctOpus uses io_uring, which must be allowed (Docker's default seccomp profile blocks it; ctOpus then reports an error at start) |
+| Runtime | built with the static C runtime | libstdc++ is linked in; the programs need only `libc.so.6`, `libm.so.6` and `libThinkMeta.ConcurrentTasks.Core.so.2`, which ctOpus finds next to itself |
+
+A CPU with AVX2 (Intel from Haswell, 2013; AMD from Excavator and Zen) is needed on both. The encoder is built for AVX2 together with FMA, BMI1/BMI2, LZCNT, MOVBE and F16C; the programs check for all of them, and for an operating system that saves the AVX registers, before anything else runs. Without them they stop with a message instead of crashing: `ctOpus` and `ctOpusLiveBench` on the console (exit code 3), `ctOpusGui` in a message box. `opusenc` runs on any x64 CPU.
+
+Windows:
 
 ```cmd
-bin\opusenc --serial 1 --comp 10 input.wav ref.opus
-bin\ctOpus  --serial 1 --comp 10 input.wav ct.opus
+bin\win-x64\opusenc --serial 1 --comp 10 input.wav ref.opus
+bin\win-x64\ctOpus  --serial 1 --comp 10 input.wav ct.opus
 fc /b ref.opus ct.opus
 ```
 
-`fc /b` finds no differences. (`--serial 1` fixes the Ogg stream serial number, which opusenc otherwise picks at random.) ctOpus takes opusenc's command line and prints the same messages, see [Command line](#command-line).
+Linux:
+
+```sh
+bin/linux-x64/opusenc --serial 1 --comp 10 input.wav ref.opus
+bin/linux-x64/ctOpus  --serial 1 --comp 10 input.wav ct.opus
+cmp ref.opus ct.opus
+```
+
+`fc /b` and `cmp` find no differences. (`--serial 1` fixes the Ogg stream serial number, which opusenc otherwise picks at random.) ctOpus takes opusenc's command line and prints the same messages, see [Command line](#command-line); on Linux it also reads from standard input (`-`) and writes to standard output, as opusenc does. If the Linux programs lost their executable bit on the way (an archive unpacked on Windows, for example): `chmod +x bin/linux-x64/ctOpus bin/linux-x64/opusenc`.
 
 ### Benchmark on your own files
+
+The benchmark script is Windows only for now; on Linux there is the bit check (`verify/`) so far.
 
 ```cmd
 benchmark\run.cmd "D:\Music"
@@ -83,11 +104,33 @@ Output:
 | `build\Release\bin\` | `ctOpus.exe`, the unit tests `ThinkMeta.ConcurrentTasks.Samples.ctOpus.Tests.dll`, the extras `ctOpusGui.exe` and `ctOpusLiveBench.exe`, and `ThinkMeta.ConcurrentTasks.Core.dll` |
 | `opus\build\Release\bin\` | `opusenc.exe`, the reference |
 
-Your build is not byte-identical to the programs in `bin\`: those are built with the static C runtime and their own build paths, yours uses the C runtime DLL of Visual Studio. What must be identical is the **output**: every `.opus` file your ctOpus writes must be bit-identical to opusenc's.
+Your build is not byte-identical to the programs in `bin\win-x64\`: those are built with the static C runtime and their own build paths, yours uses the C runtime DLL of Visual Studio. What must be identical is the **output**: every `.opus` file your ctOpus writes must be bit-identical to opusenc's.
+
+### Building on Linux
+
+Requirements: **clang 19 or later** (tested with clang 20), **CMake 3.28 or later** and **Ninja**, as for the C++ modules of the API submodule; on Ubuntu 24.04 `sudo apt install cmake ninja-build` and a clang from [apt.llvm.org](https://apt.llvm.org) (the distribution's clang 18 is too old). ctOpusGui and ctOpusLiveBench are Windows programs and are not built.
+
+```sh
+git clone --recurse-submodules https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.Samples.git
+cd ThinkMeta.ConcurrentTasks.Samples/ctOpus
+cmake -S . -B build/linux-release -G Ninja -DCMAKE_CXX_COMPILER=clang++
+cmake --build build/linux-release
+ctest --test-dir build/linux-release
+cmake -S opus/opus-tools-0.2 -B opus/build/linux-release -G Ninja -DCMAKE_C_COMPILER=clang
+cmake --build opus/build/linux-release
+```
+
+| Folder | Contents |
+|---|---|
+| `build/linux-release/bin/` | `ctOpus`; it finds the scheduler core in the API submodule (`../ThinkMeta.ConcurrentTasks.API/Core/bin/linux-x64`) |
+| `build/linux-release/` | the unit tests of ctOpus and `../Shared`, run by `ctest` |
+| `opus/build/linux-release/bin/` | `opusenc`, the reference: `opus/opus-tools-0.2/CMakeLists.txt` builds the same files with the same defines and config headers as the Visual Studio projects (`opus-tools-0.2/linux/config.h` in place of `msvc/config.h`), without FMA contraction |
+
+`bin/linux-x64/ctOpus` links libstdc++ statically and finds the core next to itself (`-DCT_SAMPLE_PUBLISH=ON` builds it that way). Here, too, your build is not byte for byte that file, but its output must be bit-identical to opusenc's.
 
 ### Checking a build
 
-`verify\Verify-Opus.ps1` (PowerShell 7) encodes a test matrix with your build and compares every output with the SHA-256 that opusenc (`bin\opusenc.exe`) wrote for it. The inputs are synthetic: `verify\New-TestWavs.ps1` computes them on first use (tones, chords, noise, a speech-like pulse train, silence and clipping; mono to 10 channels, 8 to 96 kHz, 8-bit to float) and checks that they come out byte for byte as listed in `TestWavs.sha256`.
+`verify\Verify-Opus.ps1` (PowerShell 7, on Linux [installed from Microsoft's packages](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-linux)) encodes a test matrix with your build and compares every output with the SHA-256 that opusenc of `bin\` wrote for it. The inputs are synthetic: `verify\New-TestWavs.ps1` computes them on first use (tones, chords, noise, a speech-like pulse train, silence and clipping; mono to 10 channels, 8 to 96 kHz, 8-bit to float) and checks that they come out byte for byte as listed in `TestWavs.sha256`, on both platforms. Each platform has its own tables (`Reference-Hashes-<Matrix>-win-x64.csv`, `-linux-x64.csv`), written by its own opusenc; the script takes the one of the platform it runs on. Their contents are the same: opusenc and ctOpus write the same files on Windows and Linux.
 
 ```powershell
 cd verify
@@ -96,6 +139,13 @@ cd verify
 .\Verify-Opus.ps1 -Matrix Surround
 .\Verify-Opus.ps1 -Matrix Smoke -ExtraArgs '--threads 4' -Repeat 3
 ```
+
+```sh
+pwsh verify/Verify-Opus.ps1 -Matrix Quick -ThrottleLimit 4
+pwsh verify/Verify-Opus.ps1 -Matrix Quick -ThrottleLimit 4 -Exe bin/linux-x64/ctOpus
+```
+
+On Linux run fewer encodes at once than the default (one per logical processor): every ctOpus uses all processors and waits actively between frames, so many parallel runs crowd each other out and some can exceed the time limit of 300 s; `-ThrottleLimit 4` avoids that.
 
 `OK: all ... encodes bit-identical` is the result to expect (exit code 0); any difference is listed, with exit code 1. `Quick` covers complexities 0 to 10, bit rates, CBR and CVBR, frame sizes 2.5 to 60 ms and the options; `Silk` the speech modes; `Surround` 3 to 10 channels; `Smoke` is a short subset for repeated runs with `--threads n` or `--sequential`. The Verify scripts of all samples take the same parameters: `-Mode Compare` (default) or `Reference`, `-Matrix`, `-Exe` (the program to check, default: your Release build), `-Oracle` (the reference program), `-HashFile`, `-ExtraArgs` (options for `-Exe` only), `-Repeat n` (every case n times; all outputs must match), `-ThrottleLimit`, `-WorkDir` and `-TimeoutSec` (a run beyond it counts as a hang). The same check runs against your own WAV files: write a table with opusenc first, then compare.
 
@@ -106,7 +156,7 @@ cd verify
 
 `benchmark\run.cmd` checks bit identity as well, file by file, while it measures.
 
-The unit tests run in Visual Studio's Test Explorer or with `vstest.console build\Release\bin\ThinkMeta.ConcurrentTasks.Samples.ctOpus.Tests.dll`. They need no files (they write their test signals to the temp folder) and check the task graph against the sequential graph and the graph's edges under load ([Reading the code](#reading-the-code)).
+The unit tests run in Visual Studio's Test Explorer or with `vstest.console build\Release\bin\ThinkMeta.ConcurrentTasks.Samples.ctOpus.Tests.dll` (on Linux with `ctest`, see above). They need no files (they write their test signals to the temp folder) and check the task graph against the sequential graph and the graph's edges under load ([Reading the code](#reading-the-code)).
 
 ---
 
@@ -133,7 +183,7 @@ Measured with `benchmark\Compare-Folder.ps1`: the wall time of the whole process
 
 Corpus runs: `benchmark\run.cmd <folder> -Rounds 3`, i.e. `--comp 10 --bitrate 128` for both programs, 3 rounds, all threads for ctOpus, measured **cold**: before every timed run the script writes a fresh copy of the input without buffering, so it is not in the Windows file cache (the copy is not timed).
 
-The corpus numbers were measured on 2026-10-17 with the binaries in `bin\` (static C runtime). The single-file table at the top and the live numbers below come from earlier builds of both programs, measured warm; they show the same proportions.
+The corpus numbers were measured on 2026-10-17 with the Windows binaries in `bin\win-x64\` (static C runtime); there are no Linux measurements yet. The single-file table at the top and the live numbers below come from earlier builds of both programs, measured warm; they show the same proportions.
 
 ### Corpus
 
@@ -249,10 +299,12 @@ The speedup on one file is limited by the backbone that remains sequential; with
 
 ## The reference
 
-`bin\opusenc.exe` is the unmodified **opus-tools 0.2** frontend with **libopusenc 0.2.1**, **libogg 1.3.6** and **libopus 1.6.1**, built from the sources in `opus\` with Visual Studio 2026 for x64 (`ctOpus.slnx`, projects under `opus\`): `/O2` with whole program optimization, the static C runtime, no `/arch` switch. Two build choices matter for the bits:
+`bin\win-x64\opusenc.exe` is the unmodified **opus-tools 0.2** frontend with **libopusenc 0.2.1**, **libogg 1.3.6** and **libopus 1.6.1**, built from the sources in `opus\` with Visual Studio 2026 for x64 (`ctOpus.slnx`, projects under `opus\`): `/O2` with whole program optimization, the static C runtime, no `/arch` switch. Two build choices matter for the bits:
 
 - libopusenc's Speex resampler is built with `__SSE__`, i.e. with its SSE inner product, as GCC and Clang builds of opusenc always are on x64 (the official opus-tools release uses the SSE path as well);
 - `opus-tools-0.2\msvc\config.h` is upstream's `win32\config.h` without FLAC support.
+
+`bin/linux-x64/opusenc` is built from the same sources and files with clang (`opus/opus-tools-0.2/CMakeLists.txt`): the same defines, `linux/config.h` with the same settings as `msvc/config.h`, no contraction of `a*b+c` into FMA (as MSVC), libopus' run-time CPU detection. It writes the same files as `bin\win-x64\opusenc.exe`.
 
 ctOpus is checked against this build: during development more than 2,400 reference encodes of a music corpus (complexities 0 to 10, bit rates, VBR, CVBR and CBR, frame sizes, mono, stereo and surround up to 10 channels, SILK, hybrid and CELT modes, 8 to 32-bit-float input at 32, 44.1 and 48 kHz) had to give the same SHA-256, with 1 to 16 threads and with `--sequential`. The corpus is commercial music and cannot be published; `verify\` holds the same matrices for computed test signals, more than 1,000 reference encodes ([Checking a build](#checking-a-build)).
 
@@ -377,7 +429,7 @@ The parallel version adds a task layer (`src\Tasks\`) around an encoder (`src\En
 3. **The nodes** (`EncodeTasks.h`, `EncodeTasks.cpp`): `ReadTask`, `ResampleTask`, `AnalyseTask`, `SignalTask`, `FrontTask`, `EncodeTask`, `SpeculateTask`, `ThetaTask` and `SequentialEncodeTask`; `FileReadTask` and `FileWriteTask` are in `FileIo.h`. Each is a plain loop that waits on an edge.
 4. **`src\App\Application.cpp`**: `Application::Execute` is opusenc's `main()` after the command line, which `CommandLine::Parse` (`CommandLine.cpp`) reads. The setup of ThinkMeta.ConcurrentTasks, the same in every sample, is `Shared::TaskRuntime` (`..\Shared\src\Shared\TaskRuntime.h`) with a `RunningScheduler` for the compute scheduler:
    1. `ConvertThreadToTask`: the main thread becomes a task, because it waits for the graph's `TaskGroup` and for the pipes of `FileIo`. The graph owns its edges and their events; the events themselves are ordinary objects that any thread may set, only waiting needs a task.
-   2. `EnableAsyncIo`: the core's I/O completion port, for the overlapped reads and writes.
+   2. `EnableAsyncIo`: the core's asynchronous I/O (I/O completion port on Windows, io_uring on Linux), for the overlapped reads and writes.
    3. An I/O scheduler with one thread for FileRead and FileWrite, which only wait for the disk.
    4. The compute scheduler, one thread per logical processor, created in `RunEncodeGraph` once the graph knows its thread count. `RunEncodeGraph` runs `EncodeGraph`, or `SequentialGraph` for `--sequential` and when `EncodeGraph::Initialize` fails.
    5. At the end `TaskRuntime::End`: `Stop`, `DisableAsyncIo` and `ConvertTaskToThread`.
@@ -415,6 +467,7 @@ ctOpus is not finished; the measurements point to these next steps:
 * **Notebooks under sustained load:** on the Core Ultra 7 155H ctOpus is 3.5× faster than opusenc on single tracks but only 1.9× on album-length files; with fewer threads ctOpus might hold a higher clock for longer. This has not been measured yet.
 * **CPUs without AVX2:** `ctOpus.exe` is built for AVX2; a build for older CPUs has not been made or checked.
 * **Live encoding:** a frame takes 20 to 90 µs, too little to split over cores profitably; the theta helper brought no gain there. A frame that arrives after an idle pause takes 1.4 to 2 times longer than one encoded back to back (the core's caches are cold and its clock is low). Encoding the tonality analysis next to the CELT front end of the same frame would save at most about 15 % at 20 ms frames.
+* **Linux:** no measurements yet, and the benchmark script is Windows only. Many ctOpus processes at once crowd each other out more than on Windows (the active waits between frames); to be measured. The Linux programs need glibc 2.38 because libstdc++ is linked in from Ubuntu 24.04; a build against an older glibc (in a container) would let them run on Ubuntu 22.04 and Debian 12 as well. The extras ctOpusGui and ctOpusLiveBench are not planned for Linux.
 * **Tried and dropped:** wider SIMD in the pulse search and the band rotation was bit-identical but slower, because the bands are short; profile-guided optimization gained less than 1 %.
 
 Every step keeps the output bit-identical to opusenc.
@@ -427,9 +480,9 @@ Every step keeps the output bit-identical to opusenc.
 
 Encoding one file runs about a dozen stages at once: the resampler blocks, the analysis chain that runs ahead of the encoder, up to three speculation levels and the theta helpers. Each is written as a plain sequential loop that waits on an event for its next frame or job; while it waits, its worker thread runs another stage, so the stages share one thread per logical processor instead of needing a thread each. A speculation that turns out wrong is not cancelled from outside: the task checks an abort flag at every band boundary and goes back to waiting for its next frame. For live encoding, one task per stream was measured against one thread per stream (`ctOpusLiveBench`, 1,024 stereo streams at 64 kbit/s, 20 ms frames, `--comp 10`, i9-11900K): tasks had no deadline misses, threads 46, with outliers up to 31 ms.
 
-`ctOpus` is a showcase for **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler and concurrency runtime by ThinkMeta Software GmbH. Tasks run on lightweight user-mode fibers: a task waiting for a frame, an event or I/O yields without blocking its worker thread, and a task switch costs a few hundred nanoseconds. That makes it practical to split a frame of 50 to 200 µs into pipeline stages and speculative work.
+`ctOpus` is a showcase for **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler and concurrency runtime by ThinkMeta Software GmbH for Windows and Linux (x64); `ctOpus` runs on both. Tasks run on lightweight user-mode fibers: a task waiting for a frame, an event or I/O yields without blocking its worker thread, and a task switch costs a few hundred nanoseconds. That makes it practical to split a frame of 50 to 200 µs into pipeline stages and speculative work.
 
-The library's API (headers, C++ modules and the scheduler core) is in [ThinkMeta.ConcurrentTasks.API](https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.API), included in this repository as the submodule `ThinkMeta.ConcurrentTasks.API`. The `bin\` programs must be used with the `ThinkMeta.ConcurrentTasks.Core.dll` next to them: a newer or older core does not run them.
+The library's API (headers, C++ modules and the scheduler core) is in [ThinkMeta.ConcurrentTasks.API](https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.API), included in this repository as the submodule `ThinkMeta.ConcurrentTasks.API`. The programs in `bin\` must be used with the core next to them (`ThinkMeta.ConcurrentTasks.Core.dll`, `libThinkMeta.ConcurrentTasks.Core.so.2`): a newer or older core does not run them.
 
 👉 **Get in touch:** [www.thinkmeta.com](https://www.thinkmeta.com)
 
@@ -437,8 +490,8 @@ The library's API (headers, C++ modules and the scheduler core) is in [ThinkMeta
 
 ## License
 
-* **Reference sources and `bin\opusenc.exe`** (`opus\`): BSD-style licenses of Xiph.Org and the Opus contributors ([`COPYING`](COPYING) and the files in each source folder).
-* **ctOpus: source code, programs and scripts** (`src\`, `bin\ctOpus.exe`, `bin\ctOpusGui.exe`, `bin\ctOpusLiveBench.exe`, `verify\`, `benchmark\`, `New-BenchPackage.ps1`, the build files): MIT License, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE.txt`](LICENSE.txt)). ctOpus is a port of libopus, libopusenc and opus-tools; their BSD notices, which apply to the ported code as well, are in [`COPYING`](COPYING).
-* **Scheduler core** (`bin\ThinkMeta.ConcurrentTasks.Core.dll`, and the copy in the `ThinkMeta.ConcurrentTasks.API` submodule): proprietary, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE-Core.txt`](LICENSE-Core.txt)): free for private and non-commercial use, commercial use requires a license from ThinkMeta Software GmbH.
+* **Reference sources and `opusenc` in `bin\`** (`opus\`): BSD-style licenses of Xiph.Org and the Opus contributors ([`COPYING`](COPYING) and the files in each source folder).
+* **ctOpus: source code, programs and scripts** (`src\`, `ctOpus` in `bin\win-x64\` and `bin/linux-x64/`, `ctOpusGui.exe`, `ctOpusLiveBench.exe`, `verify\`, `benchmark\`, `New-BenchPackage.ps1`, the build files): MIT License, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE.txt`](LICENSE.txt)). ctOpus is a port of libopus, libopusenc and opus-tools; their BSD notices, which apply to the ported code as well, are in [`COPYING`](COPYING).
+* **Scheduler core** (`ThinkMeta.ConcurrentTasks.Core.dll` and `libThinkMeta.ConcurrentTasks.Core.so.2` in `bin\`, and the copies in the `ThinkMeta.ConcurrentTasks.API` submodule): proprietary, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE-Core.txt`](LICENSE-Core.txt)): free for private and non-commercial use, commercial use requires a license from ThinkMeta Software GmbH.
 
 **Benchmarks are explicitly permitted:** anyone may run benchmark tests of any kind with the programs in `bin\` and with programs built from `src\`, on any hardware and for any purpose, commercial evaluation included, and publish the results, including comparisons with other software, without asking ThinkMeta Software GmbH first (point 2 of [`LICENSE-Core.txt`](LICENSE-Core.txt)).

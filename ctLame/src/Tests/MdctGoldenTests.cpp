@@ -12,6 +12,7 @@
 
 #include "Mdct.h"
 #include "SessionConfig.h"
+#include "TestData.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace ThinkMeta::ConcurrentTasks::Samples::Lame;
@@ -97,22 +98,22 @@ namespace LameTests {
             return checksum.value;
         }
 
-        void Check(const wchar_t* name, std::uint64_t expected, std::uint64_t actual)
+        void Check(const Char* name, std::uint64_t expected, std::uint64_t actual)
         {
-            wchar_t text[128];
-            swprintf_s(text, L"%ls: 0x%016llX", name, actual);
+            Char text[128];
+            FormatTo(text, CT_TEXT("%s: 0x%016llX"), name, actual);
             Logger::WriteMessage(text);
             Assert::AreEqual(expected, actual, name);
         }
 
     } // namespace
 
-    TEST_CLASS(MdctGoldenTests){public: TEST_METHOD(Default44k){Check(L"Default44k", 0x9DAE9E0A19199F6Bull, RunMdct(nullptr, 0x9E3779B97F4A7C15ull));
+    TEST_CLASS(MdctGoldenTests){public: TEST_METHOD(Default44k){Check(CT_TEXT("Default44k"), 0x9DAE9E0A19199F6Bull, RunMdct(nullptr, 0x9E3779B97F4A7C15ull));
 } // namespace LameTests
 
 TEST_METHOD(Lowpass32kV7)
 {
-    Check(L"Lowpass32kV7", 0xE98D7D5D9CC3A830ull,
+    Check(CT_TEXT("Lowpass32kV7"), 0xE98D7D5D9CC3A830ull,
           RunMdct(
               [](EncoderOptions& o) {
                   o.SetInSamplerate(32000);
@@ -123,7 +124,7 @@ TEST_METHOD(Lowpass32kV7)
 
 TEST_METHOD(HighpassAndLowpass48k)
 {
-    Check(L"HighpassAndLowpass48k", 0x8F4CA879B1CE0478ull,
+    Check(CT_TEXT("HighpassAndLowpass48k"), 0x8F4CA879B1CE0478ull,
           RunMdct(
               [](EncoderOptions& o) {
                   o.SetInSamplerate(48000);
@@ -137,7 +138,7 @@ TEST_METHOD(HighpassAndLowpass48k)
 
 TEST_METHOD(NoFilterV0)
 {
-    Check(L"NoFilterV0", 0x131AB18166E099C5ull,
+    Check(CT_TEXT("NoFilterV0"), 0x131AB18166E099C5ull,
           RunMdct(
               [](EncoderOptions& o) {
                   o.SetVbrQuality(0.0f);

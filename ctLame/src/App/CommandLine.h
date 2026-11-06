@@ -14,6 +14,7 @@
 #include "EncoderOptions.h"
 #include "ParseResult.h"
 #include "SimdFeatures.h"
+#include "Text.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
@@ -25,9 +26,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// (ReaderConfig, WriterConfig and UiConfig of frontend/main.h).
     /// </summary>
     struct Options {
-        EncoderOptions                   encoder;
-        std::array<wchar_t, PathMax + 1> inPath  = {};
-        std::array<wchar_t, PathMax + 1> outPath = {};
+        EncoderOptions                        encoder;
+        std::array<Shared::Char, PathMax + 1> inPath  = {};
+        std::array<Shared::Char, PathMax + 1> outPath = {};
 
         std::int32_t swapChannel     = 0;
         std::int32_t ignoreWavLength = 0;
@@ -53,42 +54,47 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         /// Reads the command line into options: LAMEOPT goes between the program name and the arguments. argv[0] is the
         /// program name, shown without ".exe". Prints the help, version or error texts; without arguments the usage.
         /// </summary>
-        static Shared::ParseResult Parse(std::int32_t argc, wchar_t** argv, Options& options);
+        static Shared::ParseResult Parse(std::int32_t argc, Shared::Char** argv, Options& options);
 
         /// <summary>Port of usage: the short usage message.</summary>
-        static std::int32_t PrintUsage(Shared::Stream fp, const wchar_t* programName);
+        static std::int32_t PrintUsage(Shared::Stream fp, const Shared::Char* programName);
 
         /// <summary>Port of display_bitrates.</summary>
         static std::int32_t DisplayBitrates(Shared::Stream fp);
 
     private:
-        static constexpr wchar_t Slash = L'\\';
-        static constexpr wchar_t Colon = L':';
+        static constexpr Shared::Char Slash = '\\';
+        static constexpr Shared::Char Colon = ':';
 
-        static std::int32_t EvaluateArgument(const wchar_t* token, const wchar_t* arg, const wchar_t* endPtr);
-        static std::int32_t GetDoubleValue(const wchar_t* token, const wchar_t* arg, double* ptr);
-        static std::int32_t GetIntValue(const wchar_t* token, const wchar_t* arg, std::int32_t* ptr);
+        static std::int32_t EvaluateArgument(const Shared::Char* token, const Shared::Char* arg, const Shared::Char* endPtr);
+        static std::int32_t GetDoubleValue(const Shared::Char* token, const Shared::Char* arg, double* ptr);
+        static std::int32_t GetIntValue(const Shared::Char* token, const Shared::Char* arg, std::int32_t* ptr);
         static std::int32_t VersionPrint(Shared::Stream fp);
         static std::int32_t PrintLicense(Shared::Stream fp);
-        static std::int32_t ShortHelp(const EncoderOptions& gfp, Shared::Stream fp, const wchar_t* programName);
+        static std::int32_t ShortHelp(const EncoderOptions& gfp, Shared::Stream fp, const Shared::Char* programName);
         static void         WaitFor(Shared::Stream fp, std::int32_t lessmode);
-        static std::int32_t LongHelp(const EncoderOptions& gfp, Shared::Stream fp, const wchar_t* programName, std::int32_t lessmode);
+        static std::int32_t LongHelp(const EncoderOptions& gfp, Shared::Stream fp, const Shared::Char* programName, std::int32_t lessmode);
         static void         PresetsLongInfo(Shared::Stream msgfp);
-        static std::int32_t PresetsSet(EncoderOptions& gfp, const wchar_t* presetName, const wchar_t* programName);
-        static wchar_t      ToLower(wchar_t c);
-        static std::int32_t IsSpace(wchar_t c);
-        static std::int32_t LocalStrcasecmp(const wchar_t* s1, const wchar_t* s2);
-        static std::size_t  ScanPath(const wchar_t* s, const wchar_t** a, const wchar_t** b);
-        static std::size_t  ScanBasename(const wchar_t* s, const wchar_t** a, const wchar_t** b);
-        static std::int32_t IsCommonSuffix(const wchar_t* ext);
-        static std::int32_t GenerateOutPath(const wchar_t* inPath, const wchar_t* ext, wchar_t* out);
-        static void         CopyPadded(wchar_t* dst, const wchar_t* src, std::size_t n);
-        static void         DosToLongFileName(wchar_t* filename);
-        static std::int32_t StringToArgv(wchar_t* str, wchar_t** argv, std::int32_t n);
-        static std::int32_t MergeArgv(std::int32_t argc, wchar_t** argv, std::int32_t strArgc, wchar_t** strArgv, std::int32_t n);
-        static std::int32_t ParseArgsInternal(Options& options, std::int32_t argc, wchar_t** argv);
+        static std::int32_t PresetsSet(EncoderOptions& gfp, const Shared::Char* presetName, const Shared::Char* programName);
+        static Shared::Char ToLower(Shared::Char c);
+        static std::int32_t IsSpace(Shared::Char c);
+        static std::int32_t LocalStrcasecmp(const Shared::Char* s1, const Shared::Char* s2);
+        static std::size_t  ScanPath(const Shared::Char* s, const Shared::Char** a, const Shared::Char** b);
+        static std::size_t  ScanBasename(const Shared::Char* s, const Shared::Char** a, const Shared::Char** b);
+        static std::int32_t IsCommonSuffix(const Shared::Char* ext);
+        static std::int32_t GenerateOutPath(const Shared::Char* inPath, const Shared::Char* ext, Shared::Char* out);
+        static void         CopyPadded(Shared::Char* dst, const Shared::Char* src, std::size_t n);
+        static void         DosToLongFileName(Shared::Char* filename);
+        static std::int32_t StringToArgv(Shared::Char* str, Shared::Char** argv, std::int32_t n);
+        static std::int32_t MergeArgv(std::int32_t argc, Shared::Char** argv, std::int32_t strArgc, Shared::Char** strArgv, std::int32_t n);
+        static std::int32_t ParseArgsInternal(Options& options, std::int32_t argc, Shared::Char** argv);
 
-        /// <summary>Port of setProcessPriority (Windows).</summary>
+        /// <summary>The priorities of setProcessPriority.</summary>
+        enum class Priority { Low, Normal, High };
+
+        static void SetPriority(Priority priority);
+
+        /// <summary>Port of setProcessPriority (Windows; a nice value on Linux).</summary>
         static void SetProcessPriority(std::int32_t priority);
     };
 

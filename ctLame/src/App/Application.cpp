@@ -4,7 +4,12 @@
 // Licensed under the GNU Library General Public License, version 2 or (at your option) any later
 // version; see COPYING and ctLame-LICENSE.md.
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#else
+#    include <fcntl.h>
+#    include <unistd.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -13,7 +18,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cwchar>
 #include <memory>
 #include <optional>
 
@@ -49,10 +53,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     // --stats: what the encoding run measures
     struct Application::EncodeProfile {
-        StageProfile             stages; // per stage of the encoder
-        EncodeGraph::Profile     graph;  // per node of the task graph
-        std::int32_t             threads = 0;
-        std::array<wchar_t, 128> simd{}; // the feature line
+        StageProfile                  stages; // per stage of the encoder
+        EncodeGraph::Profile          graph;  // per node of the task graph
+        std::int32_t                  threads = 0;
+        std::array<Shared::Char, 128> simd{}; // the feature line
     };
 
     Application::Application()
@@ -60,7 +64,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         Shared::DebugReports::ToStderr();
     }
 
-    bool Application::ParseArgs(std::int32_t argc, wchar_t** argv)
+    bool Application::ParseArgs(std::int32_t argc, Shared::Char** argv)
     {
         stats_.Start();
         result_ = CommandLine::Parse(argc, argv, options_);
@@ -70,18 +74,17 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     std::int32_t Application::Execute()
     {
         // init_files
-        if (std::wcscmp(options_.inPath.data(), options_.outPath.data()) == 0 || Shared::File::Same(options_.inPath.data(), options_.outPath.data())) {
-            Console::Print(Stream::Error, L"Input file and Output file are the same. Abort.\n");
+        if (Shared::Text::Equal(options_.inPath.data(), options_.outPath.data()) || Shared::File::Same(options_.inPath.data(), options_.outPath.data())) {
+            Console::Print(Stream::Error, CT_TEXT("Input file and Output file are the same. Abort.\n"));
             return -1;
         }
         WavFile wavFile;
         if (!wavFile.Open(options_.inPath.data(), options_.encoder, options_.ignoreWavLength != 0, options_.silent)) {
-            Console::Print(Stream::Error, L"Can't init infile '%ls'\n", options_.inPath.data());
+            Console::Print(Stream::Error, CT_TEXT("Can't init infile '%s'\n"), options_.inPath.data());
             return -1;
         }
-        HANDLE const outFile = InitOutfile(options_.outPath.data());
-        if (outFile == INVALID_HANDLE_VALUE) {
-            Console::Print(Stream::Error, L"Can't init outfile '%ls'\n", options_.outPath.data());
+        if (!InitOutfile(options_.outPath.data())) {
+            Console::Print(Stream::Error, CT_TEXT("Can't init outfile '%s'\n"), options_.outPath.data());
             return -1;
         }
 
@@ -91,8 +94,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         if (ret < 0) {
             if (ret == -1)
                 CommandLine::DisplayBitrates(Stream::Error);
-            Console::Print(Stream::Error, L"fatal error during initialization\n");
-            CloseHandle(outFile);
+            Console::Print(Stream::Error, CT_TEXT("fatal error during initialization\n"));
             return ret;
         }
 
@@ -100,12 +102,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         // with its tables is too large for the stack)
         const auto encoder = std::make_unique<Encoder>();
         // the SIMD level: the requested one (--simd, default the highest), at most what the CPU has
-        const CpuFeatures        cpu  = CpuFeatures::Detect();
-        const SimdLevel          simd = ChooseSimdLevel(options_.simd, cpu);
-        std::array<wchar_t, 128> simdText;
+        const CpuFeatures             cpu  = CpuFeatures::Detect();
+        const SimdLevel               simd = ChooseSimdLevel(options_.simd, cpu);
+        std::array<Shared::Char, 128> simdText;
         (void)cpu.FormatLine(SimdLevelName(simd), simdText.data(), static_cast<std::int32_t>(simdText.size()));
         if (options_.features != 0)
-            Console::Print(Stream::Error, L"ctLame features: %ls\n", simdText.data());
+            Console::Print(Stream::Error, CT_TEXT("ctLame features: %s\n"), simdText.data());
         encoder->Initialize(config, simd);
 
         EncoderProgressBegin(config, options_, options_.inPath.data(), options_.outPath.data());
@@ -114,10 +116,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         // has been printed; LAME then encodes no samples at all.
         const std::int32_t bitWidth = wavFile.PcmBitWidth();
         if (bitWidth != 8 && bitWidth != 16 && bitWidth != 24 && bitWidth != 32 && options_.silent < 10)
-            Console::Print(Stream::Error, L"Only 8, 16, 24 and 32 bit input files supported \n");
+            Console::Print(Stream::Error, CT_TEXT("Only 8, 16, 24 and 32 bit input files supported \n"));
 
-        // the writer task opens the file again for overlapped I/O
-        CloseHandle(outFile);
+        // the writer task opens the file again for asynchronous I/O
         wavFile.Close();
 
         EncodeGraph::Result result;
@@ -127,35 +128,35 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         if (options_.stats != 0 || ProfileRequested()) {
             profile.emplace();
             encoder->SetProfile(&profile->stages);
-            (void)wcscpy_s(profile->simd.data(), profile->simd.size(), simdText.data());
+            (void)Shared::Text::Copy(profile->simd.data(), profile->simd.size(), simdText.data());
         }
 
-        const wchar_t* failure = L"";
-        const bool     started = RunEncodeGraph(*encoder, config, options_, wavFile, options_.inPath.data(), options_.outPath.data(), result,
-                                                profile ? &*profile : nullptr, stats_, failure);
+        const Shared::Char* failure = CT_TEXT("");
+        const bool          started = RunEncodeGraph(*encoder, config, options_, wavFile, options_.inPath.data(), options_.outPath.data(), result,
+                                                     profile ? &*profile : nullptr, stats_, failure);
         // get_audio: a read error ends the input like its end; LAME reports it, still flushes the
         // encoder and writes the tag, and exits with 0
-        if (started && result.readError != ERROR_SUCCESS && options_.silent < 10)
-            Console::Print(Stream::Error, L"Error reading input file\n");
+        if (started && result.readError != 0 && options_.silent < 10)
+            Console::Print(Stream::Error, CT_TEXT("Error reading input file\n"));
         if (!started) {
-            Console::Print(Stream::Error, L"%ls", failure);
+            Console::Print(Stream::Error, CT_TEXT("%s"), failure);
             ret = 1;
         } else if (result.encodeError == -2) {
-            Console::Print(Stream::Error, L"INTERNAL ERROR IN VBR NEW CODE, please send bug report\n");
+            Console::Print(Stream::Error, CT_TEXT("INTERNAL ERROR IN VBR NEW CODE, please send bug report\n"));
             ret = -1;
         } else if (result.encodeError < 0) {
             if (result.encodeError == -1)
-                Console::Print(Stream::Error, L"mp3 buffer is not big enough... \n");
+                Console::Print(Stream::Error, CT_TEXT("mp3 buffer is not big enough... \n"));
             else
-                Console::Print(Stream::Error, L"mp3 internal error:  error code=%i\n", result.encodeError);
+                Console::Print(Stream::Error, CT_TEXT("mp3 internal error:  error code=%i\n"), result.encodeError);
             ret = 1;
-        } else if (result.writeError != ERROR_SUCCESS) {
-            Console::Print(Stream::Error, L"Error writing mp3 output \n");
+        } else if (result.writeError != 0) {
+            Console::Print(Stream::Error, CT_TEXT("Error writing mp3 output \n"));
             ret = 1;
         } else if (encoder->GetLameTagFrame(nullptr, 0) != 0 && options_.silent <= 0) {
             // write_xing_frame: the writer task has put the tag frame at the start of the file
-            Console::Print(Stream::Error, L"Writing LAME Tag...");
-            Console::Print(Stream::Error, L"done\n");
+            Console::Print(Stream::Error, CT_TEXT("Writing LAME Tag..."));
+            Console::Print(Stream::Error, CT_TEXT("done\n"));
         }
         if (profile)
             PrintProfile(*profile);
@@ -167,26 +168,39 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         return result_ == Shared::ParseResult::Exit ? 0 : 1;
     }
 
-    // init_outfile: like lame_fopen(outPath, "w+b").
-    HANDLE Application::InitOutfile(const wchar_t* outPath)
+    // init_outfile: like lame_fopen(outPath, "w+b"); the file is created (emptied) and closed again, the writer task
+    // opens it for asynchronous I/O.
+    bool Application::InitOutfile(const Shared::Char* outPath)
     {
-        return CreateFileW(outPath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+#if defined(_WIN32)
+        const HANDLE file
+            = CreateFileW(outPath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (file == INVALID_HANDLE_VALUE)
+            return false;
+        CloseHandle(file);
+        return true;
+#else
+        const int file = ::open(outPath, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
+        return file >= 0 && ::close(file) == 0;
+#endif
     }
 
     // encoder_progress_begin (timestatus.c): what is printed before encoding starts; the progress
     // report and the VBR histogram were removed.
-    void Application::EncoderProgressBegin(const SessionConfig& config, const Options& frontend, const wchar_t* inPath, const wchar_t* outPath)
+    void Application::EncoderProgressBegin(const SessionConfig& config, const Options& frontend, const Shared::Char* inPath, const Shared::Char* outPath)
     {
         if (frontend.silent < 9) {
             const auto pw = static_cast<std::size_t>(ConsoleWidth - 14);
 
             PrintConfig(config); // print useful information about options being used
-            Console::Print(Stream::Error, L"Encoding %ls%ls to %ls\n", inPath, std::wcslen(inPath) + std::wcslen(outPath) < pw ? L"" : L"\n     ", outPath);
-            Console::Print(Stream::Error, L"Encoding as %g kHz ", 1.e-3 * config.samplerate_out);
+            Console::Print(Stream::Error, CT_TEXT("Encoding %s%s to %s\n"), inPath,
+                           Shared::Text::Length(inPath) + Shared::Text::Length(outPath) < pw ? CT_TEXT("") : CT_TEXT("\n     "), outPath);
+            Console::Print(Stream::Error, CT_TEXT("Encoding as %g kHz "), 1.e-3 * config.samplerate_out);
             {
-                static const std::array<std::array<const wchar_t*, 4>, 2> modeNames
-                    = {{{L"stereo", L"j-stereo", L"dual-ch", L"single-ch"}, {L"stereo", L"force-ms", L"dual-ch", L"single-ch"}}};
-                Console::Print(Stream::Error, L"%ls MPEG-1 Layer III VBR(q=%g)\n", modeNames[config.options.forceMs][config.options.mode],
+                static const std::array<std::array<const Shared::Char*, 4>, 2> modeNames
+                    = {{{CT_TEXT("stereo"), CT_TEXT("j-stereo"), CT_TEXT("dual-ch"), CT_TEXT("single-ch")},
+                        {CT_TEXT("stereo"), CT_TEXT("force-ms"), CT_TEXT("dual-ch"), CT_TEXT("single-ch")}}};
+                Console::Print(Stream::Error, CT_TEXT("%s MPEG-1 Layer III VBR(q=%g)\n"), modeNames[config.options.forceMs][config.options.mode],
                                static_cast<double>(config.options.GetVbrQuality()));
             }
             if (frontend.silent <= -10)
@@ -204,39 +218,40 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             total += ticks.load();
 
         stats_.Print(frontend.sequential != 0 ? 1u : static_cast<std::uint32_t>(profile.threads), frontend.sequential != 0);
-        Console::Print(Stream::Error, L"  %lld frames, features: %ls\n", frames, profile.simd.data());
-        Console::Print(Stream::Error, L"  stage           ms   share   us/frame\n");
+        Console::Print(Stream::Error, CT_TEXT("  %lld frames, features: %s\n"), frames, profile.simd.data());
+        Console::Print(Stream::Error, CT_TEXT("  stage           ms   share   us/frame\n"));
         for (std::int32_t i = 0; i < static_cast<std::int32_t>(ProfileStage::Count); ++i) {
             const std::int64_t ticks = profile.stages.ticks[i].load();
-            Console::Print(Stream::Error, L"  %-10ls %8.1f %6.1f %% %9.2f\n", ProfileStageName(static_cast<ProfileStage>(i)), ticks / perMs,
+            Console::Print(Stream::Error, CT_TEXT("  %-10s %8.1f %6.1f %% %9.2f\n"), ProfileStageName(static_cast<ProfileStage>(i)), ticks / perMs,
                            total > 0 ? 100.0 * ticks / total : 0.0, frames > 0 ? 1000.0 * ticks / perMs / frames : 0.0);
         }
-        Console::Print(Stream::Error, L"  node          busy ms  idle ms\n");
+        Console::Print(Stream::Error, CT_TEXT("  node          busy ms  idle ms\n"));
         struct TaskLine {
-            const wchar_t*     name;
-            const TaskProfile* task;
+            const Shared::Char* name;
+            const TaskProfile*  task;
         };
         const auto&                   graph = profile.graph;
-        const std::array<TaskLine, 6> tasks = {{{L"read", &graph.read},
-                                                {L"dispatch", &graph.dispatch},
-                                                {L"worker", &graph.worker},
-                                                {L"resolve", &graph.resolve},
-                                                {frontend.sequential ? L"sequential" : L"encode", &graph.encode},
-                                                {L"write", &graph.write}}};
+        const std::array<TaskLine, 6> tasks = {{{CT_TEXT("read"), &graph.read},
+                                                {CT_TEXT("dispatch"), &graph.dispatch},
+                                                {CT_TEXT("worker"), &graph.worker},
+                                                {CT_TEXT("resolve"), &graph.resolve},
+                                                {frontend.sequential ? CT_TEXT("sequential") : CT_TEXT("encode"), &graph.encode},
+                                                {CT_TEXT("write"), &graph.write}}};
         for (const auto& t : tasks) {
             const std::int32_t count = t.task->tasks.load();
             if (count == 0)
                 continue; // not in the graph (dispatch, workers and resolve with --sequential)
             const std::int64_t life = t.task->life.load();
             const std::int64_t idle = t.task->idle.load();
-            Console::Print(Stream::Error, L"  %-10ls %10.1f %8.1f%ls", t.name, (life - idle) / perMs, idle / perMs, count > 1 ? L"" : L"\n");
+            Console::Print(Stream::Error, CT_TEXT("  %-10s %10.1f %8.1f%s"), t.name, (life - idle) / perMs, idle / perMs,
+                           count > 1 ? CT_TEXT("") : CT_TEXT("\n"));
             if (count > 1)
-                Console::Print(Stream::Error, L"  (%d tasks)\n", count);
+                Console::Print(Stream::Error, CT_TEXT("  (%d tasks)\n"), count);
         }
     }
 
     // Samples per channel the input can have at most: the bytes the reader may read.
-    std::uint64_t Application::MaxInputSamples(const WavFile& wavFile, const wchar_t* inPath, std::int32_t channels, std::uint64_t byteLimit)
+    std::uint64_t Application::MaxInputSamples(const WavFile& wavFile, const Shared::Char* inPath, std::int32_t channels, std::uint64_t byteLimit)
     {
         std::uint64_t fileSize = 0;
         if (!Shared::File::Size(inPath, fileSize))
@@ -251,9 +266,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     // lame_encoder_loop: the task graph of the encoder (EncodeGraph) on an I/O and a compute
     // scheduler; the calling thread waits for it. False if a part of the setup failed, with the
     // reason in failure.
-    bool Application::RunEncodeGraph(Encoder& encoder, const SessionConfig& config, const Options& frontend, const WavFile& wavFile, const wchar_t* inPath,
-                                     const wchar_t* outPath, EncodeGraph::Result& result, EncodeProfile* profile, Shared::RunStats& stats,
-                                     const wchar_t*& failure)
+    bool Application::RunEncodeGraph(Encoder& encoder, const SessionConfig& config, const Options& frontend, const WavFile& wavFile, const Shared::Char* inPath,
+                                     const Shared::Char* outPath, EncodeGraph::Result& result, EncodeProfile* profile, Shared::RunStats& stats,
+                                     const Shared::Char*& failure)
     {
         // with a trusted header length LAME reads exactly num_samples, else up to the end
         const std::int32_t  bytesPerSample = (wavFile.PcmBitWidth() + 7) / 8;
@@ -278,12 +293,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         Shared::TaskRuntime runtime(1);
         EncodeGraph         graph(encoder, config, settings, profile != nullptr ? &profile->graph : nullptr);
         if (!graph.Initialize()) {
-            failure = L"ctLame: out of memory\n";
+            failure = CT_TEXT("ctLame: out of memory\n");
             return false;
         }
         Shared::RunningScheduler compute(SchedulerKind::Default, settings.threads);
         if (!runtime || !compute) {
-            failure = L"ctLame: cannot start the schedulers\n";
+            failure = CT_TEXT("ctLame: cannot start the schedulers\n");
             return false;
         }
         stats.WorkBegins();

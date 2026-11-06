@@ -31,7 +31,7 @@ Options
   -Threads 8           ctDeflate with 8 threads (default: all logical processors)
   -CtArgs "--in-memory"  further ctDeflate arguments
   -Recurse             also the files in subfolders
-  -GzipExe, -CtDeflateExe  the programs (default: bin\ next to the script or one level up)
+  -GzipExe, -CtDeflateExe  the programs (default: bin\ next to the script, or bin\win-x64\ one level up)
   -KeepPowerPlan       do not switch the power plan
 
 Notes

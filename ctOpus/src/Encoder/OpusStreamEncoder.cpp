@@ -34,7 +34,6 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         constexpr float        VariableHpSmthCoef2     = 0.015f;
         constexpr float        PseudoSnrThreshold      = 316.23f; // 10^(25/10)
         constexpr std::int32_t MaxEncodingDepth        = 24;
-        constexpr float        CeltSigScale            = 32768.f;
 
         constexpr std::int32_t MonoVoiceBandwidthThresholds[8]   = {9000, 700, 9000, 700, 13500, 1000, 14000, 2000};
         constexpr std::int32_t MonoMusicBandwidthThresholds[8]   = {9000, 700, 9000, 700, 11000, 1000, 12000, 2000};

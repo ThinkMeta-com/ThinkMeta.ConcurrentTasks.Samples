@@ -6,6 +6,13 @@
 
 #include "WavFile.h"
 
+#if !defined(_WIN32)
+#    include <cerrno>
+#    include <fcntl.h>
+#    include <sys/stat.h>
+#    include <unistd.h>
+#endif
+
 #include <array>
 #include <cstdint>
 
@@ -32,7 +39,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         }
     } // namespace
 
-    bool WavFile::Open(const wchar_t* path, EncoderOptions& options, bool ignoreLength, std::int32_t silent)
+    bool WavFile::Open(const Shared::Char* path, EncoderOptions& options, bool ignoreLength, std::int32_t silent)
     {
         Close();
         pcmBitWidth_           = 16;
@@ -42,11 +49,16 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         // set the defaults from info in case we cannot determine them from the file
         options.SetNumSamples(UnknownNumSamples);
 
-        // like _wfopen(path, L"rb"): shared for reading and writing
+        // like _wfopen(path, CT_TEXT("rb")): shared for reading and writing
+#if defined(_WIN32)
         file_ = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (file_ == INVALID_HANDLE_VALUE) {
+#else
+        file_ = ::open(path, O_RDONLY | O_CLOEXEC);
+        if (file_ < 0) {
+#endif
             if (silent < 10)
-                Console::Print(Stream::Error, L"Could not find \"%ls\".\n", path);
+                Console::Print(Stream::Error, CT_TEXT("Could not find \"%s\".\n"), path);
             return false;
         }
 
@@ -55,14 +67,24 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             return false;
         }
 
+#if defined(_WIN32)
         LARGE_INTEGER position{};
         SetFilePointerEx(file_, LARGE_INTEGER{}, &position, FILE_CURRENT);
         dataOffset_ = static_cast<std::uint64_t>(position.QuadPart);
+#else
+        const off_t position = lseek(file_, 0, SEEK_CUR);
+        dataOffset_          = position > 0 ? static_cast<std::uint64_t>(position) : 0;
+#endif
 
         if (options.numSamples == UnknownNumSamples) {
             const std::int32_t numChannels = options.numChannels;
-            LARGE_INTEGER      size{};
-            const double       flen = GetFileSizeEx(file_, &size) ? static_cast<double>(size.QuadPart) : -1.0; // try to figure out num_samples
+#if defined(_WIN32)
+            LARGE_INTEGER size{};
+            const double  flen = GetFileSizeEx(file_, &size) ? static_cast<double>(size.QuadPart) : -1.0; // try to figure out num_samples
+#else
+            struct stat  status{};
+            const double flen = fstat(file_, &status) == 0 ? static_cast<double>(status.st_size) : -1.0; // try to figure out num_samples
+#endif
             if (flen >= 0 && numChannels > 0) {
                 // try file size, assume 2 bytes per sample
                 const std::uint32_t fsize = static_cast<std::uint32_t>(flen / (2 * numChannels));
@@ -75,10 +97,17 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     void WavFile::Close() noexcept
     {
+#if defined(_WIN32)
         if (file_ != INVALID_HANDLE_VALUE) {
             CloseHandle(file_);
             file_ = INVALID_HANDLE_VALUE;
         }
+#else
+        if (file_ >= 0) {
+            ::close(file_);
+            file_ = -1;
+        }
+#endif
     }
 
     // parse_file_header: returns 1 for a supported WAV file, 0 otherwise.
@@ -101,11 +130,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             }
             if (ret < 0) {
                 if (silent < 10)
-                    Console::Print(Stream::Error, L"Warning: corrupt or unsupported WAVE format\n");
+                    Console::Print(Stream::Error, CT_TEXT("Warning: corrupt or unsupported WAVE format\n"));
             }
         } else {
             if (silent < 10)
-                Console::Print(Stream::Error, L"Warning: unsupported audio format, only WAVE files are supported\n");
+                Console::Print(Stream::Error, CT_TEXT("Warning: unsupported audio format, only WAVE files are supported\n"));
         }
         return 0;
     }
@@ -172,7 +201,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
         if (formatTag != WaveFormatPcm && formatTag != WaveFormatIeeeFloat) {
             if (silent < 10)
-                Console::Print(Stream::Error, L"Unsupported data format: 0x%04X\n", formatTag);
+                Console::Print(Stream::Error, CT_TEXT("Unsupported data format: 0x%04X\n"), formatTag);
             return 0; // oh no! non-supported format
         }
         // make sure the header is sane
@@ -183,7 +212,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         // avoid division by zero
         if (bitsPerSample < 1) {
             if (silent < 10)
-                Console::Print(Stream::Error, L"Unsupported bits per sample: %d\n", bitsPerSample);
+                Console::Print(Stream::Error, CT_TEXT("Unsupported bits per sample: %d\n"), bitsPerSample);
             return -1;
         }
         pcmBitWidth_    = bitsPerSample;
@@ -199,7 +228,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     {
         if (-1 == options.SetNumChannels(numChannels)) {
             if (silent < 10)
-                Console::Print(Stream::Error, L"Unsupported number of channels: %d\n", numChannels);
+                Console::Print(Stream::Error, CT_TEXT("Unsupported number of channels: %d\n"), numChannels);
             return false;
         }
         return true;
@@ -210,12 +239,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         // the input is never resampled, so only the MPEG-1 sample rates can be encoded
         if (samplerate != 32000 && samplerate != 44100 && samplerate != 48000) {
             if (silent < 10)
-                Console::Print(Stream::Error, L"Unsupported sample rate: %d Hz (supported: 32, 44.1 and 48 kHz)\n", samplerate);
+                Console::Print(Stream::Error, CT_TEXT("Unsupported sample rate: %d Hz (supported: 32, 44.1 and 48 kHz)\n"), samplerate);
             return false;
         }
         if (-1 == options.SetInSamplerate(samplerate)) {
             if (silent < 10)
-                Console::Print(Stream::Error, L"Unsupported sample rate: %d\n", samplerate);
+                Console::Print(Stream::Error, CT_TEXT("Unsupported sample rate: %d\n"), samplerate);
             return false;
         }
         return true;
@@ -224,8 +253,20 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     // Like fread: bytes beyond the end of the file stay 0.
     void WavFile::ReadBytes(std::uint8_t* bytes, std::uint32_t count) noexcept
     {
+#if defined(_WIN32)
         unsigned long read = 0; // DWORD of ReadFile
         (void)ReadFile(file_, bytes, count, &read, nullptr);
+#else
+        while (count > 0) {
+            const ssize_t read = ::read(file_, bytes, count);
+            if (read < 0 && errno == EINTR)
+                continue;
+            if (read <= 0)
+                break;
+            bytes += read;
+            count -= static_cast<std::uint32_t>(read);
+        }
+#endif
     }
 
     std::uint16_t WavFile::Read16BitsLowHigh() noexcept
@@ -262,9 +303,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     // fskip_uint32: a forward seek on a regular file; it may go beyond the end of the file.
     std::int32_t WavFile::Skip(std::uint32_t offset) noexcept
     {
+#if defined(_WIN32)
         LARGE_INTEGER distance{};
         distance.QuadPart = offset;
         return SetFilePointerEx(file_, distance, nullptr, FILE_CURRENT) ? 0 : -1;
+#else
+        return lseek(file_, static_cast<off_t>(offset), SEEK_CUR) >= 0 ? 0 : -1;
+#endif
     }
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

@@ -267,7 +267,6 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
         void StartRepair(std::size_t pos, IBlockSink& sink);
         void RefillRepair(IBlockSink& sink);
 
-        LevelParams         params_;
         const std::uint8_t* in_;
         std::size_t         inSize_;
         BlockTracker        tracker_;

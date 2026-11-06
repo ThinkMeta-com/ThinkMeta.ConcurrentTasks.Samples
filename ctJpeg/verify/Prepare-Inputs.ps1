@@ -8,12 +8,13 @@
     photos\  the 14 photos of the 8-bit RGB set of https://imagecompression.info/test_images/
              (download "rgb8bit", unpack, pass the folder with -Photos). Free redistribution with
              the notice of the set, which is not repeated here; they are copied, not changed.
-    images\  3 synthetic images, made by GenTestImages (built with ctJpeg.slnx).
+    images\  3 synthetic images, made by GenTestImages (built with ctJpeg.slnx, or CMakeLists.txt on Linux).
     edge\    8 small images of odd sizes, GenTestImages --edge.
     gray\    4 grayscale images, GenTestImages --gray, from 3 photos and the synthetic text image.
 
     Every input must have the size and SHA-256 listed in Input-Hashes.csv, since the reference
-    tables were written from exactly these files. Windows PowerShell 5.1 or PowerShell 7.
+    tables were written from exactly these files; GenTestImages makes the same files on Windows and
+    Linux. Windows PowerShell 5.1 or PowerShell 7 (on Linux: pwsh).
 
 .EXAMPLE
     .\Prepare-Inputs.ps1 -Photos D:\Downloads\rgb8bit
@@ -26,9 +27,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 # defaults here, not in param(): $PSScriptRoot may be empty there under Windows PowerShell 5.1
-if (-not $OutDir) { $OutDir = Join-Path $PSScriptRoot '..\testdata' }
-if (-not $GenTestImages) { $GenTestImages = Join-Path $PSScriptRoot '..\build\Release\bin\GenTestImages.exe' }
-if (-not (Test-Path -LiteralPath $GenTestImages)) { throw "GenTestImages.exe not found: $GenTestImages (build ctJpeg.slnx, Release x64, first)" }
+if (-not $OutDir) { $OutDir = Join-Path $PSScriptRoot '../testdata' }
+if (-not $GenTestImages) {
+    $GenTestImages = if ($IsLinux) { Join-Path $PSScriptRoot '../build/linux-release/bin/GenTestImages' } else { Join-Path $PSScriptRoot '..\build\Release\bin\GenTestImages.exe' }
+}
+if (-not (Test-Path -LiteralPath $GenTestImages)) {
+    $how = if ($IsLinux) { 'build CMakeLists.txt into build/linux-release first' } else { 'build ctJpeg.slnx, Release x64, first' }
+    throw "GenTestImages not found: $GenTestImages ($how)"
+}
 $OutDir = [IO.Path]::GetFullPath($OutDir)
 $table = @(Import-Csv -LiteralPath (Join-Path $PSScriptRoot 'Input-Hashes.csv'))
 
@@ -49,16 +55,16 @@ function Invoke-Gen([string[]]$arguments) {
 }
 Invoke-Gen @((Join-Path $OutDir 'images'))
 Invoke-Gen @('--edge', (Join-Path $OutDir 'edge'))
-foreach ($pair in @(@('photos\cathedral.ppm', 'cathedral-gray.pgm'), @('photos\leaves_iso_200.ppm', 'leaves_iso_200-gray.pgm'),
-        @('photos\spider_web.ppm', 'spider_web-gray.pgm'), @('images\text-4960x7016.ppm', 'text-gray.pgm'))) {
-    Invoke-Gen @('--gray', (Join-Path $OutDir $pair[0]), (Join-Path $OutDir "gray\$($pair[1])"))
+foreach ($pair in @(@('photos/cathedral.ppm', 'cathedral-gray.pgm'), @('photos/leaves_iso_200.ppm', 'leaves_iso_200-gray.pgm'),
+        @('photos/spider_web.ppm', 'spider_web-gray.pgm'), @('images/text-4960x7016.ppm', 'text-gray.pgm'))) {
+    Invoke-Gen @('--gray', (Join-Path $OutDir $pair[0]), (Join-Path $OutDir "gray/$($pair[1])"))
 }
 
 # every input as listed
 $sha = [System.Security.Cryptography.SHA256]::Create()
 $bad = 0
 foreach ($row in $table) {
-    $path = Join-Path $OutDir ($row.File -replace '/', '\')
+    $path = Join-Path $OutDir ($row.File -replace '/', [IO.Path]::DirectorySeparatorChar)
     $problem = ''
     if (-not (Test-Path -LiteralPath $path)) { $problem = 'missing' }
     else {

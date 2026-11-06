@@ -6,7 +6,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -20,6 +22,7 @@
 
 // headers with imports last
 #include "EncodeGraph.h"
+#include "Text.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
@@ -39,7 +42,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         Application();
 
         /// <summary>Reads the command line (CommandLine, parse_args). False on an error or after the help or version text.</summary>
-        bool ParseArgs(std::int32_t argc, wchar_t** argv);
+        bool ParseArgs(std::int32_t argc, Shared::Char** argv);
 
         /// <summary>Encodes the file (lame_encoder); returns the exit code.</summary>
         std::int32_t Execute();
@@ -52,13 +55,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
         struct EncodeProfile;
 
-        static HANDLE        InitOutfile(const wchar_t* outPath);
-        static void          EncoderProgressBegin(const SessionConfig& config, const Options& frontend, const wchar_t* inPath, const wchar_t* outPath);
-        void                 PrintProfile(const EncodeProfile& profile) const;
-        static std::uint64_t MaxInputSamples(const WavFile& wavFile, const wchar_t* inPath, std::int32_t channels, std::uint64_t byteLimit);
-        static bool RunEncodeGraph(Encoder& encoder, const SessionConfig& config, const Options& frontend, const WavFile& wavFile, const wchar_t* inPath,
-                                   const wchar_t* outPath, EncodeGraph::Result& result, EncodeProfile* profile, Shared::RunStats& stats,
-                                   const wchar_t*& failure);
+        static bool InitOutfile(const Shared::Char* outPath);
+        static void EncoderProgressBegin(const SessionConfig& config, const Options& frontend, const Shared::Char* inPath, const Shared::Char* outPath);
+        void        PrintProfile(const EncodeProfile& profile) const;
+        static std::uint64_t MaxInputSamples(const WavFile& wavFile, const Shared::Char* inPath, std::int32_t channels, std::uint64_t byteLimit);
+        static bool RunEncodeGraph(Encoder& encoder, const SessionConfig& config, const Options& frontend, const WavFile& wavFile, const Shared::Char* inPath,
+                                   const Shared::Char* outPath, EncodeGraph::Result& result, EncodeProfile* profile, Shared::RunStats& stats,
+                                   const Shared::Char*& failure);
 
         Options             options_;
         Shared::ParseResult result_ = Shared::ParseResult::Error;

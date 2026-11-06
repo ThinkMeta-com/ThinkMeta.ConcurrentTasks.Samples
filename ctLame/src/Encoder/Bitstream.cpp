@@ -198,7 +198,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             bs.h_ptr                         = (old + 1) & (MaxHeaderBuffers - 1);
             bs.header[bs.h_ptr].write_timing = bs.header[old].write_timing + bitsPerFrame;
             if (bs.h_ptr == bs.w_ptr)
-                Console::Print(Stream::Error, L"Error: MAX_HEADER_BUF too small in bitstream.c \n");
+                Console::Print(Stream::Error, CT_TEXT("Error: MAX_HEADER_BUF too small in bitstream.c \n"));
         }
 
         // The main data writers below take a bit sink: the bit stream itself (StreamWriter), or a
@@ -443,7 +443,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             totalBytesOutput += bs.buf_byte_idx + 1;
 
             if (flushbits < 0)
-                Console::Print(Stream::Error, L"strange error flushing buffer ... \n");
+                Console::Print(Stream::Error, CT_TEXT("strange error flushing buffer ... \n"));
             return flushbits;
         }
 
@@ -511,25 +511,20 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         // main_data_begin of the next frame
         std::int32_t totalBytes;
         if (ComputeFlushBits(config, bs, frame.bitrateIndex, totalBytes) != reservoir.size)
-            Console::Print(Stream::Error, L"Internal buffer inconsistency. flushbits <> ResvSize");
+            Console::Print(Stream::Error, CT_TEXT("Internal buffer inconsistency. flushbits <> ResvSize"));
 
         if ((reservoir.mainDataBegin * 8) != reservoir.size) {
             Console::Print(Stream::Error,
-                           L"bit reservoir error: \n"
-                           L"l3_side->main_data_begin: %i \n"
-                           L"Resvoir size:             %i \n"
-                           L"resv drain (post)         %i \n"
-                           L"resv drain (pre)          %i \n"
-                           L"header and sideinfo:      %i \n"
-                           L"data bits:                %i \n"
-                           L"total bits:               %i (remainder: %i) \n"
-                           L"bitsperframe:             %i \n",
+                           CT_TEXT("bit reservoir error: \n") CT_TEXT("l3_side->main_data_begin: %i \n") CT_TEXT("Resvoir size:             %i \n")
+                               CT_TEXT("resv drain (post)         %i \n") CT_TEXT("resv drain (pre)          %i \n") CT_TEXT("header and sideinfo:      %i \n")
+                                   CT_TEXT("data bits:                %i \n") CT_TEXT("total bits:               %i (remainder: %i) \n")
+                                       CT_TEXT("bitsperframe:             %i \n"),
                            8 * reservoir.mainDataBegin, reservoir.size, side.resvDrain_post, side.resvDrain_pre, 8 * config.sideinfo_len,
                            bits - side.resvDrain_post - 8 * config.sideinfo_len, bits, bits % 8, bitsPerFrame);
-            Console::Print(Stream::Error, L"This is a fatal error.  It has several possible causes:");
-            Console::Print(Stream::Error, L"90%%  LAME compiled with buggy version of gcc using advanced optimizations");
-            Console::Print(Stream::Error, L" 9%%  Your system is overclocked");
-            Console::Print(Stream::Error, L" 1%%  bug in LAME encoding library");
+            Console::Print(Stream::Error, CT_TEXT("This is a fatal error.  It has several possible causes:"));
+            Console::Print(Stream::Error, CT_TEXT("90%%  LAME compiled with buggy version of gcc using advanced optimizations"));
+            Console::Print(Stream::Error, CT_TEXT(" 9%%  Your system is overclocked"));
+            Console::Print(Stream::Error, CT_TEXT(" 1%%  bug in LAME encoding library"));
             reservoir.size = reservoir.mainDataBegin * 8;
         }
 

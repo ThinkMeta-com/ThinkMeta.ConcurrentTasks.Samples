@@ -35,8 +35,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         };
 
         // The literals are doubles stored in float fields, as in LAME's table.
-#pragma warning(push)
-#pragma warning(disable : 4305)
+#if defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4305)
+#endif
         // clang-format off
         const auto VbrMtPsySwitchMap = std::to_array<VbrPreset>({
         //  vbr_q expY st_lrm  st_s   mask adj_l adj_s  ath_lower ath_curve ath_sens interch  safejoint sfb21mod msfix minval ath_fixpoint
@@ -53,7 +55,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             {10,  1,  25.00,  300.0,   2.8,   2.8, -25.0,    12.0,    -27,      0.0025,  0,    0,  3.500,  0,  93.3}
         });
         // clang-format on
-#pragma warning(pop)
+#if defined(_MSC_VER)
+#    pragma warning(pop)
+#endif
 
         // SET_OPTION: with enforce always, otherwise only if the value is still the default.
         template <typename Setter>

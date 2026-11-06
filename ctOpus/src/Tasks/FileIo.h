@@ -3,7 +3,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -69,10 +71,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         void Close() noexcept;
 
     private:
-        std::byte*     memory_     = nullptr;
-        std::uint32_t* sizes_      = nullptr;
-        std::uint32_t  blockCount_ = 0;
-        std::uint32_t  blockSize_  = 0;
+        std::byte*     memory_      = nullptr;
+        std::size_t    memoryBytes_ = 0; // its size, for the release
+        std::uint32_t* sizes_       = nullptr;
+        std::uint32_t  blockCount_  = 0;
+        std::uint32_t  blockSize_   = 0;
 
         // producer side
         std::int64_t writeAcquired_ = 0;
@@ -96,7 +99,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     class FileReadTask final : public Tasks::Task, Memory::IWriteSequentialMemory
     {
     public:
-        FileReadTask(BlockPipe& pipe, const wchar_t* path, std::uint64_t offset, std::uint32_t readsInFlight) noexcept;
+        FileReadTask(BlockPipe& pipe, const Shared::Char* path, std::uint64_t offset, std::uint32_t readsInFlight) noexcept;
 
         void Run() noexcept override;
 
@@ -107,7 +110,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         void       SetEndOfStream() noexcept override;
 
         BlockPipe&             pipe_;
-        const wchar_t*         path_;
+        const Shared::Char*    path_;
         AsyncIo::BulkIoOptions options_;
     };
 
@@ -119,11 +122,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     class FileWriteTask final : public Tasks::Task, Memory::IReadSequentialMemory
     {
     public:
-        FileWriteTask(BlockPipe& pipe, const wchar_t* path, std::uint32_t writesInFlight) noexcept;
+        FileWriteTask(BlockPipe& pipe, const Shared::Char* path, std::uint32_t writesInFlight) noexcept;
 
         void Run() noexcept override;
 
-        /// <summary>ERROR_SUCCESS or the error that ended the writing.</summary>
+        /// <summary>0 (success) or the error that ended the writing.</summary>
         std::uint32_t Error() const noexcept { return error_; }
 
     private:
@@ -132,9 +135,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         void             ReleaseReadMemory(std::size_t size) noexcept override;
 
         BlockPipe&             pipe_;
-        const wchar_t*         path_;
+        const Shared::Char*    path_;
         AsyncIo::BulkIoOptions options_;
-        std::uint32_t          error_ = ERROR_SUCCESS;
+        std::uint32_t          error_ = 0;
     };
 
     /// <summary>
@@ -162,10 +165,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         /// Reads the input file at path behind what fin has buffered; false (fin unchanged, it goes on
         /// reading synchronously) for stdin or a pipe.
         /// </summary>
-        bool AttachInput(InputFile& fin, const wchar_t* path) noexcept;
+        bool AttachInput(InputFile& fin, const Shared::Char* path) noexcept;
 
-        /// <summary>Creates the output file, written by FileWrite; the Windows error code (0 on success).</summary>
-        std::uint32_t CreateOutput(const wchar_t* path) noexcept;
+        /// <summary>Creates the output file, written by FileWrite; the error code of the operating system (0 on success).</summary>
+        std::uint32_t CreateOutput(const Shared::Char* path) noexcept;
 
         bool HasOutput() const noexcept { return writer_ != nullptr; }
 

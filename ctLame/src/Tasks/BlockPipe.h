@@ -10,7 +10,9 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -85,10 +87,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         void ReleaseReadBlock() noexcept;
 
     private:
-        std::byte*     memory_     = nullptr;
-        std::uint32_t* sizes_      = nullptr;
-        std::uint32_t  blockCount_ = 0;
-        std::uint32_t  blockSize_  = 0;
+        std::byte*     memory_      = nullptr;
+        std::size_t    memoryBytes_ = 0; // its size, for the release
+        std::uint32_t* sizes_       = nullptr;
+        std::uint32_t  blockCount_  = 0;
+        std::uint32_t  blockSize_   = 0;
 
         // producer side
         std::int64_t writeAcquired_ = 0;

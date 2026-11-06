@@ -1,7 +1,9 @@
 // Copyright (c) 2026 ThinkMeta Software GmbH
 // SPDX-License-Identifier: MIT (see LICENSE.txt)
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -48,7 +50,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         Shared::DebugReports::ToStderr();
     }
 
-    bool Application::ParseArgs(std::int32_t argc, wchar_t** argv)
+    bool Application::ParseArgs(std::int32_t argc, Shared::Char** argv)
     {
         stats_.Start();
         result_ = CommandLine::Parse(argc, argv, options_);
@@ -62,21 +64,21 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         const CpuFeatures features = CpuFeatures::Detect();
         const SimdLevel   simd     = options_.simdGiven ? options_.simd : HighestSimdLevel(features);
         if (ChooseSimdLevel(simd, features) != simd) {
-            Console::Print(Stream::Error, L"ctJpeg: feature set %ls is not supported by this CPU\n", SimdLevelName(simd));
+            Console::Print(Stream::Error, CT_TEXT("ctJpeg: feature set %s is not supported by this CPU\n"), SimdLevelName(simd));
             return 1;
         }
         if (options_.features) {
-            wchar_t line[128];
+            Shared::Char line[128];
             (void)features.FormatLine(SimdLevelName(simd), line, static_cast<std::int32_t>(sizeof(line) / sizeof(line[0])));
-            Console::Print(Stream::Error, L"ctJpeg features: %ls\n", line);
+            Console::Print(Stream::Error, CT_TEXT("ctJpeg features: %s\n"), line);
         }
 
-        wchar_t            error[512];
+        Shared::Char       error[512];
         const std::int32_t errorSize = static_cast<std::int32_t>(sizeof(error) / sizeof(error[0]));
         Image              image;
         if (options_.dumpPath != nullptr) { // check tool: the whole file mapped
             if (!image.ReadPnm(options_.inPath, error, errorSize)) {
-                Console::Print(Stream::Error, L"ctJpeg: %ls\n", error);
+                Console::Print(Stream::Error, CT_TEXT("ctJpeg: %s\n"), error);
                 return 1;
             }
             return DumpCoefficients(image, options_.encoder, simd, options_.dumpPath);
@@ -100,16 +102,16 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         };
         if (!runtime) {
             endIo();
-            Console::Print(Stream::Error, L"ctJpeg: cannot set up the asynchronous I/O\n");
+            Console::Print(Stream::Error, CT_TEXT("ctJpeg: cannot set up the asynchronous I/O\n"));
             return 1;
         }
 
         if (!StartRead(input, *runtime.Io(), ioGroup, options_, image, error, errorSize)) {
             endIo();
-            if (error[0] != L'\0')
-                Console::Print(Stream::Error, L"ctJpeg: %ls\n", error);
+            if (error[0] != '\0')
+                Console::Print(Stream::Error, CT_TEXT("ctJpeg: %s\n"), error);
             else
-                Console::Print(Stream::Error, L"ctJpeg: cannot read '%ls' (error %u)\n", options_.inPath, input.Error());
+                Console::Print(Stream::Error, CT_TEXT("ctJpeg: cannot read '%s' (error %u)\n"), options_.inPath, input.Error());
             return 1;
         }
         const std::int32_t width    = image.Width();
@@ -126,7 +128,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
             Shared::RunningScheduler compute(SchedulerKind::Default, workers);
             if (!compute) {
                 endIo();
-                Console::Print(Stream::Error, L"ctJpeg: cannot create the task scheduler\n");
+                Console::Print(Stream::Error, CT_TEXT("ctJpeg: cannot create the task scheduler\n"));
                 return 1;
             }
             tStarted = Shared::Diagnostics::Now();
@@ -155,20 +157,20 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         const double tStopped = Shared::Diagnostics::Now();
 
         if (status == EncodeStatus::ReadFailed) {
-            Console::Print(Stream::Error, L"ctJpeg: cannot read '%ls' (error %u)\n", options_.inPath, input.Error());
+            Console::Print(Stream::Error, CT_TEXT("ctJpeg: cannot read '%s' (error %u)\n"), options_.inPath, input.Error());
             return 1;
         }
         if (status != EncodeStatus::Ok) {
-            Console::Print(Stream::Error, L"ctJpeg: %ls\n", EncodeStatusText(status));
+            Console::Print(Stream::Error, CT_TEXT("ctJpeg: %s\n"), EncodeStatusText(status));
             return 1;
         }
         if (file.Failed()) {
-            Console::Print(Stream::Error, L"ctJpeg: cannot write '%ls'\n", options_.outPath);
+            Console::Print(Stream::Error, CT_TEXT("ctJpeg: cannot write '%s'\n"), options_.outPath);
             return 1;
         }
         if (!options_.quiet)
-            Console::Print(Stream::Error, L"Encoded %dx%d to %zu bytes (%ls, %ls)\n", width, height, output.Size(), SimdLevelName(simd),
-                           options_.sequential ? L"sequential" : L"parallel");
+            Console::Print(Stream::Error, CT_TEXT("Encoded %dx%d to %zu bytes (%s, %s)\n"), width, height, output.Size(), SimdLevelName(simd),
+                           options_.sequential ? CT_TEXT("sequential") : CT_TEXT("parallel"));
         if (options_.stats) {
             stats_.Print(workers, options_.sequential);
             if (!options_.sequential) // the phases of the stage graph
@@ -186,13 +188,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     // "CTJC", the component count (int32), per component its width and height in blocks (int32
     // each) and its quantization table (64 x uint16), then the blocks of each component in row
     // order, 64 int16 each in natural (not zigzag) order; all little-endian.
-    int Application::DumpCoefficients(const Image& image, const EncoderOptions& options, SimdLevel simd, const wchar_t* path)
+    int Application::DumpCoefficients(const Image& image, const EncoderOptions& options, SimdLevel simd, const Shared::Char* path)
     {
         EncoderSetup       setup;
         Coefficients       coefficients;
         const EncodeStatus status = ComputeAllCoefficients(image, options, simd, setup, coefficients);
         if (status != EncodeStatus::Ok) {
-            Console::Print(Stream::Error, L"ctJpeg: %ls\n", EncodeStatusText(status));
+            Console::Print(Stream::Error, CT_TEXT("ctJpeg: %s\n"), EncodeStatusText(status));
             return 1;
         }
         ByteBuffer out;
@@ -217,7 +219,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
             }
         }
         if (!Shared::File::Write(path, out.Data(), out.Size())) {
-            Console::Print(Stream::Error, L"ctJpeg: cannot write '%ls'\n", path);
+            Console::Print(Stream::Error, CT_TEXT("ctJpeg: cannot write '%s'\n"), path);
             return 1;
         }
         return 0;
@@ -227,9 +229,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
     // (the sequential graph waits for the whole file). False on an error, with the message in error (empty: a read error,
     // its code in input.Error()).
     bool Application::StartRead(AsyncInput& input, ITaskScheduler& io, Synchronization::TaskGroup_s& ioGroup, const Options& frontend, Image& image,
-                                wchar_t* error, std::int32_t errorSize)
+                                Shared::Char* error, std::int32_t errorSize)
     {
-        error[0] = L'\0';
+        error[0] = '\0';
         if (!input.Open(frontend.inPath, ReadStep))
             return false;
         ioGroup.AddTask(&input);
@@ -240,11 +242,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
             return false;
         if (!image.ParsePnmView(input.Data(), input.ArrivedAfter(1), input.Size(), error, errorSize)) {
             input.WaitFor(input.Size());
-            error[0] = L'\0';
+            error[0] = '\0';
             if (input.Failed() || !image.ParsePnmView(input.Data(), input.Size(), input.Size(), error, errorSize))
                 return false;
         }
-        error[0] = L'\0';
+        error[0] = '\0';
         if (frontend.sequential) { // the reference path reads the image whole
             input.WaitFor(input.Size());
             return !input.Failed();
@@ -254,13 +256,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
     void Application::PrintTimes(const PhaseTimes& times, double header, double schedulerStart, double encode, double endOfIo)
     {
-        Console::Print(Stream::Error, L"  phases: setup %.3f, pixels %.3f, tokenize %.3f, huffman %.3f, write %.3f, assemble %.3f, release %.3f s\n",
+        Console::Print(Stream::Error, CT_TEXT("  phases: setup %.3f, pixels %.3f, tokenize %.3f, huffman %.3f, write %.3f, assemble %.3f, release %.3f s\n"),
                        times.setup, times.pixels, times.tokenize, times.huffman, times.write, times.assemble, times.release);
         // the serial rest around the encode (the start before wmain is in the stats line): until the header has arrived,
         // the scheduler, the rest of the encode call, the end of the I/O (the file is written during Release)
         const double phases = times.setup + times.pixels + times.tokenize + times.huffman + times.write + times.assemble + times.release;
-        Console::Print(Stream::Error, L"  serial: header %.3f, scheduler start %.3f, rest of the encode %.3f, end of I/O %.3f s\n", header, schedulerStart,
-                       encode - phases, endOfIo);
+        Console::Print(Stream::Error, CT_TEXT("  serial: header %.3f, scheduler start %.3f, rest of the encode %.3f, end of I/O %.3f s\n"), header,
+                       schedulerStart, encode - phases, endOfIo);
     }
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg

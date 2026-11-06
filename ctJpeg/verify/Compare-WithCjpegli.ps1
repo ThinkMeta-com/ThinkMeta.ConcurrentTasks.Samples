@@ -6,14 +6,14 @@
     output of cjpegli on the same SIMD target.
 
 .DESCRIPTION
-    Encodes every PPM/PGM image of the folder with bin\cjpegli.exe --target <simd> and with the
+    Encodes every PPM/PGM image of the folder with cjpegli of bin\ --target <simd> and with the
     ctJpeg build (-Exe), for every quality and subsampling given, and compares the files. Nothing
     is timed. Windows PowerShell 5.1 or PowerShell 7. Exit code 0 if every output is identical,
     2 if one differs or a program failed, 1 for other errors.
 
 .EXAMPLE
     .\Compare-WithCjpegli.ps1 D:\Images
-    .\Compare-WithCjpegli.ps1 D:\Images -Simd sse2 -Qualities '50,85,95' -Subsampling 'default,420' -Exe ..\bin\ctJpeg.exe
+    .\Compare-WithCjpegli.ps1 D:\Images -Simd sse2 -Qualities '50,85,95' -Subsampling 'default,420' -Exe ..\bin\win-x64\ctJpeg.exe
 #>
 param(
     [Parameter(Mandatory, Position = 0)][string]$ImageDir,
@@ -27,8 +27,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 # defaults here, not in param(): $PSScriptRoot may be empty there under Windows PowerShell 5.1
-if (-not $Exe) { $Exe = Join-Path $PSScriptRoot '..\build\Release\bin\ctJpeg.exe' }
-if (-not $Cjpegli) { $Cjpegli = Join-Path $PSScriptRoot '..\bin\cjpegli.exe' }
+if (-not $Exe) { $Exe = if ($IsLinux) { Join-Path $PSScriptRoot '../build/linux-release/bin/ctJpeg' } else { Join-Path $PSScriptRoot '..\build\Release\bin\ctJpeg.exe' } }
+if (-not $Cjpegli) { $Cjpegli = if ($IsLinux) { Join-Path $PSScriptRoot '../bin/linux-x64/cjpegli' } else { Join-Path $PSScriptRoot '..\bin\win-x64\cjpegli.exe' } }
 foreach ($p in $Exe, $Cjpegli) { if (-not (Test-Path -LiteralPath $p)) { Write-Host "not found: $p" -ForegroundColor Red; exit 1 } }
 $images = @(Get-ChildItem -LiteralPath $ImageDir -File | Where-Object { $_.Extension -match '^\.(ppm|pgm|pnm)$' } | Sort-Object Name)
 if ($images.Count -eq 0) { Write-Host "no PPM/PGM images in $ImageDir" -ForegroundColor Red; exit 1 }

@@ -6,7 +6,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -20,6 +22,7 @@
 
 // headers with imports last
 #include "BlockPipe.h"
+#include "Text.h"
 
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 import ThinkMeta.ConcurrentTasks.AsyncIo.AsyncFile;
@@ -31,25 +34,25 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// WAV file into a pipe with several overlapped reads in flight. Runs on the I/O scheduler
     /// and sets its own priority by the fill level of the pipe.
     /// </summary>
-    class WavReaderTask : public Tasks::Task
+    class WavReaderTask final : public Tasks::Task
     {
     public:
         static constexpr std::uint32_t MaxReadsInFlight = 16;
 
         struct Settings {
-            const wchar_t*  path          = nullptr;
-            std::uint64_t   dataOffset    = 0;     // first byte of the sample data
-            std::uint64_t   byteLimit     = ~0ull; // bytes to read at most (the data chunk size)
-            std::uint32_t   readsInFlight = 4;     // at most MaxReadsInFlight, less than the pipe's blocks
-            FillLevelPolicy policy;
-            TaskProfile*    profile = nullptr; // CTLAME_PROFILE: busy and idle time
+            const Shared::Char* path          = nullptr;
+            std::uint64_t       dataOffset    = 0;     // first byte of the sample data
+            std::uint64_t       byteLimit     = ~0ull; // bytes to read at most (the data chunk size)
+            std::uint32_t       readsInFlight = 4;     // at most MaxReadsInFlight, less than the pipe's blocks
+            FillLevelPolicy     policy;
+            TaskProfile*        profile = nullptr; // CTLAME_PROFILE: busy and idle time
         };
 
         WavReaderTask(BlockPipe& pipe, const Settings& settings) noexcept;
 
         void Run() noexcept override;
 
-        /// <summary>ERROR_SUCCESS or the error that ended the reading.</summary>
+        /// <summary>0 (success) or the error that ended the reading.</summary>
         std::uint32_t Error() const noexcept { return error_; }
 
         /// <summary>Set once the last block is in the pipe (or reading failed).</summary>
@@ -60,7 +63,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     private:
         BlockPipe&        pipe_;
         Settings          settings_;
-        std::uint32_t     error_ = ERROR_SUCCESS;
+        std::uint32_t     error_ = 0;
         std::atomic<bool> finished_{false};
         IoStats           stats_;
 

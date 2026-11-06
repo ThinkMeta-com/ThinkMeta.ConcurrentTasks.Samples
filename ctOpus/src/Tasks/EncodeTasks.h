@@ -3,7 +3,9 @@
 
 #pragma once
 
-#include <Windows.h>
+#if defined(_WIN32)
+#    include <Windows.h>
+#endif
 
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
@@ -39,7 +41,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     /// block of the ring whose inputs are all read; at the end it appends libopusenc's drain
     /// extension (LPC continuation, then zeros) and publishes the end of the stream.
     /// </summary>
-    class ReadTask : public Tasks::Task
+    class ReadTask final : public Tasks::Task
     {
     public:
         ReadTask(WavInput& wav, PcmFeed& pcm, BlockRing& ring) noexcept : wav_(wav), pcm_(pcm), ring_(ring) {}
@@ -56,7 +58,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     /// The node Resample (compute scheduler, one task per thread): computes the dispatched blocks of
     /// 48 kHz output, any block on any worker (input at 48 kHz: copies them).
     /// </summary>
-    class ResampleTask : public Tasks::Task
+    class ResampleTask final : public Tasks::Task
     {
     public:
         ResampleTask(PcmFeed& pcm, BlockRing& ring) noexcept : pcm_(pcm), ring_(ring) {}
@@ -69,7 +71,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     };
 
     /// <summary>The node Analyse (compute, High): the tonality analysis of the calls (ToneChain::RunAnalyse).</summary>
-    class AnalyseTask : public Tasks::Task
+    class AnalyseTask final : public Tasks::Task
     {
     public:
         AnalyseTask(ToneChain& chain, BlockRing& ring) noexcept : chain_(chain), ring_(ring) {}
@@ -82,7 +84,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     };
 
     /// <summary>The node Signal (compute, High): the input and CELT signal stages of the calls (ToneChain::RunSignals).</summary>
-    class SignalTask : public Tasks::Task
+    class SignalTask final : public Tasks::Task
     {
     public:
         SignalTask(ToneChain& chain, BlockRing& ring) noexcept : chain_(chain), ring_(ring) {}
@@ -95,7 +97,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     };
 
     /// <summary>The node Front (compute, High): the speculative CELT front parts of the calls (ToneChain::RunFronts).</summary>
-    class FrontTask : public Tasks::Task
+    class FrontTask final : public Tasks::Task
     {
     public:
         FrontTask(ToneChain& chain, BlockRing& ring) noexcept : chain_(chain), ring_(ring) {}
@@ -108,7 +110,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     };
 
     /// <summary>The node Speculate (compute, High), one per level of the cascade: runs the speculations posted to its queue.</summary>
-    class SpeculateTask : public Tasks::Task
+    class SpeculateTask final : public Tasks::Task
     {
     public:
         explicit SpeculateTask(SpeculationQueue& queue) noexcept : queue_(queue) {}
@@ -120,7 +122,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     };
 
     /// <summary>The node Theta (compute, High): runs the theta trials its encoder (Encode or a Speculate level) hands over.</summary>
-    class ThetaTask : public Tasks::Task
+    class ThetaTask final : public Tasks::Task
     {
     public:
         explicit ThetaTask(ThetaHelper& helper) noexcept : helper_(helper) {}
@@ -137,7 +139,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
     /// helpers) and writes the Ogg pages; at the end it drains with the extension's output and stops
     /// the nodes that serve it.
     /// </summary>
-    class EncodeTask : public Tasks::Task
+    class EncodeTask final : public Tasks::Task
     {
     public:
         static constexpr std::int32_t SpecLevels = 3; // the depth of the speculation cascade at most

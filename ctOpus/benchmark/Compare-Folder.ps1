@@ -50,7 +50,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root    = $PSScriptRoot
-$bin     = if (Test-Path (Join-Path $root 'bin')) { Join-Path $root 'bin' } else { Join-Path (Split-Path $root) 'bin' }
+# bin\ next to the script (benchmark package) or bin\win-x64\ one level up (ctOpus folder, benchmark\)
+$bin     = if (Test-Path (Join-Path $root 'bin')) { Join-Path $root 'bin' } else { Join-Path (Split-Path $root) 'bin\win-x64' }
 $work    = Join-Path $root 'work'
 $results = Join-Path $root 'results'
 New-Item -ItemType Directory -Force -Path $work, $results | Out-Null

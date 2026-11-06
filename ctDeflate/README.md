@@ -1,6 +1,6 @@
 # ctDeflate: gzip, bit for bit, one file on many cores
 
-**ctDeflate** is a gzip compressor for Windows x64 that writes *exactly* the same `.gz` files as `gzip` from **libdeflate 1.26** (compression levels 1 to 9), byte for byte, and spreads the compression of a **single file** over all cores. It is a new C++ port (rewritten, not linked) of libdeflate's compressor, built on **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler for Windows.
+**ctDeflate** is a gzip compressor for Windows and Linux (x64) that writes *exactly* the same `.gz` files as `gzip` from **libdeflate 1.26** (compression levels 1 to 9), byte for byte, and spreads the compression of a **single file** over all cores. It is a new C++ port (rewritten, not linked) of libdeflate's compressor, built on **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler for Windows and Linux (x64).
 
 ctDeflate was created **AI-assisted**, using ThinkMeta.ConcurrentTasks: AI coding agents wrote the port, its parallelization and optimizations, measured and tuned the code under the direction of ThinkMeta's developers, and every step was checked byte for byte against the reference. **An in-depth code review is still pending:** the output is verified to be identical to the reference, but the code itself has not yet been reviewed line by line.
 
@@ -19,14 +19,16 @@ ctDeflate was created **AI-assisted**, using ThinkMeta.ConcurrentTasks: AI codin
 
 | Folder / file | Contents |
 |---|---|
-| `bin\` | `ctDeflate.exe` (the compressor), `gzip.exe` (the reference: the official libdeflate 1.26 Windows x64 release build), `ThinkMeta.ConcurrentTasks.Core.dll` (scheduler core) |
+| `bin\win-x64\` | Windows: `ctDeflate.exe` (the compressor), `gzip.exe` (the reference: the official libdeflate 1.26 Windows x64 release build), `ThinkMeta.ConcurrentTasks.Core.dll` (scheduler core) |
+| `bin/linux-x64/` | Linux: `ctDeflate`, `gzip` (libdeflate 1.26, built from the same sources), `libThinkMeta.ConcurrentTasks.Core.so.2` (scheduler core) |
 | `src\` | The source code of ctDeflate: `App\` (the program), `Encoder\` (the port of libdeflate's compressor, without task code), `Tasks\` (the task graph) and `Tests\` (unit tests); the code all samples share (console output, version resource, CPU check, task setup, `--stats`) is in [`..\Shared`](../Shared/README.md); see [Reading the code](#reading-the-code) |
 | `ctDeflate.slnx` | Builds ctDeflate, its unit tests and `gzip.exe` with Visual Studio 2026 (see [Building](#building)) |
-| `verify\` | `Verify-Deflate.ps1` and its reference hashes: checks a ctDeflate.exe byte for byte against `gzip.exe` |
-| `libdeflate\` | The libdeflate 1.26 sources with Visual Studio projects for the library and `gzip.exe` |
-| `props\` | `StaticCrt.props`: the build with the static C runtime, as for `bin\ctDeflate.exe` |
-| `benchmark\` | `Compare-Gzip.ps1` and `run.cmd`: speed and bit identity on your own files |
-| `New-BenchPackage.ps1` | Packs `bin\` and the benchmark into a zip for other PCs |
+| `CMakeLists.txt` | Builds ctDeflate and its unit tests on Linux with clang, CMake and Ninja |
+| `verify\` | `Verify-Deflate.ps1` and its reference hashes, one table per platform (`-win-x64`, `-linux-x64`): checks a ctDeflate byte for byte against `gzip` |
+| `libdeflate\` | The libdeflate 1.26 sources with Visual Studio projects for the library and `gzip.exe` (and libdeflate's own CMake build for Linux) |
+| `props\` | `StaticCrt.props`: the build with the static C runtime, as for `bin\win-x64\ctDeflate.exe` |
+| `benchmark\` | `Compare-Gzip.ps1` and `run.cmd`: speed and bit identity on your own files (Windows only for now) |
+| `New-BenchPackage.ps1` | Packs `bin\win-x64\` and the benchmark into a zip for other PCs (Windows) |
 
 The scheduler's API (headers, C++ modules, the core) comes from the submodule `ThinkMeta.ConcurrentTasks.API` at the root of this repository.
 
@@ -36,25 +38,39 @@ More on the reference under [The reference](#the-reference).
 
 ## Try it
 
-No installation and no runtime to install: `ctDeflate.exe` is linked with the static C runtime and needs nothing but Windows and the scheduler core next to it.
+No installation and no runtime to install: the programs in `bin\` need nothing but the operating system and the scheduler core next to them.
 
-| | |
-|---|---|
-| System | Windows 10 or 11, or Windows Server 2016 or later, x64 |
-| CPU | x64 with AVX2, FMA, BMI2 and PCLMUL (Intel since Haswell, 2013; AMD since Excavator and all Zen). ctDeflate checks this at start, before any of its other code runs; on an older CPU it names the missing instruction sets and exits with code 3 |
-| `gzip.exe` | the official libdeflate build uses the Universal C Runtime, which is part of Windows 10 and Server 2016 and later |
+| | Windows (`bin\win-x64\`) | Linux (`bin/linux-x64/`) |
+|---|---|---|
+| System | Windows 10 or 11, or Windows Server 2016 or later, x64 | Linux x64 with **glibc 2.38** or later (Ubuntu 24.04, Debian 13, Fedora 39, RHEL 10 or newer); kernel 5.19 or later recommended. The programs use io_uring, which must be allowed (Docker's default seccomp profile blocks it; ctDeflate then reports an error at start) |
+| Runtime | `ctDeflate.exe` is linked with the static C runtime; `gzip.exe` (the official libdeflate build) uses the Universal C Runtime, which is part of Windows 10 and Server 2016 and later | libstdc++ is linked in; the programs need only `libc.so.6`, `libm.so.6` and `libThinkMeta.ConcurrentTasks.Core.so.2`, which they find next to themselves |
+| CPU | x64 with AVX2, FMA, BMI2 and PCLMUL (Intel since Haswell, 2013; AMD since Excavator and all Zen). ctDeflate checks this at start, before any of its other code runs; on an older CPU it names the missing instruction sets and exits with code 3 | the same, the same check |
+
+Windows:
 
 ```cmd
 copy input.bin a.bin
 copy input.bin b.bin
-bin\gzip -6 a.bin
-bin\ctDeflate -6 b.bin
+bin\win-x64\gzip -6 a.bin
+bin\win-x64\ctDeflate -6 b.bin
 fc /b a.bin.gz b.bin.gz
 ```
 
-`fc /b` finds no differences. (`gzip` replaces `a.bin` by `a.bin.gz`; `ctDeflate` writes `b.bin.gz` and keeps `b.bin`. All options under [Command line](#command-line).)
+Linux:
+
+```sh
+cp input.bin a.bin
+cp input.bin b.bin
+bin/linux-x64/gzip -6 a.bin
+bin/linux-x64/ctDeflate -6 b.bin
+cmp a.bin.gz b.bin.gz
+```
+
+`fc /b` and `cmp` find no differences. (`gzip` replaces `a.bin` by `a.bin.gz`; `ctDeflate` writes `b.bin.gz` and keeps `b.bin`. All options under [Command line](#command-line).) If the programs lost their executable bit on the way (an archive unpacked on Windows, for example): `chmod +x bin/linux-x64/ctDeflate bin/linux-x64/gzip`.
 
 ### Benchmark on your own files
+
+The benchmark script is Windows only for now; on Linux there is the bit check (`verify/`) so far.
 
 ```cmd
 benchmark\run.cmd "D:\Data\big.bin" "D:\Logs"
@@ -70,9 +86,9 @@ The script compresses every file with gzip.exe and ctDeflate at every level, mea
 <details>
 <summary><b>Machines and method</b></summary>
 
-* Main machine: Intel Core i9-11900K (8 cores, 16 threads), Windows 11, High Performance power plan. Further CPUs below.
+* Main machine: Intel Core i9-11900K (8 cores, 16 threads), Windows 11, High Performance power plan. Further CPUs below. All numbers in this README are from Windows; there are no Linux measurements yet.
 * `benchmark\Compare-Gzip.ps1`: every file and level compressed by `gzip.exe` (libdeflate 1.26, one thread) and by ctDeflate (all logical processors), the programs interleaved round by round; measured is the wall time of the whole program run, including program start, reading the input and writing the `.gz`. Median of 3 runs. Every output is compared with `gzip.exe`'s byte for byte: 117 of 117 runs on the three machines were identical.
-* Measured cold (2026-10-17, `bin\` of this repository): before every run the script writes a fresh copy of the input without the file cache (`robocopy /J`), so each program reads the file from the disk, as it would a file it has not seen before; the copy is not timed. `-Warm` reads from the file cache instead; earlier versions of this README showed warm numbers, which are higher for the small files.
+* Measured cold (2026-10-17, the Windows programs of this repository): before every run the script writes a fresh copy of the input without the file cache (`robocopy /J`), so each program reads the file from the disk, as it would a file it has not seen before; the copy is not timed. `-Warm` reads from the file cache instead; earlier versions of this README showed warm numbers, which are higher for the small files.
 
 </details>
 
@@ -193,7 +209,9 @@ graph, with the reason and the measured gain of each step.
 
 ## The reference
 
-`bin\gzip.exe` is the gzip program of **libdeflate 1.26** from the project's official Windows x64 release (built with GCC/MinGW), SHA-256 `376e331df9da3b8aa465dd7aaa5139adc8c60d9a1dd528cfb0ddeee55d19aaec`. Every bit comparison and every benchmark in this README uses it.
+`bin\win-x64\gzip.exe` is the gzip program of **libdeflate 1.26** from the project's official Windows x64 release (built with GCC/MinGW), SHA-256 `376e331df9da3b8aa465dd7aaa5139adc8c60d9a1dd528cfb0ddeee55d19aaec`. Every bit comparison and every benchmark in this README uses it.
+
+libdeflate publishes no Linux build: `bin/linux-x64/gzip` is built from the same sources with libdeflate's own CMake build (clang, release). It writes exactly the same files as the Windows program: the reference tables of both platforms in `verify\` have the same contents.
 
 `libdeflate\libdeflate-1.26\` holds the libdeflate sources (`lib\`, `programs\`); `ctDeflate.slnx` also builds the library and the same `gzip.exe` with Visual C++ (see [Building](#building)). The result, `libdeflate\build\Release\bin\gzip.exe`, writes the same files as the official build (checked at levels 1, 6 and 9).
 
@@ -220,17 +238,39 @@ Run `msbuild` from a "Developer Command Prompt for VS 2026", or open `ctDeflate.
 | `ctDeflate.exe`, the unit tests `ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests.dll` and the scheduler core `ThinkMeta.ConcurrentTasks.Core.dll` | `build\Release\bin\` |
 | `gzip.exe` (built from the libdeflate sources) | `libdeflate\build\Release\bin\` |
 
-This build uses the DLL C runtime (part of Visual Studio). `bin\ctDeflate.exe` is linked with the static C runtime; to build it that way:
+This build uses the DLL C runtime (part of Visual Studio). `bin\win-x64\ctDeflate.exe` is linked with the static C runtime; to build it that way:
 
 ```cmd
 msbuild src\App\ThinkMeta.ConcurrentTasks.Samples.ctDeflate.vcxproj /p:Configuration=Release /p:Platform=x64 /p:ForceImportAfterCppProps=%CD%\props\StaticCrt.props
 ```
 
-(output in `build\ReleaseStatic\bin\`). A program you build yourself is not byte for byte the same file as `bin\ctDeflate.exe` (compiler version, paths, time stamps), but its **output must be bit-identical** to `gzip.exe`'s, like that of `bin\ctDeflate.exe`.
+(output in `build\ReleaseStatic\bin\`). A program you build yourself is not byte for byte the same file as `bin\win-x64\ctDeflate.exe` (compiler version, paths, time stamps), but its **output must be bit-identical** to `gzip.exe`'s, like that of `bin\win-x64\ctDeflate.exe`.
+
+### Building on Linux
+
+You need **clang 19 or later** (tested with clang 20), **CMake 3.28 or later** and **Ninja**, as for the C++ modules of the API submodule; on Ubuntu 24.04 `sudo apt install cmake ninja-build` and a clang from [apt.llvm.org](https://apt.llvm.org) (the distribution's clang 18 is too old).
+
+```sh
+git clone --recurse-submodules https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.Samples.git
+cd ThinkMeta.ConcurrentTasks.Samples/ctDeflate
+cmake -S . -B build/linux-release -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
+cmake --build build/linux-release
+ctest --test-dir build/linux-release
+cmake -S libdeflate/libdeflate-1.26 -B libdeflate/build/linux-release -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release
+cmake --build libdeflate/build/linux-release --target libdeflate-gzip
+```
+
+| File | Folder |
+|---|---|
+| `ctDeflate`, with the scheduler core found in the API submodule (`../ThinkMeta.ConcurrentTasks.API/Core/bin/linux-x64`) | `build/linux-release/bin/` |
+| the unit tests `ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests` (and those of `../Shared`), run by `ctest` | `build/linux-release/` |
+| `libdeflate-gzip` (libdeflate's name for `gzip`) | `libdeflate/build/linux-release/programs/` |
+
+This build links libstdc++ dynamically and finds the core in the submodule. `bin/linux-x64/ctDeflate` links libstdc++ statically and finds the core next to itself (`-DCT_SAMPLE_PUBLISH=ON` builds it that way and copies the core next to the program). Here, too, your build is not byte for byte the same file as `bin/linux-x64/ctDeflate`, but its output must be bit-identical.
 
 ### Checking a build
 
-`verify\Verify-Deflate.ps1` compresses test inputs with your `ctDeflate.exe` at every level and compares each `.gz` byte for byte with libdeflate's. It needs PowerShell 7 (`pwsh`); the exit code is 0 if everything is identical.
+`verify\Verify-Deflate.ps1` compresses test inputs with your ctDeflate at every level and compares each `.gz` byte for byte with libdeflate's. It needs PowerShell 7 (`pwsh`, on Linux [installed from Microsoft's packages](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-linux)); the exit code is 0 if everything is identical. Without `-Exe` it checks your Release build of the platform it runs on.
 
 ```cmd
 pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe
@@ -238,14 +278,19 @@ pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe -ExtraArgs "
 pwsh verify\Verify-Deflate.ps1 -Exe build\Release\bin\ctDeflate.exe -Files D:\Data -Levels 1,6,9
 ```
 
+```sh
+pwsh verify/Verify-Deflate.ps1 -Exe build/linux-release/bin/ctDeflate
+pwsh verify/Verify-Deflate.ps1 -Exe bin/linux-x64/ctDeflate -Matrix Quick
+```
+
 | `-Matrix` | Inputs | Reference |
 |---|---|---|
-| `Generated` (default) | synthetic data the script generates itself (random, periodic, text-like, sparse; 22 MB), levels 1 to 9 | `verify\Reference-Hashes-Generated.csv` |
-| `Quick` | the [Silesia corpus](https://sun.aei.polsl.pl/~sdeor/index.php?page=silesia) in `verify\corpus\silesia\` (the 12 files), levels 1, 2, 5, 6, 8, 9 | `verify\Reference-Hashes-Quick.csv` |
-| `Full` | Silesia and [enwik9](http://mattmahoney.net/dc/textdata.html) (`verify\corpus\enwik9`), levels 1 to 9 | `verify\Reference-Hashes-Full.csv` |
-| `-Files` | your own files or folders | `bin\gzip.exe`, run on the same files |
+| `Generated` (default) | synthetic data the script generates itself (random, periodic, text-like, sparse; 22 MB), levels 1 to 9 | `verify\Reference-Hashes-Generated-<platform>.csv` |
+| `Quick` | the [Silesia corpus](https://sun.aei.polsl.pl/~sdeor/index.php?page=silesia) in `verify\corpus\silesia\` (the 12 files), levels 1, 2, 5, 6, 8, 9 | `verify\Reference-Hashes-Quick-<platform>.csv` |
+| `Full` | Silesia and [enwik9](http://mattmahoney.net/dc/textdata.html) (`verify\corpus\enwik9`), levels 1 to 9 | `verify\Reference-Hashes-Full-<platform>.csv` |
+| `-Files` | your own files or folders | `gzip` of `bin\`, run on the same files |
 
-The reference hashes were made with `bin\gzip.exe`. `-ExtraArgs` passes options to ctDeflate, so the same inputs can be checked with other thread counts and chunk sizes. The Verify scripts of all samples take the same parameters: `-Mode Compare` (default) or `Reference`, `-Matrix`, `-Exe` (the program to check, default: your Release build), `-Oracle` (the reference program), `-HashFile`, `-ExtraArgs` (options for `-Exe` only), `-Repeat n` (every case n times; all outputs must match), `-ThrottleLimit`, `-WorkDir` and `-TimeoutSec` (a run beyond it counts as a hang). The unit tests run in Visual Studio's Test Explorer or with `vstest.console build\Release\bin\ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests.dll`; two of them use files you name in the environment variables `CTDEFLATE_TEST_FILES` (paths separated by `;`) and `CTDEFLATE_BENCH_FILE`, and skip without them.
+`<platform>` is `win-x64` or `linux-x64`: each platform's table was made with its own `gzip` of `bin\`, and the script takes the one of the platform it runs on. Both have the same contents: ctDeflate and libdeflate write the same files on Windows and Linux. `-ExtraArgs` passes options to ctDeflate, so the same inputs can be checked with other thread counts and chunk sizes. The Verify scripts of all samples take the same parameters: `-Mode Compare` (default) or `Reference`, `-Matrix`, `-Exe` (the program to check, default: your Release build), `-Oracle` (the reference program), `-HashFile`, `-ExtraArgs` (options for `-Exe` only), `-Repeat n` (every case n times; all outputs must match), `-ThrottleLimit`, `-WorkDir` and `-TimeoutSec` (a run beyond it counts as a hang). The unit tests run in Visual Studio's Test Explorer or with `vstest.console build\Release\bin\ThinkMeta.ConcurrentTasks.Samples.ctDeflate.Tests.dll` (on Linux with `ctest`, see above); two of them use files you name in the environment variables `CTDEFLATE_TEST_FILES` (paths separated by `;`) and `CTDEFLATE_BENCH_FILE`, and skip without them.
 
 ---
 
@@ -322,7 +367,7 @@ Why the edges are classes of their own and not the library's `StreamedFileReader
 
 ### Error handling
 
-ctDeflate stops at the first error and reports it; it does not try to recover. A read or write error ends the graph normally (every node finishes with what it has) and the program reports the Windows error and deletes the output it created. If memory runs out where the graph cannot go on (committing the output window), the process ends at once; the sample does not unwind its graph for that case.
+ctDeflate stops at the first error and reports it; it does not try to recover. A read or write error ends the graph normally (every node finishes with what it has) and the program reports the error of the operating system and deletes the output it created. If memory runs out where the graph cannot go on (committing the output window), the process ends at once; the sample does not unwind its graph for that case.
 
 ---
 
@@ -337,6 +382,7 @@ ctDeflate is not finished; the measurements point to these next steps:
 * **Hybrid CPUs:** on the Core Ultra 7 155H (performance and efficiency cores) enwik9 ran at only 128 MB/s at level 6 and 100 MB/s at level 9, a third of the i9 machine with half its cores, while the other machines gain most at level 9. Whether the scheduling of the parse tasks onto efficiency cores, power limits of the notebook or memory is the cause is still open.
 * **Compiler:** the single-threaded match search runs at 92 to 100 % of libdeflate built with the same compiler (MSVC), but the official `gzip.exe` is built with GCC and is up to 10 % faster on one core.
 * **Levels 10 to 12:** libdeflate's near-optimal parser carries its cost model from block to block, a serial chain; ctDeflate does not support these levels yet.
+* **Linux:** no measurements yet, and the benchmark script is Windows only; a Linux benchmark script would come first. The Linux programs need glibc 2.38 because libstdc++ is linked in from Ubuntu 24.04; a build against an older glibc (in a container) would let them run on Ubuntu 22.04 and Debian 12 as well.
 * **What did not work:** compressing chunks independently and concatenating them (as parallel gzip tools do) can never be bit-identical, because libdeflate's parse and block boundaries depend on everything before; choosing the parse paths only from the values of the last blocks caused many re-parses on databases. Both led to the speculative parse with an exact resolver.
 
 Every step keeps the output bit-identical to libdeflate.
@@ -345,18 +391,18 @@ Every step keeps the output bit-identical to libdeflate.
 
 ## ThinkMeta.ConcurrentTasks
 
-`ctDeflate` is a showcase for **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler and concurrency runtime by ThinkMeta Software GmbH. Tasks run on lightweight user-mode fibers: a task waiting for a chunk, an event or I/O yields without blocking its worker thread, and a task switch costs a few hundred nanoseconds.
+`ctDeflate` is a showcase for **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler and concurrency runtime by ThinkMeta Software GmbH for Windows and Linux (x64); `ctDeflate` runs on both. Tasks run on lightweight user-mode fibers: a task waiting for a chunk, an event or I/O yields without blocking its worker thread, and a task switch costs a few hundred nanoseconds.
 
 ### Why fibers here
 
 In ctDeflate the stages wait on each other all the time:
 * The resolver waits for the parse of the next chunk.
 * The workers wait for resolved blocks to encode.
-* The reader and writer tasks wait for their asynchronous reads and writes through the I/O completion port, the reader also for room in the window of chunks in flight and the writer for finished output. Only those chunks are in memory, which is how a 5.2 GB file compresses with less than 150 MB.
+* The reader and writer tasks wait for their asynchronous reads and writes (I/O completion port on Windows, io_uring on Linux), the reader also for room in the window of chunks in flight and the writer for finished output. Only those chunks are in memory, which is how a 5.2 GB file compresses with less than 150 MB.
 
 On fibers each of these waits is a plain blocking call (`Wait()` on an event or a semaphore) in sequential code, and the worker thread meanwhile runs other parses and encodes. A thread pool would have to block one of its threads for each such wait, or split the resolver and the reader into callbacks that resume at every chunk boundary and every completed read.
 
-The library's API (headers, C++ modules and the scheduler core) is in [ThinkMeta.ConcurrentTasks.API](https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.API), included in this repository as the submodule `ThinkMeta.ConcurrentTasks.API`. The `bin\` programs must be used with the `ThinkMeta.ConcurrentTasks.Core.dll` next to them: a newer or older core does not run them.
+The library's API (headers, C++ modules and the scheduler core) is in [ThinkMeta.ConcurrentTasks.API](https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.API), included in this repository as the submodule `ThinkMeta.ConcurrentTasks.API`. The programs in `bin\` must be used with the core next to them (`ThinkMeta.ConcurrentTasks.Core.dll`, `libThinkMeta.ConcurrentTasks.Core.so.2`): a newer or older core does not run them.
 
 👉 **Get in touch:** [www.thinkmeta.com](https://www.thinkmeta.com)
 
@@ -364,8 +410,8 @@ The library's API (headers, C++ modules and the scheduler core) is in [ThinkMeta
 
 ## License
 
-* **ctDeflate** (the source code in `src\`, `bin\ctDeflate.exe`, the scripts in `verify\` and `benchmark\`, `New-BenchPackage.ps1`, the project files): MIT License, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE.txt`](LICENSE.txt)). The encoder (`src\Encoder\`) contains code ported from libdeflate, whose MIT notice is in [`COPYING`](COPYING).
-* **libdeflate sources and `bin\gzip.exe`** (`libdeflate\`): MIT License, Copyright 2016 Eric Biggers and 2024 Google LLC ([`COPYING`](COPYING)).
-* **Scheduler core** (`bin\ThinkMeta.ConcurrentTasks.Core.dll`, and the core in the API submodule): proprietary, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE-Core.txt`](LICENSE-Core.txt)): free for private and non-commercial use, commercial use requires a license from ThinkMeta Software GmbH.
+* **ctDeflate** (the source code in `src\`, `ctDeflate` in `bin\win-x64\` and `bin/linux-x64/`, the scripts in `verify\` and `benchmark\`, `New-BenchPackage.ps1`, the project files): MIT License, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE.txt`](LICENSE.txt)). The encoder (`src\Encoder\`) contains code ported from libdeflate, whose MIT notice is in [`COPYING`](COPYING).
+* **libdeflate sources and `gzip` in `bin\`** (`libdeflate\`): MIT License, Copyright 2016 Eric Biggers and 2024 Google LLC ([`COPYING`](COPYING)).
+* **Scheduler core** (`ThinkMeta.ConcurrentTasks.Core.dll` and `libThinkMeta.ConcurrentTasks.Core.so.2` in `bin\`, and the core in the API submodule): proprietary, Copyright (c) 2026 ThinkMeta Software GmbH ([`LICENSE-Core.txt`](LICENSE-Core.txt)): free for private and non-commercial use, commercial use requires a license from ThinkMeta Software GmbH.
 
 **Benchmarks are explicitly permitted:** anyone may run benchmark tests of any kind with the programs in `bin\`, on any hardware and for any purpose, commercial evaluation included, and publish the results, including comparisons with other software, without asking ThinkMeta Software GmbH first (point 2 of [`LICENSE-Core.txt`](LICENSE-Core.txt)).
