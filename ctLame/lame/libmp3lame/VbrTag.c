@@ -355,6 +355,7 @@ UpdateMusicCRC(uint16_t * crc, unsigned char const *buffer, int size)
  * PutLameVBR: Write LAME info: mini version + info on various switches used
  * Paramters:
  *                              pbtStreamBuffer : pointer to output buffer
+ *                              id3v2size               : size of id3v2 tag in bytes
  *                              crc                             : computation of crc-16 of Lame Tag so far (starting at frame sync)
  *
  ****************************************************************************
@@ -394,7 +395,6 @@ PutLameVBR(lame_global_flags const *gfp, size_t nMusicLength, uint8_t * pbtStrea
     uint8_t nLowpass =
         (((cfg->lowpassfreq / 100.0) + .5) > 255 ? 255 : (cfg->lowpassfreq / 100.0) + .5);
 
-    /* no ReplayGain analysis: peak and gain fields stay 0 */
     uint32_t nPeakSignalAmplitude = 0;
 
     uint16_t nRadioReplayGain = 0;
@@ -425,6 +425,25 @@ PutLameVBR(lame_global_flags const *gfp, size_t nMusicLength, uint8_t * pbtStrea
 
     nRevMethod = 0x10 * nRevision + nVBR;
 
+
+    /* ReplayGain */
+    if (cfg->findReplayGain) {
+        int     RadioGain = gfc->ov_rpg.RadioGain;
+        if (RadioGain > 0x1FE)
+            RadioGain = 0x1FE;
+        if (RadioGain < -0x1FE)
+            RadioGain = -0x1FE;
+
+        nRadioReplayGain = 0x2000; /* set name code */
+        nRadioReplayGain |= 0xC00; /* set originator code to `determined automatically' */
+
+        if (RadioGain >= 0)
+            nRadioReplayGain |= RadioGain; /* set gain adjustment */
+        else {
+            nRadioReplayGain |= 0x200; /* set the sign bit */
+            nRadioReplayGain |= -RadioGain; /* set gain adjustment */
+        }
+    }
 
     /*flags */
 

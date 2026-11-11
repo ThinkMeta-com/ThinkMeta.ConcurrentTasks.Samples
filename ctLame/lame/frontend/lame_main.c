@@ -126,6 +126,22 @@ init_files(lame_global_flags * gf, char const *inPath, char const *outPath)
 }
 
 
+static void
+print_trailing_info(lame_global_flags * gf)
+{
+    if (lame_get_findReplayGain(gf)) {
+        int     RadioGain = lame_get_RadioGain(gf);
+        console_printf("ReplayGain: %s%.1fdB\n", RadioGain > 0 ? "+" : "",
+                       ((float) RadioGain) / 10.0);
+        if (RadioGain > 0x1FE || RadioGain < -0x1FE)
+            error_printf
+                ("WARNING: ReplayGain exceeds the -51dB to +51dB range. Such a result is too\n"
+                 "         high to be stored in the header.\n");
+    }
+
+}
+
+
 static int
 write_xing_frame(lame_global_flags * gf, FILE * outf, size_t offset)
 {
@@ -164,13 +180,55 @@ write_xing_frame(lame_global_flags * gf, FILE * outf, size_t offset)
 
 
 static int
+write_id3v1_tag(lame_t gf, FILE * outf)
+{
+    unsigned char mp3buffer[128];
+    size_t  imp3, owrite;
+
+    imp3 = lame_get_id3v1_tag(gf, mp3buffer, sizeof(mp3buffer));
+    if (imp3 == 0) {
+        return 0;
+    }
+    if (imp3 > sizeof(mp3buffer)) {
+        error_printf("Error writing ID3v1 tag: buffer too small: buffer size=%d  ID3v1 size=%d\n",
+                     sizeof(mp3buffer), imp3);
+        return 0;       /* not critical */
+    }
+    owrite = fwrite(mp3buffer, 1, imp3, outf);
+    if (owrite != imp3) {
+        error_printf("Error writing ID3v1 tag \n");
+        return 1;
+    }
+    return 0;
+}
+
+
+static int
 lame_encoder_loop(lame_global_flags * gf, FILE * outf, char *inPath, char *outPath)
 {
     unsigned char mp3buffer[LAME_MAXMP3BUFFER];
     int     Buffer[2][1152];
     int     iread, imp3, owrite, in_limit=0;
+    size_t  id3v2_size;
 
     encoder_progress_begin(gf, inPath, outPath);
+
+    id3v2_size = lame_get_id3v2_tag(gf, 0, 0);
+    if (id3v2_size > 0) {
+        unsigned char *id3v2tag = malloc(id3v2_size);
+        if (id3v2tag != 0) {
+            size_t  n_bytes = lame_get_id3v2_tag(gf, id3v2tag, id3v2_size);
+            size_t  written = fwrite(id3v2tag, 1, n_bytes, outf);
+            free(id3v2tag);
+            if (written != n_bytes) {
+                error_printf("Error writing ID3v2 tag \n");
+                return 1;
+            }
+        }
+    }
+    if (global_writer.flush_write == 1) {
+        fflush(outf);
+    }
 
     /* do not feed more than in_limit PCM samples in one encode call
        otherwise the mp3buffer is likely too small
@@ -238,9 +296,19 @@ lame_encoder_loop(lame_global_flags * gf, FILE * outf, char *inPath, char *outPa
     if (global_writer.flush_write == 1) {
         fflush(outf);
     }
-    write_xing_frame(gf, outf, 0);
+    imp3 = write_id3v1_tag(gf, outf);
     if (global_writer.flush_write == 1) {
         fflush(outf);
+    }
+    if (imp3) {
+        return 1;
+    }
+    write_xing_frame(gf, outf, id3v2_size);
+    if (global_writer.flush_write == 1) {
+        fflush(outf);
+    }
+    if (global_ui_config.silent <= 0) {
+        print_trailing_info(gf);
     }
     return 0;
 }
@@ -295,6 +363,12 @@ lame_main(lame_t gf, int argc, char **argv)
         close_infile();
         return -1;
     }
+    /* turn off automatic writing of ID3 tag data into mp3 stream 
+     * we have to call it before 'lame_init_params', because that
+     * function would spit out ID3v2 tag data.
+     */
+    lame_set_write_id3tag_automatic(gf, 0);
+
     /* Now that all the options are set, lame needs to analyze them and
      * set some more internal options and check for problems
      */

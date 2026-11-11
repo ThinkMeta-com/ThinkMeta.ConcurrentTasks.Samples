@@ -46,6 +46,8 @@ struct lame_global_struct {
     MPEG_mode mode;          /* see enum in lame.h
                                 default = LAME picks best value             */
     int     force_ms;        /* force M/S mode.  requires mode=1            */
+    int     findReplayGain;  /* find the RG value? default=0       */
+    int     write_id3tag_automatic; /* 1 (default) writes ID3 tags, 0 not */
 
     int     substep_shaping;
     int     noise_shaping;

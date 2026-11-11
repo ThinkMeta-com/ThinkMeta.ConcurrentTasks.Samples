@@ -24,6 +24,7 @@
 #define LAME_UTIL_H
 
 #include "l3side.h"
+#include "id3tag.h"
 #include "lame_global_flags.h"
 
 #ifdef __cplusplus
@@ -104,6 +105,11 @@ extern  "C" {
 #endif
 
 
+    struct replaygain_data;
+#ifndef replaygain_data_defined
+#define replaygain_data_defined
+    typedef struct replaygain_data replaygain_t;
+#endif
 
 /***********************************************************************
 *
@@ -308,6 +314,20 @@ extern  "C" {
 
 
     typedef struct {
+        replaygain_t *rgdata;
+        /* ReplayGain */
+    } RpgStateVar_t;
+
+
+    typedef struct {
+        FLOAT   noclipScale; /* user-specified scale factor required for preventing clipping */
+        sample_t PeakSample;
+        int     RadioGain;
+        int     noclipGainChange; /* gain change required for preventing clipping */
+    } RpgResult_t;
+
+
+    typedef struct {
         int     samplerate_index;
         int     sideinfo_len;
 
@@ -341,6 +361,7 @@ extern  "C" {
         int     avg_bitrate; /* the -b value as given, see lame_init_params */
         int     enforce_min_bitrate; /* strictly enforce VBR_min_bitrate normaly, it will be violated for analog silence */
 
+        int     findReplayGain; /* find the RG value? default=0       */
         int     disable_reservoir;
         int     buffer_constraint;  /* enforce ISO spec as much as possible   */
         int     write_lame_tag; /* add Xing VBR tag?                           */
@@ -430,7 +451,11 @@ extern  "C" {
         EncResult_t ov_enc;
         QntStateVar_t sv_qnt; /* DATA FROM QUANTIZE.C */
 
+        RpgStateVar_t sv_rpg;
+        RpgResult_t ov_rpg;
 
+        /* optional ID3 tags, used in id3tag.c  */
+        struct id3tag_spec tag_spec;
         uint16_t nMusicCRC;
 
         uint16_t _unused;
@@ -460,6 +485,7 @@ extern  "C" {
 *
 ***********************************************************************/
     void    freegfc(lame_internal_flags * const gfc);
+    void    free_id3tag(lame_internal_flags * const gfc);
     extern int BitrateIndex(int);
     extern int FindNearestBitrate(int);
     extern int SmpFrqIndex(int);

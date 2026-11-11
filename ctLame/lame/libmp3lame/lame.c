@@ -37,6 +37,7 @@
 #include "encoder.h"
 #include "util.h"
 #include "lame_global_flags.h"
+#include "gain_analysis.h"
 #include "bitstream.h"
 #include "quantize_pvt.h"
 #include "set_get.h"
@@ -331,6 +332,7 @@ linear_int(double a, double b, double m)
  *   initialize the bitstream
  *   initialize scalefac_band data
  *   set sideinfo_len (based on channels, CRC, out_samplerate)
+ *   write an id3v2 tag into the bitstream
  *   write VBR tag into the bitstream
  *   set mpeg1/2 flag
  *   estimate the number of frames (based on a lot of data)
@@ -793,6 +795,18 @@ lame_init_params(lame_global_flags * gfp)
     cfg->buffer_constraint = get_max_frame_buffer_size_by_constraint(cfg, gfp->strict_ISO);
 
 
+    cfg->findReplayGain = gfp->findReplayGain;
+
+    if (cfg->findReplayGain) {
+        if (InitGainAnalysis(gfc->sv_rpg.rgdata, cfg->samplerate_out) == INIT_GAIN_ANALYSIS_ERROR) {
+            /* Actually this never happens, our samplerates are the ones RG accepts!
+             * But just in case, turn RG off
+             */
+            assert(0);
+            cfg->findReplayGain = 0;
+        }
+    }
+
     /* updating lame internal flags finished successful */
     gfc->lame_init_params_successful = 1;
     return 0;
@@ -964,6 +978,24 @@ lame_print_internals(const lame_global_flags * gfp)
 }
 
 
+static void
+save_gain_values(lame_internal_flags * gfc)
+{
+    SessionConfig_t const *const cfg = &gfc->cfg;
+    RpgStateVar_t const *const rsv = &gfc->sv_rpg;
+    RpgResult_t *const rov = &gfc->ov_rpg;
+    /* save the ReplayGain value */
+    if (cfg->findReplayGain) {
+        FLOAT const RadioGain = (FLOAT) GetTitleGain(rsv->rgdata);
+        if (NEQ(RadioGain, GAIN_NOT_ENOUGH_SAMPLES)) {
+            rov->RadioGain = (int) floor(RadioGain * 10.0 + 0.5); /* round to nearest */
+        }
+        else {
+            rov->RadioGain = 0;
+        }
+    }
+}
+
 
 
 static int
@@ -1087,6 +1119,13 @@ lame_encode_buffer_sample_t(lame_internal_flags * gfc,
         in_buffer_ptr[1] = in_buffer[1];
         /* copy in new samples into mfbuf */
         fill_buffer(gfc, mfbuf, &in_buffer_ptr[0], nsamples, &n_in, &n_out);
+
+        /* compute ReplayGain of the input if requested */
+        if (cfg->findReplayGain)
+            if (AnalyzeSamples
+                (gfc->sv_rpg.rgdata, &mfbuf[0][esv->mf_size], &mfbuf[1][esv->mf_size], n_out,
+                 cfg->channels_out) == GAIN_ANALYSIS_ERROR)
+                return -6;
 
 
 
@@ -1364,11 +1403,16 @@ lame_init_bitstream(lame_global_flags * gfp)
         if (gfc != 0) {
             gfc->ov_enc.frame_number = 0;
 
+            if (gfp->write_id3tag_automatic) {
+                (void) id3tag_write_v2(gfp);
+            }
             /* initialize histogram data optionally used by frontend */
             memset(gfc->ov_enc.bitrate_channelmode_hist, 0,
                    sizeof(gfc->ov_enc.bitrate_channelmode_hist));
             memset(gfc->ov_enc.bitrate_blocktype_hist, 0,
                    sizeof(gfc->ov_enc.bitrate_blocktype_hist));
+
+            gfc->ov_rpg.PeakSample = 0.0;
 
             /* Write initial VBR Header to bitstream and init VBR data */
             if (gfc->cfg.write_lame_tag)
@@ -1407,6 +1451,7 @@ calc_mp3buffer_size_remaining( int mp3buffer_size, int mp3count)
 
 /*****************************************************************/
 /* flush internal PCM sample buffers, then mp3 buffers           */
+/* then write id3 v1 tags into bitstream.                        */
 /*****************************************************************/
 
 int
@@ -1495,11 +1540,29 @@ lame_encode_flush(lame_global_flags * gfp, unsigned char *mp3buffer, int mp3buff
     /* mp3 related stuff.  bit buffer might still contain some mp3 data */
     flush_bitstream(gfc);
     imp3 = copy_buffer(gfc, mp3buffer, mp3buffer_size_remaining, 1);
+    save_gain_values(gfc);
     if (imp3 < 0) {
         /* some type of fatal error */
         return imp3;
     }
+    mp3buffer += imp3;
     mp3count += imp3;
+    mp3buffer_size_remaining = mp3buffer_size - mp3count;
+    /* if user specifed buffer size = 0, dont check size */
+    if (mp3buffer_size == 0)
+        mp3buffer_size_remaining = INT_MAX;
+
+    if (gfp->write_id3tag_automatic) {
+        /* write a id3 tag to the bitstream */
+        (void) id3tag_write_v1(gfp);
+
+        imp3 = copy_buffer(gfc, mp3buffer, mp3buffer_size_remaining, 0);
+
+        if (imp3 < 0) {
+            return imp3;
+        }
+        mp3count += imp3;
+    }
 #if 0
     {
         int const ed = gfc->ov_enc.encoder_delay;
@@ -1560,6 +1623,7 @@ lame_init_internal_flags(lame_internal_flags* gfc)
 
     gfc->cfg.vbr_min_bitrate_index = 1; /* not  0 ????? */
     gfc->cfg.vbr_max_bitrate_index = 13; /* not 14 ????? */
+    gfc->cfg.findReplayGain = 0;
 
     gfc->sv_qnt.masking_lower = 1;
 
@@ -1578,9 +1642,18 @@ lame_init_internal_flags(lame_internal_flags* gfc)
     gfc->ov_enc.encoder_padding = 0;
     gfc->ov_enc.encoder_delay = ENCDELAY;
 
+    gfc->ov_rpg.RadioGain = 0;
+    gfc->ov_rpg.noclipGainChange = 0;
+    gfc->ov_rpg.noclipScale = -1.0;
+
     gfc->ATH = lame_calloc(ATH_t, 1);
     if (NULL == gfc->ATH)
         return -2;      /* maybe error codes should be enumerated in lame.h ?? */
+
+    gfc->sv_rpg.rgdata = lame_calloc(replaygain_t, 1);
+    if (NULL == gfc->sv_rpg.rgdata) {
+        return -2;
+    }
     return 0;
 }
 
@@ -1645,9 +1718,11 @@ lame_init_old(lame_global_flags * gfp)
     gfp->useTemporal = -1;
     gfp->interChRatio = -1;
 
+    gfp->findReplayGain = 0;
 
     gfp->preset = 0;
 
+    gfp->write_id3tag_automatic = 1;
 
     gfp->report.debugf = &lame_report_def;
     gfp->report.errorf = &lame_report_def;

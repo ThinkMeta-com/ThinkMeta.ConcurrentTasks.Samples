@@ -46,6 +46,48 @@
 ***********************************************************************/
 /*empty and close mallocs in gfc */
 
+void
+free_id3tag(lame_internal_flags * const gfc)
+{
+    gfc->tag_spec.language[0] = 0;
+    if (gfc->tag_spec.title != 0) {
+        free(gfc->tag_spec.title);
+        gfc->tag_spec.title = 0;
+    }
+    if (gfc->tag_spec.artist != 0) {
+        free(gfc->tag_spec.artist);
+        gfc->tag_spec.artist = 0;
+    }
+    if (gfc->tag_spec.album != 0) {
+        free(gfc->tag_spec.album);
+        gfc->tag_spec.album = 0;
+    }
+    if (gfc->tag_spec.comment != 0) {
+        free(gfc->tag_spec.comment);
+        gfc->tag_spec.comment = 0;
+    }
+
+    if (gfc->tag_spec.albumart != 0) {
+        free(gfc->tag_spec.albumart);
+        gfc->tag_spec.albumart = 0;
+        gfc->tag_spec.albumart_size = 0;
+        gfc->tag_spec.albumart_mimetype = MIMETYPE_NONE;
+    }
+    if (gfc->tag_spec.v2_head != 0) {
+        FrameDataNode *node = gfc->tag_spec.v2_head;
+        do {
+            void   *p = node->dsc.ptr.b;
+            void   *q = node->txt.ptr.b;
+            void   *r = node;
+            node = node->nxt;
+            free(p);
+            free(q);
+            free(r);
+        } while (node != 0);
+        gfc->tag_spec.v2_head = 0;
+        gfc->tag_spec.v2_tail = 0;
+    }
+}
 
 
 static void
@@ -84,12 +126,16 @@ freegfc(lame_internal_flags * const gfc)
     if (gfc->ATH) {
         free(gfc->ATH);
     }
+    if (gfc->sv_rpg.rgdata) {
+        free(gfc->sv_rpg.rgdata);
+    }
     if (gfc->sv_enc.in_buffer_0) {
         free(gfc->sv_enc.in_buffer_0);
     }
     if (gfc->sv_enc.in_buffer_1) {
         free(gfc->sv_enc.in_buffer_1);
     }
+    free_id3tag(gfc);
 
     free_global_data(gfc);
 

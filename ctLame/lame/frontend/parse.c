@@ -67,6 +67,50 @@ char   *strchr(), *strrchr();
 #endif
 
                  
+#ifdef HAVE_ICONV
+#include <iconv.h>
+#include <errno.h>
+#ifdef HAVE_LANGINFO_H
+#include <locale.h>
+#include <langinfo.h>
+#endif
+#if defined(__KLIBC__) && !defined(iconv_open)
+/* kLIBC iconv_open() does not support UTF-16LE and //TRANSLIT */
+static iconv_t os2_iconv_open (const char *tocode, const char *fromcode)
+{
+    char to[strlen(tocode) + 1];
+    char from[strlen(fromcode) + 1];
+    char *p;
+
+    strcpy(to, tocode);
+    strcpy(from, fromcode);
+
+    if (!strncmp(to, "UTF-16", 6))
+    {
+        strcpy(to, "UCS-2");
+        memmove(to + 5, to + 6, strlen(to + 6));
+    }
+
+    p = strstr(to, "//");
+    if (p)
+        *p = '\0';
+
+    if (!strncmp(from, "UTF-16", 6))
+    {
+        strcpy(from, "UCS-2");
+        memmove(from + 5, from + 6, strlen(from + 6));
+    }
+
+    p = strstr(from, "//");
+    if (p)
+        *p = '\0';
+
+    return iconv_open(to, from);
+}
+
+#define iconv_open(t, f) os2_iconv_open(t, f)
+#endif /* KLIBC iconv */
+#endif /* HAVE_ICONV */
 
 static int const lame_alpha_version_enabled = LAME_ALPHA_VERSION;
 
@@ -79,6 +123,190 @@ WriterConfig global_writer = { 0 };
 UiConfig global_ui_config = {0};
 
 
+
+/* possible text encodings */
+typedef enum TextEncoding
+{ TENC_RAW     /* bytes will be stored as-is into ID3 tags, which are Latin1 per definition */
+, TENC_LATIN1  /* text will be converted from local encoding to Latin1, as ID3 needs it */
+, TENC_UTF16   /* text will be converted from local encoding to Unicode (UCS-2), as ID3v2 wants it */
+} TextEncoding;
+
+#ifdef HAVE_ICONV
+#define ID3TAGS_EXTENDED
+/* search for Zero termination in multi-byte strings */
+static size_t
+strlenMultiByte(char const* str, size_t w)
+{    
+    size_t n = 0;
+    if (str != 0) {
+        size_t i;
+        for (n = 0; ; ++n) {
+            size_t x = 0;
+            for (i = 0; i < w; ++i) {
+                x += *str++ == 0 ? 1 : 0;
+            }
+            if (x == w) {
+                break;
+            }
+        }
+    }
+    return n;
+}
+
+static char*
+currentCharacterEncoding()
+{
+#ifdef HAVE_LANGINFO_H
+    char* cur_code = nl_langinfo(CODESET);
+#else
+    char* env_lang = getenv("LANG");
+    char* xxx_code = env_lang == NULL ? NULL : strrchr(env_lang, '.');
+    char* cur_code = xxx_code == NULL ? "" : xxx_code+1;
+#endif
+    return cur_code;
+}
+
+static size_t
+currCharCodeSize(void)
+{
+    size_t n = 1;
+    char dst[32];
+    char* src = "A";
+    char* cur_code = currentCharacterEncoding();
+    iconv_t xiconv = iconv_open(cur_code, "ISO_8859-1");
+    if (xiconv != (iconv_t)-1) {
+        for (n = 0; n < 32; ++n) {
+            char* i_ptr = src;
+            char* o_ptr = dst;
+            size_t srcln = 1;
+            size_t avail = n;
+            size_t rc = iconv(xiconv, &i_ptr, &srcln, &o_ptr, &avail);
+            if (rc != (size_t)-1) {
+                break;
+            }
+        }
+        iconv_close(xiconv);
+    }
+    return n;
+}
+
+#if 0
+static
+char* fromLatin1( char* src )
+{
+    char* dst = 0;
+    if (src != 0) {
+        size_t const l = strlen(src);
+        size_t const n = l*4;
+        dst = calloc(n+4, 4);
+        if (dst != 0) {
+            char* cur_code = currentCharacterEncoding();
+            iconv_t xiconv = iconv_open(cur_code, "ISO_8859-1");
+            if (xiconv != (iconv_t)-1) {
+                char* i_ptr = src;
+                char* o_ptr = dst;
+                size_t srcln = l;
+                size_t avail = n;                
+                iconv(xiconv, &i_ptr, &srcln, &o_ptr, &avail);
+                iconv_close(xiconv);
+            }
+        }
+    }
+    return dst;
+}
+
+static
+char* fromUtf16( char* src )
+{
+    char* dst = 0;
+    if (src != 0) {
+        size_t const l = strlenMultiByte(src, 2);
+        size_t const n = l*4;
+        dst = calloc(n+4, 4);
+        if (dst != 0) {
+            char* cur_code = currentCharacterEncoding();
+            iconv_t xiconv = iconv_open(cur_code, "UTF-16LE");
+            if (xiconv != (iconv_t)-1) {
+                char* i_ptr = (char*)src;
+                char* o_ptr = dst;
+                size_t srcln = l*2;
+                size_t avail = n;                
+                iconv(xiconv, &i_ptr, &srcln, &o_ptr, &avail);
+                iconv_close(xiconv);
+            }
+        }
+    }
+    return dst;
+}
+#endif
+
+static
+char* toLatin1( char* src )
+{
+    size_t w = currCharCodeSize();
+    char* dst = 0;
+    if (src != 0) {
+        size_t const l = strlenMultiByte(src, w);
+        size_t const n = l*4;
+        dst = calloc(n+4, 4);
+        if (dst != 0) {
+            char* cur_code = currentCharacterEncoding();
+            iconv_t xiconv = iconv_open("ISO_8859-1//TRANSLIT", cur_code);
+            if (xiconv != (iconv_t)-1) {
+                char* i_ptr = (char*)src;
+                char* o_ptr = dst;
+                size_t srcln = l*w;
+                size_t avail = n;
+                iconv(xiconv, &i_ptr, &srcln, &o_ptr, &avail);
+                iconv_close(xiconv);
+            }
+        }
+    }
+    return dst;
+}
+
+
+static
+char* toUtf16( char* src )
+{
+    size_t w = currCharCodeSize();
+    char* dst = 0;
+    if (src != 0) {
+        size_t const l = strlenMultiByte(src, w);
+        size_t const n = (l+1)*4;
+        dst = calloc(n+4, 4);
+        if (dst != 0) {
+            char* cur_code = currentCharacterEncoding();
+            iconv_t xiconv = iconv_open("UTF-16LE//TRANSLIT", cur_code);
+            dst[0] = 0xff;
+            dst[1] = 0xfe;
+            if (xiconv != (iconv_t)-1) {
+                char* i_ptr = (char*)src;
+                char* o_ptr = &dst[2];
+                size_t srcln = l*w;
+                size_t avail = n;
+                iconv(xiconv, &i_ptr, &srcln, &o_ptr, &avail);
+                iconv_close(xiconv);
+            }
+        }
+    }
+    return dst;
+}
+#endif
+
+#if defined( _WIN32 ) && !defined(__MINGW32__)
+#define ID3TAGS_EXTENDED
+
+char* toLatin1(char const* s)
+{
+    return utf8ToLatin1(s);
+}
+
+unsigned short* toUtf16(char const* s)
+{
+    return utf8ToUtf16(s);
+}
+#endif
 
 static int evaluateArgument(char const* token, char const* arg, char* _EndPtr)
 {
@@ -108,6 +336,79 @@ static int getIntValue(char const* token, char const* arg, int* ptr)
     return evaluateArgument(token, arg, _EndPtr);
 }
 
+#ifdef ID3TAGS_EXTENDED
+static int
+set_id3v2tag(lame_global_flags* gfp, TextEncoding enc, int type, unsigned short const* str)
+{
+    switch (enc)
+    {
+        case TENC_UTF16:
+            switch (type)
+            {
+                case 'a': return id3tag_set_textinfo_utf16(gfp, "TPE1", str);
+                case 't': return id3tag_set_textinfo_utf16(gfp, "TIT2", str);
+                case 'l': return id3tag_set_textinfo_utf16(gfp, "TALB", str);
+                case 'g': return id3tag_set_textinfo_utf16(gfp, "TCON", str);
+                case 'c': return id3tag_set_comment_utf16(gfp, 0, 0, str);
+                case 'n': return id3tag_set_textinfo_utf16(gfp, "TRCK", str);
+                case 'y': return id3tag_set_textinfo_utf16(gfp, "TYER", str);
+                case 'v': return id3tag_set_fieldvalue_utf16(gfp, str);
+            }
+            ;;
+        default:
+            return -3;
+    }
+}
+#endif
+
+static int
+set_id3tag(lame_global_flags* gfp, int type, char const* str)
+{
+    switch (type)
+    {
+        case 'a': return id3tag_set_artist(gfp, str), 0;
+        case 't': return id3tag_set_title(gfp, str), 0;
+        case 'l': return id3tag_set_album(gfp, str), 0;
+        case 'g': return id3tag_set_genre(gfp, str);
+        case 'c': return id3tag_set_comment(gfp, str), 0;
+        case 'n': return id3tag_set_track(gfp, str);
+        case 'y': return id3tag_set_year(gfp, str), 0;
+        case 'v': return id3tag_set_fieldvalue(gfp, str);
+    }
+    return 0;
+}
+
+static int
+id3_tag(lame_global_flags* gfp, int type, TextEncoding enc, char* str)
+{
+    void* x = 0;
+    int result;
+    if (enc == TENC_UTF16 && type != 'v' ) {
+        id3_tag(gfp, type, TENC_LATIN1, str); /* for id3v1 */
+    }
+    switch (enc)
+    {
+        default:
+#ifdef ID3TAGS_EXTENDED
+        case TENC_LATIN1: x = toLatin1(str); break;
+        case TENC_UTF16:  x = toUtf16(str);  break;
+#else
+        case TENC_RAW:    x = strdup(str);   break;
+#endif
+    }
+    switch (enc)
+    {
+        default:
+#ifdef ID3TAGS_EXTENDED
+        case TENC_LATIN1: result = set_id3tag(gfp, type, x);   break;
+        case TENC_UTF16:  result = set_id3v2tag(gfp, enc, type, x); break;
+#else
+        case TENC_RAW:    result = set_id3tag(gfp, type, x);   break;
+#endif
+    }
+    free(x);
+    return result;
+}
 
 
 
@@ -259,6 +560,7 @@ short_help(const lame_global_flags * gfp, FILE * const fp, const char *ProgramNa
             "                     3 = High priority\n"
             "                     4 = Maximum priority\n" "\n"
 #endif
+            "    --help id3      ID3 tagging related options\n" "\n"
             "    --longhelp      full list of options\n" "\n"
             "    --license       print License information\n\n"
             );
@@ -287,6 +589,46 @@ wait_for(FILE * const fp, int lessmode)
     fprintf(fp, "\n");
 }
 
+static void
+help_id3tag(FILE * const fp)
+{
+    fprintf(fp,
+            "  ID3 tag options:\n"
+            "    --tt <title>    audio/song title (max 30 chars for version 1 tag)\n"
+            "    --ta <artist>   audio/song artist (max 30 chars for version 1 tag)\n"
+            "    --tl <album>    audio/song album (max 30 chars for version 1 tag)\n"
+            "    --ty <year>     audio/song year of issue (1 to 9999)\n"
+            "    --tc <comment>  user-defined text (max 30 chars for v1 tag, 28 for v1.1)\n");
+    fprintf(fp,
+            "    --tn <track[/total]>   audio/song track number and (optionally) the total\n"
+            "                           number of tracks on the original recording. (track\n"
+            "                           and total each 1 to 255. just the track number\n"
+            "                           creates v1.1 tag, providing a total forces v2.0).\n");
+    fprintf(fp,
+            "    --tg <genre>    audio/song genre (name or number in list)\n"
+            "    --ti <file>     audio/song albumArt (jpeg/png/gif file, v2.3 tag)\n"
+            "    --tv <id=value> user-defined frame specified by id and value (v2.3 tag)\n"
+            "                    syntax: --tv \"TXXX=description=content\"\n"
+            );
+    fprintf(fp,
+            "    --add-id3v2     force addition of version 2 tag\n"
+            "    --id3v1-only    add only a version 1 tag\n"
+            "    --id3v2-only    add only a version 2 tag\n"
+#ifdef ID3TAGS_EXTENDED
+            "    --id3v2-utf16   add following options in unicode UTF-16 text encoding\n"
+            "    --id3v2-latin1  add following options in latin-1 text encoding\n"
+#endif
+            "    --pad-id3v2-size <value> adds version 2 tag, pad with extra <value> bytes\n"
+            "    --genre-list    print alphabetically sorted ID3 genre list and exit\n"
+            "    --ignore-tag-errors  ignore errors in values passed for tags\n" "\n"
+            );
+    fprintf(fp,
+            "    Note: A version 2 tag will NOT be added unless one of the input fields\n"
+            "    won't fit in a version 1 tag (e.g. the title string is longer than 30\n"
+            "    characters), or the '--add-id3v2' or '--id3v2-only' options are used.\n"
+            "    Unicode text (the default, see '--id3v2-utf16') also adds it.\n"
+            );
+}
 int
 long_help(const lame_global_flags * gfp, FILE * const fp, const char *ProgramName, int lessmode)
 {                       /* print long syntax help */
@@ -324,6 +666,8 @@ long_help(const lame_global_flags * gfp, FILE * const fp, const char *ProgramNam
             "    --preset type   type must be \"medium\", \"standard\" or \"extreme\"\n"
             "                    \"--preset help\" gives more info on these\n"
             "    --r3mix         the tuning of the former r3mix preset, like -V 3\n"
+            "    --replaygain-fast   compute RG fast but slightly inaccurately (default)\n"
+            "    --noreplaygain  disable ReplayGain analysis\n"
             "    --flush         flush output stream as soon as possible\n");
 
     wait_for(fp, lessmode);
@@ -384,6 +728,7 @@ long_help(const lame_global_flags * gfp, FILE * const fp, const char *ProgramNam
             "  --highpass-width <freq> frequency(kHz) - default 15%% of highpass freq\n");
 
     wait_for(fp, lessmode);
+    help_id3tag(fp);
     fprintf(fp,
 #if defined(WIN32)
             "\n\nMS-Windows-specific options:\n"
@@ -509,6 +854,13 @@ presets_set(lame_t gfp, const char *preset_name, const char *ProgramName)
                  "\n"
                  "For further information try: \"%s --preset help\"\n", ProgramName);
     return -1;
+}
+
+static void
+genre_list_handler(int num, const char *name, void *cookie)
+{
+    (void) cookie;
+    console_printf("%3d %s\n", num, name);
 }
 
 
@@ -761,6 +1113,57 @@ err_generateOutPath:
 }
 
 
+static int
+set_id3_albumart(lame_t gfp, char const* file_name)
+{
+    int ret = -1;
+    FILE *fpi = 0;
+
+    if (file_name == 0) {
+        return 0;
+    }
+    fpi = lame_fopen(file_name, "rb");
+    if (!fpi) {
+        ret = 1;
+    }
+    else {
+        size_t size;
+        char *albumart = 0;
+
+        fseek(fpi, 0, SEEK_END);
+        size = ftell(fpi);
+        fseek(fpi, 0, SEEK_SET);
+        albumart = (char *)malloc(size);
+        if (!albumart) {
+            ret = 2;
+        }
+        else {
+            if (fread(albumart, 1, size, fpi) != size) {
+                ret = 3;
+            }
+            else {
+                ret = id3tag_set_albumart(gfp, albumart, size) ? 4 : 0;
+            }
+            free(albumart);
+        }
+        fclose(fpi);
+    }
+    switch (ret) {
+    case 1: error_printf("Could not find: '%s'.\n", file_name); break;
+    case 2: error_printf("Insufficient memory for reading the albumart.\n"); break;
+    case 3: error_printf("Read error: '%s'.\n", file_name); break;
+    case 4: error_printf("Unsupported image: '%s'.\nSpecify JPEG/PNG/GIF image\n", file_name); break;
+    default: break;
+    }
+    return ret;
+}
+
+
+enum ID3TAG_MODE
+{ ID3TAG_MODE_DEFAULT
+, ID3TAG_MODE_V1_ONLY
+, ID3TAG_MODE_V2_ONLY
+};
 /* Ugly, NOT final version */
 
 #define T_IF(str)          if ( 0 == local_strcasecmp (token,str) ) {
@@ -778,11 +1181,23 @@ parse_args_(lame_global_flags * gfp, int argc, char **argv,
     int     i;
     int     autoconvert = 0;
     const char *ProgramName = argv[0];
+    int     noreplaygain = 0; /* is RG explicitly disabled by the user */
+    int     id3tag_mode = ID3TAG_MODE_DEFAULT;
+    int     ignore_tag_errors = 0;  /* Ignore errors in values passed for tags */
+#ifdef ID3TAGS_EXTENDED
+    enum TextEncoding id3_tenc = TENC_UTF16;
+#else
+    enum TextEncoding id3_tenc = TENC_LATIN1;
+#endif
 
+#ifdef HAVE_LANGINFO_H
+    setlocale(LC_CTYPE, "");
+#endif
     inPath[0] = '\0';
     outPath[0] = '\0';
     /* turn on display options. user settings may turn them off below */
     global_ui_config.silent = 0; /* default */
+    id3tag_init(gfp);
 
     /* process args */
     for (i = 0; ++i < argc;) {
@@ -859,6 +1274,136 @@ parse_args_(lame_global_flags * gfp, int argc, char **argv,
                     if (argUsed)
                         setProcessPriority(int_value);
 #endif
+
+                /* options for ID3 tag */
+#ifdef ID3TAGS_EXTENDED
+                T_ELIF("id3v2-utf16")
+                    id3_tenc = TENC_UTF16;
+                    id3tag_add_v2(gfp);
+
+                T_ELIF("id3v2-latin1")
+                    id3_tenc = TENC_LATIN1;
+                    id3tag_add_v2(gfp);
+#endif
+
+                T_ELIF("tt")
+                    argUsed = 1;
+                    id3_tag(gfp, 't', id3_tenc, nextArg);
+
+                T_ELIF("ta")
+                    argUsed = 1;
+                    id3_tag(gfp, 'a', id3_tenc, nextArg);
+
+                T_ELIF("tl")
+                    argUsed = 1;
+                    id3_tag(gfp, 'l', id3_tenc, nextArg);
+
+                T_ELIF("ty")
+                    argUsed = 1;
+                    id3_tag(gfp, 'y', id3_tenc, nextArg);
+
+                T_ELIF("tc")
+                    argUsed = 1;
+                    id3_tag(gfp, 'c', id3_tenc, nextArg);
+
+                T_ELIF("tn")
+                    int ret = id3_tag(gfp, 'n', id3_tenc, nextArg);
+                    argUsed = 1;
+                    if (ret != 0) {
+                        if (0 == ignore_tag_errors) {
+                            if (id3tag_mode == ID3TAG_MODE_V1_ONLY) {
+                                if (global_ui_config.silent < 9) {
+                                    error_printf("The track number has to be between 1 and 255 for ID3v1.\n");
+                                }
+                                return -1;
+                            }
+                            else if (id3tag_mode == ID3TAG_MODE_V2_ONLY) {
+                                /* track will be stored as-is in ID3v2 case, so no problem here */
+                            }
+                            else {
+                                if (global_ui_config.silent < 9) {
+                                    error_printf("The track number has to be between 1 and 255 for ID3v1, ignored for ID3v1.\n");
+                                }
+                            }
+                        }
+                    }
+
+                T_ELIF("tg")
+                    int ret = 0;
+                    argUsed = 1;
+                    if (nextArg != 0 && strlen(nextArg) > 0) {
+                        ret = id3_tag(gfp, 'g', id3_tenc, nextArg);
+                    }
+                    if (ret != 0) {
+                        if (0 == ignore_tag_errors) {
+                            if (ret == -1) {
+                                error_printf("Unknown ID3v1 genre number: '%s'.\n", nextArg);
+                                return -1;
+                            }
+                            else if (ret == -2) {
+                                if (id3tag_mode == ID3TAG_MODE_V1_ONLY) {
+                                    error_printf("Unknown ID3v1 genre: '%s'.\n", nextArg);
+                                    return -1;
+                                }
+                                else if (id3tag_mode == ID3TAG_MODE_V2_ONLY) {
+                                    /* genre will be stored as-is in ID3v2 case, so no problem here */
+                                }
+                                else {
+                                    if (global_ui_config.silent < 9) {
+                                        error_printf("Unknown ID3v1 genre: '%s'.  Setting ID3v1 genre to 'Other'\n", nextArg);
+                                    }
+                                }
+                            }
+                            else {
+                                if (global_ui_config.silent < 10)
+                                    error_printf("Internal error.\n");
+                                return -1;
+                            }
+                        }
+                    }
+
+                T_ELIF("tv")
+                    argUsed = 1;
+                    if (id3_tag(gfp, 'v', id3_tenc, nextArg)) {
+                        if (global_ui_config.silent < 9) {
+                            error_printf("Invalid field value: '%s'. Ignored\n", nextArg);
+                        }
+                    }
+
+                T_ELIF("ti")
+                    argUsed = 1;
+                    if (set_id3_albumart(gfp, nextArg) != 0) {
+                        if (! ignore_tag_errors) {
+                            return -1;
+                        }
+                    }
+
+                T_ELIF("ignore-tag-errors")
+                    ignore_tag_errors = 1;
+
+                T_ELIF("add-id3v2")
+                    id3tag_add_v2(gfp);
+
+                T_ELIF("id3v1-only")
+                    id3tag_v1_only(gfp);
+                    id3tag_mode = ID3TAG_MODE_V1_ONLY;
+
+                T_ELIF("id3v2-only")
+                    id3tag_v2_only(gfp);
+                    id3tag_mode = ID3TAG_MODE_V2_ONLY;
+
+                T_ELIF("pad-id3v2-size")
+                    argUsed = getIntValue(token, nextArg, &int_value);
+                    if (argUsed) {
+                        int_value = int_value <= 128000 ? int_value : 128000;
+                        int_value = int_value >= 0      ? int_value : 0;
+                        id3tag_set_pad(gfp, int_value);
+                    }
+
+                T_ELIF("genre-list")
+                    id3tag_genre_list(genre_list_handler, NULL);
+                    return -2;
+
 
                 T_ELIF("lowpass")
                     argUsed = getDoubleValue(token, nextArg, &double_value);
@@ -941,7 +1486,12 @@ parse_args_(lame_global_flags * gfp, int argc, char **argv,
                 return -2;
 
                 T_ELIF2("help", "usage")
-                    short_help(gfp, stdout, ProgramName);
+                    if (0 == local_strncasecmp(nextArg, "id3", 3)) {
+                        help_id3tag(stdout);
+                    }
+                    else {
+                        short_help(gfp, stdout, ProgramName);
+                    }
                 return -2;
 
                 T_ELIF("longhelp")
@@ -968,6 +1518,13 @@ parse_args_(lame_global_flags * gfp, int argc, char **argv,
 
                 T_ELIF("ignorelength")
                     global_reader.ignorewavlength = 1;
+
+                T_ELIF("replaygain-fast")
+                    lame_set_findReplayGain(gfp, 1);
+
+                T_ELIF("noreplaygain")
+                    noreplaygain = 1;
+                lame_set_findReplayGain(gfp, 0);
 
                 T_ELIF ("athaa-sensitivity")
                     argUsed = getDoubleValue(token, nextArg, &double_value);
@@ -1175,6 +1732,10 @@ parse_args_(lame_global_flags * gfp, int argc, char **argv,
             return -1;
         }
     }
+
+    /* RG is enabled by default */
+    if (!noreplaygain)
+        lame_set_findReplayGain(gfp, 1);
 
     /* default guess for number of channels */
     if (autoconvert)

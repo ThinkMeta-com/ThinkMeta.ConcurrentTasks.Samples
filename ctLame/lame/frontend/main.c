@@ -273,7 +273,7 @@ setProcessPriority(int priority)
  * - advantage, the rest can be kept unchanged (mostly)
  * - make sure, fprintf on console is in correct code page
  *   + normal text in source code is in ASCII anyway
- *   + filenames coming from command line need attention
+ *   + ID3 tags and filenames coming from command line need attention
  * - call wfopen with UTF-16 names where needed
  *
  * why not wchar_t all the way?
@@ -338,9 +338,44 @@ char *unicodeToUtf8(const wchar_t *wstr)
   return unicodeToMbs(wstr, CP_UTF8);
 }
 
+char* utf8ToLocal8Bit(const char* str)
+{
+  return mbsToMbs(str, CP_UTF8, CP_ACP);
+}
+
 char* utf8ToConsole8Bit(const char* str)
 {
   return mbsToMbs(str, CP_UTF8, GetConsoleOutputCP());
+}
+
+char* local8BitToUtf8(const char* str)
+{
+  return mbsToMbs(str, CP_ACP, CP_UTF8);
+}
+
+char* console8BitToUtf8(const char* str)
+{
+  return mbsToMbs(str, GetConsoleOutputCP(), CP_UTF8);
+}
+ 
+char* utf8ToLatin1(char const* str)
+{
+  return mbsToMbs(str, CP_UTF8, 28591); /* Latin-1 is code page 28591 */
+}
+
+unsigned short* utf8ToUtf16(char const* mbstr) /* additional Byte-Order-Marker */
+{
+  int n = MultiByteToWideChar(CP_UTF8, 0, mbstr, -1, NULL, 0);
+  wchar_t* wstr = malloc( (n+1)*sizeof(wstr[0]) );
+  if ( wstr !=0 ) {
+    wstr[0] = 0xfeff; /* BOM */
+    n = MultiByteToWideChar(CP_UTF8, 0, mbstr, -1, wstr+1, n);
+    if ( n==0 ) {
+      free( wstr );
+      wstr = 0;
+    }
+  }
+  return wstr;
 }
 
 static

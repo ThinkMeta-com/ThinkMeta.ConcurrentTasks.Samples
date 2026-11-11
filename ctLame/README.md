@@ -50,7 +50,7 @@ Windows:
 
 ```
 bin\win-x64\lame   -V 2 input.wav lame.mp3
-bin\win-x64\ctLame -V 2 --noreplaygain input.wav ctlame.mp3
+bin\win-x64\ctLame -V 2 input.wav ctlame.mp3
 fc /b lame.mp3 ctlame.mp3
 ```
 
@@ -58,22 +58,21 @@ Linux:
 
 ```
 bin/linux-x64/lame   -V 2 input.wav lame.mp3
-bin/linux-x64/ctLame -V 2 --noreplaygain input.wav ctlame.mp3
+bin/linux-x64/ctLame -V 2 input.wav ctlame.mp3
 cmp lame.mp3 ctlame.mp3
 ```
 
 `fc` and `cmp` report no differences. The command lines are the same, too: ctLame accepts every
-option of the reduced LAME and prints the same messages. `--noreplaygain` is there because ctLame,
-like unmodified LAME 4.0, writes the ReplayGain of the input into the LAME tag by default, and the
-reduced LAME has no ReplayGain; ctLame also writes ID3 tags again
+option of the reduced LAME and prints the same messages. Both write the ReplayGain of the input into
+the LAME tag by default, like unmodified LAME 4.0, and take LAME's ID3 tag options
 ([Tags and ReplayGain](#tags-and-replaygain)). If the Linux programs lost their
 executable bit on the way (an archive unpacked on Windows, for example):
 `chmod +x bin/linux-x64/lame bin/linux-x64/ctLame`.
 
 To measure on your own music on Windows, run `benchmark\run.cmd D:\Music` (any folder of WAV files; the script is Windows only for now). It encodes
 every file with both programs, one process at a time, and writes a report with the times and the
-bit-identity check of each file. ctLame runs with `--noreplaygain`, like the reduced lame.exe;
-`-ReplayGain` also times ctLame with its default ReplayGain analysis. Every run reads a fresh copy of the file that is not in the file
+bit-identity check of each file. Both programs run with `--noreplaygain`, as the published numbers
+were measured; `-ReplayGain` runs both with their default ReplayGain analysis. Every run reads a fresh copy of the file that is not in the file
 cache (`-Warm` reads the files where they are). For the run it switches to the High Performance
 power plan and restores the previous one afterwards (`-KeepPowerPlan` leaves it alone).
 
@@ -164,10 +163,10 @@ Every check must end with all cases identical. The Verify scripts of all samples
 
 ## Benchmarks
 
-**All benchmarks run ctLame without ReplayGain (`--noreplaygain`).** The reduced lame.exe has no
-ReplayGain analysis, so both programs do the same work and write the same bytes. ctLame runs the
-analysis by default, as unmodified LAME 4.0 does; with it, ctLame takes about 29 % longer on 16
-threads ([room for improvement](#room-for-improvement)).
+**All benchmarks run without ReplayGain (`--noreplaygain`), for both programs.** Both run the
+analysis by default, as unmodified LAME 4.0 does; the numbers below were measured without it, and
+`benchmark\` passes `--noreplaygain` to both (`-ReplayGain` measures them with it). With ReplayGain,
+ctLame takes about 29 % longer on 16 threads ([room for improvement](#room-for-improvement)).
 
 <details>
 <summary><b>Machine and method</b></summary>
@@ -177,7 +176,7 @@ threads ([room for improvement](#room-for-improvement)).
 | CPU | Intel Core i9-11900K (Rocket Lake), 8 cores, 16 threads |
 | System | Windows 11 Pro, power plan High Performance, no other load |
 | Programs | the binaries in `bin\win-x64\`; all numbers in this README are from Windows, there are no Linux measurements yet |
-| Settings | `-V 4` (LAME's default VBR quality), all other options at their defaults; **no ReplayGain**: the reduced lame.exe has none, the measured ctLame had none yet, and `benchmark\` passes `--noreplaygain` to ctLame |
+| Settings | `-V 4` (LAME's default VBR quality), all other options at their defaults; **no ReplayGain**: neither measured program had it yet, and `benchmark\` passes `--noreplaygain` to both |
 | Timing | wall time of the whole process (start, reading the WAV file, encoding, writing the MP3), one process at a time; every run reads a fresh copy of the WAV file that is not in the file cache (cold); per file the programs take turns, three rounds, the median of each file counts, the totals are the sums of the medians |
 | Check | every MP3 of ctLame compared byte for byte with lame.exe's |
 | Run | 17 October 2026 with `benchmark\run.cmd <folder> -Rounds 3`, the script in this repository |
@@ -312,19 +311,19 @@ plus a comparison of 1012 command lines with all their console output.
 | VBR new: `-V 0..9.999`, `-q`, the VBR presets | CBR, ABR, VBR old, free format |
 | MPEG-1: 32, 44.1 and 48 kHz | MPEG-2/2.5, resampling |
 | WAV input: PCM 8/16/24/32 bit, 32-bit float, also WAVE_FORMAT_EXTENSIBLE | AIFF, raw PCM, MP3 input, stdin and stdout |
-| Xing/LAME VBR header | ID3v1/ID3v2 tags and ReplayGain (ctLame has both again, see [Tags and ReplayGain](#tags-and-replaygain)), the frame analyzer |
+| Xing/LAME VBR header, ID3v1/ID3v2 tags and ReplayGain (removed at first, now back) | the frame analyzer, the ID3 options `--id3v2-utf8`, `--id3v2-ucs2`, `--space-id3v1` and `--pad-id3v2` |
 | all options that tune VBR new: channel mode, bitrate limits, filters, ATH, noise shaping, short blocks, bit reservoir, scaling | the decoder, `--nogap`, the CPU/assembly dispatch (the SSE2 intrinsics path is always on) |
 
 <details>
 <summary><b>Size, output and build</b></summary>
 
-The tree shrank from 319 to 68 files; libmp3lame from 26 301 to 16 782 lines, the frontend from
-11 188 to 4 223 lines, `lame.h` from 1 357 to 800 lines, with no compiler warning left (57 before,
-x64, warning level 4). The core of VBR new (`psymodel.c`, `vbrquantize.c`, `newmdct.c`, `fft.c`,
+The tree shrank from 319 to 70 files; libmp3lame from 26 301 to 19 838 lines, the frontend from
+11 188 to 4 049 lines, `lame.h` from 1 357 to 971 lines (with ID3 and ReplayGain back; without them
+it was 16 782, 3 375 and 800), with no compiler warning left (57 before, x64, warning level 4). The core of VBR new (`psymodel.c`, `vbrquantize.c`, `newmdct.c`, `fft.c`,
 `tables.c`, `reservoir.c`) is nearly untouched.
 
 **Output:** for the same options and a supported input file, the reduced `lame.exe` writes the same
-bytes as unmodified LAME 4.0 run with `--noreplaygain`. The one exception: unmodified LAME lowers
+bytes as unmodified LAME 4.0, ID3 tags and ReplayGain included. The one exception: unmodified LAME lowers
 the sample rate at `-V 6.5` and above (44.1/48 kHz) and at `-V 8` and above (32 kHz); the reduced
 LAME always keeps the input rate, and is then identical to unmodified LAME with
 `--resample <input rate>`. The default is `-V 4` instead of CBR 128 kbit/s.
@@ -394,9 +393,10 @@ the reduced LAME in `lame\` has neither.
 | `--pad-id3v2-size n`, `--ignore-tag-errors`, `--genre-list` | padding of the version 2 tag, go on after a bad tag value, list the genres |
 | `--noreplaygain` | no ReplayGain analysis; `--replaygain-fast` is the default and does nothing else |
 
-`ctLame --help id3` lists the tag options. The ID3v2 tag goes in front of the MP3 frames, the ID3v1
-tag behind them. Tags and ReplayGain are bit-identical to unmodified LAME 4.0, checked on Windows and
-Linux; for a few corner cases of the tag code ctLame follows the fixes of LAME 4.1 instead (a
+`ctLame --help id3` lists the tag options; the reduced LAME has the same options and messages again.
+The ID3v2 tag goes in front of the MP3 frames, the ID3v1 tag behind them. Tags and ReplayGain are
+bit-identical to unmodified LAME 4.0 and to the reduced LAME, checked on Windows and Linux; for a
+few corner cases of the tag code ctLame follows the fixes of LAME 4.1 instead (a
 description that begins another one names a different frame, frame ids need four characters, short
 language codes are padded, the padding is at most 128000 bytes, a tag too large for its size field is
 left out).

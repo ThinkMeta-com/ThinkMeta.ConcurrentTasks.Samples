@@ -153,7 +153,8 @@ $results = $cases | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
     # Encodes the case with one program; returns exit code and SHA-256 of the output.
     function Invoke-Encode([string]$Exe, [string]$Extra) {
         $out = Join-Path $using:WorkDir ([guid]::NewGuid().ToString() + '.mp3')
-        $argList = @('--silent') + @($Extra -split ' ' | Where-Object { $_ }) + @($c.Args -split ' ') + @($c.Input, $out)
+        # --noreplaygain: the tables were made without ReplayGain (both programs compute it by default)
+        $argList = @('--silent', '--noreplaygain') + @($Extra -split ' ' | Where-Object { $_ }) + @($c.Args -split ' ') + @($c.Input, $out)
         $p = Start-Process -FilePath $Exe -ArgumentList ($argList | ForEach-Object { '"' + $_ + '"' }) `
             -NoNewWindow -PassThru -RedirectStandardError "$out.err"
         $null = $p.Handle # keeps the exit code readable after the wait
@@ -173,8 +174,7 @@ $results = $cases | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
         return [pscustomobject]@{ Key = $key; ExitCode = $r.ExitCode; Sha256 = $r.Sha256 }
     }
     $expected = if ($c.Against -eq 'lame') { Invoke-Encode $using:Oracle '' } else { ($using:reference)[$key] }
-    # --noreplaygain: the reduced lame has no ReplayGain, ctLame computes it by default (like unmodified LAME 4.0)
-    $runs = @(foreach ($n in 1..$using:Repeat) { Invoke-Encode $using:Exe "--noreplaygain $using:ExtraArgs" })
+    $runs = @(foreach ($n in 1..$using:Repeat) { Invoke-Encode $using:Exe $using:ExtraArgs })
     $actual = $runs[0]
     $unstable = @($runs | ForEach-Object { "$($_.ExitCode)/$($_.Sha256)" } | Select-Object -Unique).Count -gt 1
     $problem = if (-not $expected) { 'not in the table' }

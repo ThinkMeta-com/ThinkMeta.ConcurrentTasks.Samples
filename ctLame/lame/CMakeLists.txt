@@ -22,6 +22,8 @@ add_library(mp3lame STATIC
     libmp3lame/bitstream.c
     libmp3lame/encoder.c
     libmp3lame/fft.c
+    libmp3lame/gain_analysis.c
+    libmp3lame/id3tag.c
     libmp3lame/lame.c
     libmp3lame/newmdct.c
     libmp3lame/presets.c
@@ -51,6 +53,7 @@ add_executable(lame
     frontend/timestatus.c
 )
 target_include_directories(lame PRIVATE frontend libmp3lame include ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_definitions(lame PRIVATE HAVE_CONFIG_H)
+# ID3 texts are converted from the character set of the locale (iconv), as in LAME's Linux build
+target_compile_definitions(lame PRIVATE HAVE_CONFIG_H HAVE_ICONV HAVE_LANGINFO_H)
 target_compile_options(lame PRIVATE -ffp-contract=off)
 target_link_libraries(lame PRIVATE mp3lame m)

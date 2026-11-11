@@ -342,7 +342,8 @@ history in registers.
 **Result** (quick test, warm, 16 threads, `-V 4`): about 220 ms instead of about 172 ms without
 ReplayGain, +29 % instead of +129 %; with `--sequential` +13 %. With empty Gain tasks it takes 176 ms:
 the nodes and their wake-ups cost nothing, the rest is the work itself on a CPU that is already busy.
-The benchmarks run with `--noreplaygain`, like the reduced `lame.exe`, which has no ReplayGain.
+The benchmarks run both programs with `--noreplaygain`; the reduced `lame.exe` has ReplayGain again,
+on by default like ctLame.
 
 In the code: `GainTask` and `GainSignals` (`src\Tasks\GainTask.h`); `ChannelGain` and `GainAnalysis`
 (`src\Encoder\GainAnalysis.h`), the SIMD kernels in `GainKernels.h`; the pieces come from

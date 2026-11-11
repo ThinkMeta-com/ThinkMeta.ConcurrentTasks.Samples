@@ -953,8 +953,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
                             tag.SetPad(static_cast<std::size_t>(intValue));
                         }
                     } else if (is(CT_TEXT("genre-list"))) {
+                        // genre_list_handler: console_printf, which writes to stderr
                         Id3Tag::GenreList(
-                            [](std::int32_t number, const char* name, void*) { Console::Print(Stream::Output, CT_TEXT("%3d %hs\n"), number, name); }, nullptr);
+                            [](std::int32_t number, const char* name, void*) { Console::Print(Stream::Error, CT_TEXT("%3d %hs\n"), number, name); }, nullptr);
                         return -2;
                     } else {
                         Console::Print(Stream::Error, CT_TEXT("%s: unrecognized option --%s\n"), programName, token);

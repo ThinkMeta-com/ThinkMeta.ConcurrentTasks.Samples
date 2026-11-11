@@ -24,6 +24,8 @@
     <ClInclude Include="bitstream.h" />
     <ClInclude Include="encoder.h" />
     <ClInclude Include="fft.h" />
+    <ClInclude Include="gain_analysis.h" />
+    <ClInclude Include="id3tag.h" />
     <ClInclude Include="l3side.h" />
     <ClInclude Include="lame_global_flags.h" />
     <ClInclude Include="lameerror.h" />
@@ -45,6 +47,8 @@
     <ClCompile Include="bitstream.c" />
     <ClCompile Include="encoder.c" />
     <ClCompile Include="fft.c" />
+    <ClCompile Include="gain_analysis.c" />
+    <ClCompile Include="id3tag.c" />
     <ClCompile Include="lame.c" />
     <ClCompile Include="newmdct.c" />
     <ClCompile Include="presets.c" />

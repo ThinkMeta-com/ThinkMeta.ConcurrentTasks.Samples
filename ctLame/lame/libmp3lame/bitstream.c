@@ -888,7 +888,7 @@ do_copy_buffer(lame_internal_flags * gfc, unsigned char *buffer, int size)
 /* copy data out of the internal MP3 bit buffer into a user supplied
    unsigned char buffer.
 
-   mp3data=0      indicates data in buffer is a VBR tag
+   mp3data=0      indicates data in buffer is an id3tags and VBR tags
    mp3data=1      data is real mp3 frame data.
 
 

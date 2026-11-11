@@ -321,6 +321,94 @@ lame_get_force_ms(const lame_global_flags * gfp)
     return 0;
 }
 
+/* Perform ReplayGain analysis */
+int
+lame_set_findReplayGain(lame_global_flags * gfp, int findReplayGain)
+{
+    if (is_lame_global_flags_valid(gfp)) {
+        /* default = 0 (disabled) */
+
+        /* enforce disable/enable meaning, if we need more than two values
+           we need to switch to an enum to have an apropriate representation
+           of the possible meanings of the value */
+        if (0 > findReplayGain || 1 < findReplayGain)
+            return -1;
+        gfp->findReplayGain = findReplayGain;
+        return 0;
+    }
+    return -1;
+}
+
+int
+lame_get_findReplayGain(const lame_global_flags * gfp)
+{
+    if (is_lame_global_flags_valid(gfp)) {
+        assert(0 <= gfp->findReplayGain && 1 >= gfp->findReplayGain);
+        return gfp->findReplayGain;
+    }
+    return 0;
+}
+
+int
+lame_get_RadioGain(const lame_global_flags * gfp)
+{
+    if (is_lame_global_flags_valid(gfp)) {
+        lame_internal_flags const *const gfc = gfp->internal_flags;
+        if (is_lame_internal_flags_valid(gfc)) {
+            return gfc->ov_rpg.RadioGain;
+        }
+    }
+    return 0;
+}
+
+int
+lame_get_AudiophileGain(const lame_global_flags * gfp)
+{
+    if (is_lame_global_flags_valid(gfp)) {
+        lame_internal_flags const *const gfc = gfp->internal_flags;
+        if (is_lame_internal_flags_valid(gfc)) {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+float
+lame_get_PeakSample(const lame_global_flags * gfp)
+{
+    if (is_lame_global_flags_valid(gfp)) {
+        lame_internal_flags const *const gfc = gfp->internal_flags;
+        if (is_lame_internal_flags_valid(gfc)) {
+            return (float) gfc->ov_rpg.PeakSample;
+        }
+    }
+    return 0;
+}
+
+int
+lame_get_noclipGainChange(const lame_global_flags * gfp)
+{
+    if (is_lame_global_flags_valid(gfp)) {
+        lame_internal_flags const *const gfc = gfp->internal_flags;
+        if (is_lame_internal_flags_valid(gfc)) {
+            return gfc->ov_rpg.noclipGainChange;
+        }
+    }
+    return 0;
+}
+
+float
+lame_get_noclipScale(const lame_global_flags * gfp)
+{
+    if (is_lame_global_flags_valid(gfp)) {
+        lame_internal_flags const *const gfc = gfp->internal_flags;
+        if (is_lame_internal_flags_valid(gfc)) {
+            return gfc->ov_rpg.noclipScale;
+        }
+    }
+    return 0;
+}
+
 
 
 
@@ -1539,6 +1627,23 @@ lame_set_preset(lame_global_flags * gfp, int preset)
 
 
 
+void
+lame_set_write_id3tag_automatic(lame_global_flags * gfp, int v)
+{
+    if (is_lame_global_flags_valid(gfp)) {
+        gfp->write_id3tag_automatic = v;
+    }
+}
+
+
+int
+lame_get_write_id3tag_automatic(lame_global_flags const *gfp)
+{
+    if (is_lame_global_flags_valid(gfp)) {
+        return gfp->write_id3tag_automatic;
+    }
+    return 1;
+}
 
 
 /*
