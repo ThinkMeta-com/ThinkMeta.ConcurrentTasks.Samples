@@ -30,6 +30,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         float         scaleRight    = 1;
 
         // general control
+        std::int32_t findReplayGain = 0; // the ReplayGain analysis of the input (the frontend turns it on)
         std::int32_t writeLameTag   = 1;
         std::int32_t quality        = -1;
         MpegMode     mode           = NotSet;
@@ -98,6 +99,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         std::int32_t SetScaleLeft(float value) noexcept;
         std::int32_t SetScaleRight(float value) noexcept;
         std::int32_t SetWriteVbrTag(std::int32_t value) noexcept;
+        std::int32_t SetFindReplayGain(std::int32_t value) noexcept;
         std::int32_t SetQuality(std::int32_t value) noexcept;
         std::int32_t SetMode(MpegMode value) noexcept;
         std::int32_t SetForceMs(std::int32_t value) noexcept;

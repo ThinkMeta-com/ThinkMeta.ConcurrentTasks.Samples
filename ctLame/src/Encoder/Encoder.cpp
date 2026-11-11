@@ -37,6 +37,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     void Encoder::Initialize(SessionConfig& config, SimdLevel simd) noexcept
     {
         config_ = &config;
+        simd_   = simd;
 
         Zero(constants_);
         Zero(psy_);

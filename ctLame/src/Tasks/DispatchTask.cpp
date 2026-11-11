@@ -10,19 +10,26 @@
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
-    DispatchTask::DispatchTask(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format, FrameRing& ring, TaskProfile* profile) noexcept
+    DispatchTask::DispatchTask(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format, FrameRing& ring, GainSignals* gain,
+                               TaskProfile* profile) noexcept
         : feed_(pcm, stream, format),
           stream_(stream),
           ring_(ring),
+          gain_(gain),
           profile_(profile)
     {}
 
     void DispatchTask::Run() noexcept
     {
         const ProfiledRun run(profile_);
-        while (feed_.Next(profile_))
+        while (feed_.Next(profile_)) {
+            if (gain_ != nullptr)
+                gain_->Publish(stream_, false);
             DispatchReady();
-        DispatchReady(); // the rest of the input and the flush frames
+        }
+        if (gain_ != nullptr)
+            gain_->Publish(stream_, true); // the stream has ended
+        DispatchReady();                   // the rest of the input and the flush frames
         ring_.EndDispatch();
     }
 

@@ -34,7 +34,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         const ProfiledRun run(profile_);
         if (frame_ == nullptr) { // no memory for the frame: drain the input so the reader can finish, report the error
             feed_.Drain(profile_);
-            frameEncoder_.Finish(0, -3);
+            frameEncoder_.Finish(0, 0, -3);
             return;
         }
         frameEncoder_.Begin();
@@ -45,7 +45,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         }
         if (more)
             feed_.Drain(profile_); // after an error only drain the pipe, so the reader can finish
-        frameEncoder_.Finish(stream_.EncoderPadding(), stream_.Failed() ? -3 : 0);
+        frameEncoder_.Finish(stream_.EncoderPadding(), stream_.RadioGain(), stream_.Failed() ? -3 : 0);
     }
 
     void SequentialEncodeTask::EncodeReady() noexcept

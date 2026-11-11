@@ -173,7 +173,8 @@ $results = $cases | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
         return [pscustomobject]@{ Key = $key; ExitCode = $r.ExitCode; Sha256 = $r.Sha256 }
     }
     $expected = if ($c.Against -eq 'lame') { Invoke-Encode $using:Oracle '' } else { ($using:reference)[$key] }
-    $runs = @(foreach ($n in 1..$using:Repeat) { Invoke-Encode $using:Exe $using:ExtraArgs })
+    # --noreplaygain: the reduced lame has no ReplayGain, ctLame computes it by default (like unmodified LAME 4.0)
+    $runs = @(foreach ($n in 1..$using:Repeat) { Invoke-Encode $using:Exe "--noreplaygain $using:ExtraArgs" })
     $actual = $runs[0]
     $unstable = @($runs | ForEach-Object { "$($_.ExitCode)/$($_.Sha256)" } | Select-Object -Unique).Count -gt 1
     $problem = if (-not $expected) { 'not in the table' }

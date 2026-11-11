@@ -312,4 +312,40 @@ own (one waiter), the workers share one `AutoResetEvent`; `FrameRing.h` explains
 use the library's `Semaphore_s`, and `src\Tests\FrameRingTests.cpp` runs it under load. The README's
 [Reading the code](../README.md#reading-the-code) gives an order to read the files in.
 
+---
+
+## 9 · ReplayGain beside the frame stages
+
+```mermaid
+flowchart LR
+    R["Read"] -- "PCM pipe" --> D["1 Dispatch"]
+    D -- "frame ring" --> P["2–4 Prepare, Resolve, Search"]
+    P -- "frame ring" --> E["5 Encode<br/>+ LAME tag"]
+    D -. "sample stream" .-> GL["Gain L"]
+    D -. "sample stream" .-> GR["Gain R"]
+    GL -. "window sums" .-> E
+    GR -. "window sums" .-> E
+    E -- "MP3 pipe" --> W["Write"]
+```
+
+**Change:** ReplayGain is back, on by default as in LAME 4.0. One Gain task per channel reads the
+sample stream in LAME's pieces; Dispatch wakes them, and Encode waits for them before it writes the
+LAME tag.
+
+**Why:** the analysis is two IIR filters per channel, a serial chain over the whole file. In the serial
+Dispatch node it cost +129 % in the parallel graph. But the channels only meet at the end of each
+50 ms window, and although LAME works piece by piece, the filters run over the channel as if in one
+go; only the partial sums follow the pieces. So each channel gets a task of its own, the input part of
+the Yule-Walker filter runs with SIMD, and the feedback of both filters runs in one loop with its
+history in registers.
+
+**Result** (quick test, warm, 16 threads, `-V 4`): about 220 ms instead of about 172 ms without
+ReplayGain, +29 % instead of +129 %; with `--sequential` +13 %. With empty Gain tasks it takes 176 ms:
+the nodes and their wake-ups cost nothing, the rest is the work itself on a CPU that is already busy.
+The benchmarks run with `--noreplaygain`, like the reduced `lame.exe`, which has no ReplayGain.
+
+In the code: `GainTask` and `GainSignals` (`src\Tasks\GainTask.h`); `ChannelGain` and `GainAnalysis`
+(`src\Encoder\GainAnalysis.h`), the SIMD kernels in `GainKernels.h`; the pieces come from
+`SampleStream::GainPiece`, and `SampleStream::Release` keeps every sample a Gain task has not read yet.
+
 [← back to the README](../README.md)

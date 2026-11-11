@@ -60,6 +60,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         return 0;
     }
 
+    std::int32_t EncoderOptions::SetFindReplayGain(std::int32_t value) noexcept
+    {
+        if (0 > value || 1 < value)
+            return -1;
+        findReplayGain = value;
+        return 0;
+    }
+
     std::int32_t EncoderOptions::SetQuality(std::int32_t value) noexcept
     {
         if (value < 0)

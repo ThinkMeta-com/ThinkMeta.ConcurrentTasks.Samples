@@ -36,11 +36,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
         /// <summary>Reads the command line into options; prints the usage text on an unknown option or a missing file name.</summary>
         static Shared::ParseResult Parse(std::int32_t argc, Shared::Char** argv, Options& options);
 
-        /// <summary>The usage text: to stdout for --help, to stderr after an error.</summary>
+        /// <summary>The usage text behind the version and the copyright: to stdout for --help, to stderr after an error.</summary>
         static void PrintUsage(Shared::Stream stream);
 
-        /// <summary>The version and the copyright, to stdout.</summary>
-        static void PrintVersion();
+        /// <summary>The version and the copyright (--version, and the head of the usage text).</summary>
+        static void PrintVersion(Shared::Stream stream);
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Deflate

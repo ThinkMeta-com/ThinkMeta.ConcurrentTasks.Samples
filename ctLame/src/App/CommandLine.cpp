@@ -9,6 +9,9 @@
 #if defined(_WIN32)
 #    include <Windows.h>
 #else
+#    include <clocale>
+#    include <iconv.h>
+#    include <langinfo.h>
 #    include <sys/resource.h>
 #endif
 
@@ -22,6 +25,7 @@
 #include <cwchar>
 
 #include "Console.h"
+#include "File.h"
 #include "Memory.h"
 #include "Tables.h"
 #include "Text.h"
@@ -209,6 +213,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
                                                                         "\n"
                                                                         "    --threads n     encode with n threads (default: all logical processors)\n"
                                                                         "\n"
+                                                                        "    --help id3      ID3 tagging related options\n"
+                                                                        "\n"
                                                                         "    --longhelp      full list of options\n"
                                                                         "\n"
                                                                         "    --license       print License information\n\n");
@@ -262,6 +268,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
                 "    --preset type   type must be \"medium\", \"standard\" or \"extreme\"\n") "                    \"--preset help\" gives more info on these\n"
                                                                                               "    --r3mix         the tuning of the former r3mix preset, like "
                                                                                               "-V 3\n"
+                                                                                              "    --replaygain-fast   compute RG fast but slightly "
+                                                                                              "inaccurately (default)\n"
+                                                                                              "    --noreplaygain  disable ReplayGain analysis\n"
                                                                                               "    --flush         flush output stream as soon as possible\n");
 
         WaitFor(fp, lessmode);
@@ -319,6 +328,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
                                                       "  --highpass-width <freq> frequency(kHz) - default 15%% of highpass freq\n");
 
         WaitFor(fp, lessmode);
+        HelpId3Tag(fp);
         Console::Print(
             fp,
             CT_TEXT("  ctLame options (parallel encoding, SIMD):\n") "    --threads <n>   compute threads, 1 to 256 (default: all logical processors)\n"
@@ -650,13 +660,25 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     std::int32_t CommandLine::ParseArgsInternal(Options& options, std::int32_t argc, Shared::Char** argv)
     {
-        EncoderOptions&           gfp         = options.encoder;
-        Shared::Char* const       inPath      = options.inPath.data();
-        Shared::Char* const       outPath     = options.outPath.data();
-        std::int32_t              inputFile   = 0; // set to 1 if we parse an input file name
-        std::int32_t              autoconvert = 0;
-        const Shared::Char* const programName = argv[0];
+        EncoderOptions&           gfp             = options.encoder;
+        Shared::Char* const       inPath          = options.inPath.data();
+        Shared::Char* const       outPath         = options.outPath.data();
+        std::int32_t              inputFile       = 0; // set to 1 if we parse an input file name
+        std::int32_t              autoconvert     = 0;
+        std::int32_t              noreplaygain    = 0; // is RG explicitly disabled by the user
+        const Shared::Char* const programName     = argv[0];
+        Id3Tag&                   tag             = options.id3;
+        TextEncoding              id3Encoding     = TextEncoding::Utf16; // ID3TAGS_EXTENDED: the default of LAME on Windows and Linux
+        std::int32_t              ignoreTagErrors = 0;                   // ignore errors in values passed for tags
 
+        // ID3TAG_MODE: what the error messages of --tn and --tg depend on
+        enum class Id3TagMode { Default, V1Only, V2Only };
+        Id3TagMode id3TagMode = Id3TagMode::Default;
+
+#if !defined(_WIN32)
+        // HAVE_LANGINFO_H: the tag texts are converted from the character set of the locale
+        std::setlocale(LC_CTYPE, "");
+#endif
         inPath[0]  = '\0';
         outPath[0] = '\0';
         // turn on display options. user settings may turn them off below
@@ -786,7 +808,15 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
                         PrintLicense(Stream::Output);
                         return -2;
                     } else if (is(CT_TEXT("help")) || is(CT_TEXT("usage"))) {
-                        ShortHelp(gfp, Stream::Output, programName);
+                        // local_strncasecmp(nextArg, "id3", 3)
+                        const Shared::Char* const id3 = CT_TEXT("id3");
+                        std::int32_t              k   = 0;
+                        while (k < 3 && ToLower(nextArg[k]) == id3[k])
+                            ++k;
+                        if (k == 3)
+                            HelpId3Tag(Stream::Output);
+                        else
+                            ShortHelp(gfp, Stream::Output, programName);
                         return -2;
                     } else if (is(CT_TEXT("longhelp"))) {
                         LongHelp(gfp, Stream::Output, programName, 0);
@@ -828,10 +858,104 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
                         options.swapChannel = 1;
                     } else if (is(CT_TEXT("ignorelength"))) {
                         options.ignoreWavLength = 1;
+                    } else if (is(CT_TEXT("replaygain-fast"))) {
+                        (void)gfp.SetFindReplayGain(1);
+                    } else if (is(CT_TEXT("noreplaygain"))) {
+                        noreplaygain = 1;
+                        (void)gfp.SetFindReplayGain(0);
                     } else if (is(CT_TEXT("athaa-sensitivity"))) {
                         argUsed = GetDoubleValue(token, nextArg, &doubleValue);
                         if (argUsed)
                             gfp.SetAthaaSensitivity(static_cast<float>(doubleValue));
+
+                        // options for ID3 tag
+                    } else if (is(CT_TEXT("id3v2-utf16"))) {
+                        id3Encoding = TextEncoding::Utf16;
+                        tag.AddV2();
+                    } else if (is(CT_TEXT("id3v2-latin1"))) {
+                        id3Encoding = TextEncoding::Latin1;
+                        tag.AddV2();
+                    } else if (is(CT_TEXT("tt"))) {
+                        argUsed = 1;
+                        Id3TagOption(tag, 't', id3Encoding, nextArg, options.silent);
+                    } else if (is(CT_TEXT("ta"))) {
+                        argUsed = 1;
+                        Id3TagOption(tag, 'a', id3Encoding, nextArg, options.silent);
+                    } else if (is(CT_TEXT("tl"))) {
+                        argUsed = 1;
+                        Id3TagOption(tag, 'l', id3Encoding, nextArg, options.silent);
+                    } else if (is(CT_TEXT("ty"))) {
+                        argUsed = 1;
+                        Id3TagOption(tag, 'y', id3Encoding, nextArg, options.silent);
+                    } else if (is(CT_TEXT("tc"))) {
+                        argUsed = 1;
+                        Id3TagOption(tag, 'c', id3Encoding, nextArg, options.silent);
+                    } else if (is(CT_TEXT("tn"))) {
+                        const std::int32_t ret = Id3TagOption(tag, 'n', id3Encoding, nextArg, options.silent);
+                        argUsed                = 1;
+                        if (ret != 0 && ignoreTagErrors == 0) {
+                            if (id3TagMode == Id3TagMode::V1Only) {
+                                if (options.silent < 9)
+                                    Console::Print(Stream::Error, CT_TEXT("The track number has to be between 1 and 255 for ID3v1.\n"));
+                                return -1;
+                            }
+                            // V2Only: the track is stored as-is in ID3v2, so no problem here
+                            if (id3TagMode == Id3TagMode::Default && options.silent < 9)
+                                Console::Print(Stream::Error, CT_TEXT("The track number has to be between 1 and 255 for ID3v1, ignored for ID3v1.\n"));
+                        }
+                    } else if (is(CT_TEXT("tg"))) {
+                        std::int32_t ret = 0;
+                        argUsed          = 1;
+                        if (nextArg[0] != '\0')
+                            ret = Id3TagOption(tag, 'g', id3Encoding, nextArg, options.silent);
+                        if (ret != 0 && ignoreTagErrors == 0) {
+                            if (ret == -1) {
+                                Console::Print(Stream::Error, CT_TEXT("Unknown ID3v1 genre number: '%s'.\n"), nextArg);
+                                return -1;
+                            }
+                            if (ret == -2) {
+                                if (id3TagMode == Id3TagMode::V1Only) {
+                                    Console::Print(Stream::Error, CT_TEXT("Unknown ID3v1 genre: '%s'.\n"), nextArg);
+                                    return -1;
+                                }
+                                // V2Only: the genre is stored as-is in ID3v2, so no problem here
+                                if (id3TagMode == Id3TagMode::Default && options.silent < 9)
+                                    Console::Print(Stream::Error, CT_TEXT("Unknown ID3v1 genre: '%s'.  Setting ID3v1 genre to 'Other'\n"), nextArg);
+                            } else {
+                                if (options.silent < 10)
+                                    Console::Print(Stream::Error, CT_TEXT("Internal error.\n"));
+                                return -1;
+                            }
+                        }
+                    } else if (is(CT_TEXT("tv"))) {
+                        argUsed = 1;
+                        if (Id3TagOption(tag, 'v', id3Encoding, nextArg, options.silent) != 0 && options.silent < 9)
+                            Console::Print(Stream::Error, CT_TEXT("Invalid field value: '%s'. Ignored\n"), nextArg);
+                    } else if (is(CT_TEXT("ti"))) {
+                        argUsed = 1;
+                        if (SetId3AlbumArt(tag, nextArg) != 0 && ignoreTagErrors == 0)
+                            return -1;
+                    } else if (is(CT_TEXT("ignore-tag-errors"))) {
+                        ignoreTagErrors = 1;
+                    } else if (is(CT_TEXT("add-id3v2"))) {
+                        tag.AddV2();
+                    } else if (is(CT_TEXT("id3v1-only"))) {
+                        tag.V1Only();
+                        id3TagMode = Id3TagMode::V1Only;
+                    } else if (is(CT_TEXT("id3v2-only"))) {
+                        tag.V2Only();
+                        id3TagMode = Id3TagMode::V2Only;
+                    } else if (is(CT_TEXT("pad-id3v2-size"))) {
+                        argUsed = GetIntValue(token, nextArg, &intValue);
+                        if (argUsed) {
+                            intValue = intValue <= 128000 ? intValue : 128000;
+                            intValue = intValue >= 0 ? intValue : 0;
+                            tag.SetPad(static_cast<std::size_t>(intValue));
+                        }
+                    } else if (is(CT_TEXT("genre-list"))) {
+                        Id3Tag::GenreList(
+                            [](std::int32_t number, const char* name, void*) { Console::Print(Stream::Output, CT_TEXT("%3d %hs\n"), number, name); }, nullptr);
+                        return -2;
                     } else {
                         Console::Print(Stream::Error, CT_TEXT("%s: unrecognized option --%s\n"), programName, token);
                         return -1;
@@ -986,6 +1110,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
                 return -1;
         }
 
+        // RG is enabled by default
+        if (noreplaygain == 0)
+            (void)gfp.SetFindReplayGain(1);
+
         // default guess for number of channels
         if (autoconvert)
             (void)gfp.SetNumChannels(2);
@@ -996,6 +1124,211 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
         return 0;
     }
+
+    void CommandLine::HelpId3Tag(Stream fp)
+    {
+        Console::Print(fp,
+                       CT_TEXT("  ID3 tag options:\n") "    --tt <title>    audio/song title (max 30 chars for version 1 tag)\n"
+                                                       "    --ta <artist>   audio/song artist (max 30 chars for version 1 tag)\n"
+                                                       "    --tl <album>    audio/song album (max 30 chars for version 1 tag)\n"
+                                                       "    --ty <year>     audio/song year of issue (1 to 9999)\n"
+                                                       "    --tc <comment>  user-defined text (max 30 chars for v1 tag, 28 for v1.1)\n");
+        Console::Print(fp,
+                       CT_TEXT("    --tn <track[/total]>   audio/song track number and (optionally) the total\n") "                           number of tracks "
+                                                                                                                  "on the original recording. (track\n"
+                                                                                                                  "                           and total each 1 "
+                                                                                                                  "to 255. just the track number\n"
+                                                                                                                  "                           creates v1.1 "
+                                                                                                                  "tag, providing a total forces v2.0).\n");
+        Console::Print(
+            fp,
+            CT_TEXT("    --tg <genre>    audio/song genre (name or number in list)\n") "    --ti <file>     audio/song albumArt (jpeg/png/gif file, v2.3 tag)\n"
+                                                                                       "    --tv <id=value> user-defined frame specified by id and value (v2.3 "
+                                                                                       "tag)\n"
+                                                                                       "                    syntax: --tv \"TXXX=description=content\"\n");
+        Console::Print(
+            fp,
+            CT_TEXT("    --add-id3v2     force addition of version 2 tag\n") "    --id3v1-only    add only a version 1 tag\n"
+                                                                             "    --id3v2-only    add only a version 2 tag\n"
+                                                                             "    --id3v2-utf16   add following options in unicode UTF-16 text encoding\n"
+                                                                             "    --id3v2-latin1  add following options in latin-1 text encoding\n"
+                                                                             "    --pad-id3v2-size <value> adds version 2 tag, pad with extra <value> bytes\n"
+                                                                             "    --genre-list    print alphabetically sorted ID3 genre list and exit\n"
+                                                                             "    --ignore-tag-errors  ignore errors in values passed for tags\n"
+                                                                             "\n");
+        Console::Print(fp,
+                       CT_TEXT("    Note: A version 2 tag will NOT be added unless one of the input fields\n") "    won't fit in a version 1 tag (e.g. the "
+                                                                                                               "title string is longer than 30\n"
+                                                                                                               "    characters), or the '--add-id3v2' or "
+                                                                                                               "'--id3v2-only' options are used.\n"
+                                                                                                               "    Unicode text (the default, see "
+                                                                                                               "'--id3v2-utf16') also adds it.\n");
+    }
+
+    std::int32_t CommandLine::Id3TagOption(Id3Tag& tag, char type, TextEncoding encoding, const Shared::Char* text, std::int32_t silent)
+    {
+        if (encoding == TextEncoding::Utf16 && type != 'v')
+            Id3TagOption(tag, type, TextEncoding::Latin1, text, silent); // for ID3v1
+        std::int32_t result = 0;
+        if (encoding == TextEncoding::Latin1) {
+            char* const latin1 = ToLatin1(text, silent);
+            result             = SetId3Tag(tag, type, latin1);
+            Shared::Heap::Free(latin1);
+        } else {
+            char16_t* const utf16 = ToUtf16(text, silent);
+            result                = SetId3v2Tag(tag, type, utf16);
+            Shared::Heap::Free(utf16);
+        }
+        return result;
+    }
+
+    std::int32_t CommandLine::SetId3Tag(Id3Tag& tag, char type, const char* text)
+    {
+        switch (type) {
+            case 'a': tag.SetArtist(text); return 0;
+            case 't': tag.SetTitle(text); return 0;
+            case 'l': tag.SetAlbum(text); return 0;
+            case 'g': return tag.SetGenre(text);
+            case 'c': tag.SetComment(text); return 0;
+            case 'n': return tag.SetTrack(text);
+            case 'y': tag.SetYear(text); return 0;
+            case 'v': return tag.SetFieldValue(text);
+            default: return 0;
+        }
+    }
+
+    std::int32_t CommandLine::SetId3v2Tag(Id3Tag& tag, char type, const char16_t* text)
+    {
+        switch (type) {
+            case 'a': return tag.SetTextInfoUtf16("TPE1", text);
+            case 't': return tag.SetTextInfoUtf16("TIT2", text);
+            case 'l': return tag.SetTextInfoUtf16("TALB", text);
+            case 'g': return tag.SetTextInfoUtf16("TCON", text);
+            case 'c': return tag.SetCommentUtf16(nullptr, nullptr, text);
+            case 'n': return tag.SetTextInfoUtf16("TRCK", text);
+            case 'y': return tag.SetTextInfoUtf16("TYER", text);
+            case 'v': return tag.SetFieldValueUtf16(text);
+            default: return -3;
+        }
+    }
+
+    std::int32_t CommandLine::SetId3AlbumArt(Id3Tag& tag, const Shared::Char* fileName)
+    {
+        if (fileName == nullptr)
+            return 0;
+        std::int32_t  ret  = 0;
+        std::uint64_t size = 0;
+        if (!Shared::File::Size(fileName, size)) {
+            ret = 1;
+        } else {
+            void* const albumArt = Shared::Heap::Allocate(static_cast<std::size_t>(size));
+            if (albumArt == nullptr)
+                ret = 2;
+            else {
+                if (!Shared::File::Read(fileName, albumArt, static_cast<std::size_t>(size)))
+                    ret = 3;
+                else
+                    ret = tag.SetAlbumArt(static_cast<const std::byte*>(albumArt), static_cast<std::size_t>(size)) != 0 ? 4 : 0;
+                Shared::Heap::Free(albumArt);
+            }
+        }
+        switch (ret) {
+            case 1: Console::Print(Stream::Error, CT_TEXT("Could not find: '%s'.\n"), fileName); break;
+            case 2: Console::Print(Stream::Error, CT_TEXT("Insufficient memory for reading the albumart.\n")); break;
+            case 3: Console::Print(Stream::Error, CT_TEXT("Read error: '%s'.\n"), fileName); break;
+            case 4: Console::Print(Stream::Error, CT_TEXT("Unsupported image: '%s'.\nSpecify JPEG/PNG/GIF image\n"), fileName); break;
+            default: break;
+        }
+        return ret;
+    }
+
+#if defined(_WIN32)
+
+    // LAME passes its arguments as UTF-8 and converts them with utf8ToLatin1 and utf8ToUtf16 (main.c); ctLame has
+    // them as UTF-16 already, the result is the same.
+
+    char* CommandLine::ToLatin1(const Shared::Char* text, [[maybe_unused]] std::int32_t silent)
+    {
+        // Latin-1 is code page 28591; characters outside it get the best fit or '?'
+        constexpr std::uint32_t Latin1 = 28591;
+        const std::int32_t      n      = 1 + WideCharToMultiByte(Latin1, 0, text, -1, nullptr, 0, nullptr, nullptr);
+        auto* const             latin1 = static_cast<char*>(Shared::Heap::Allocate(static_cast<std::size_t>(n)));
+        if (latin1 != nullptr && WideCharToMultiByte(Latin1, 0, text, -1, latin1, n, nullptr, nullptr) == 0) {
+            Shared::Heap::Free(latin1);
+            return nullptr;
+        }
+        return latin1;
+    }
+
+    char16_t* CommandLine::ToUtf16(const Shared::Char* text, [[maybe_unused]] std::int32_t silent)
+    {
+        const std::size_t length = Text::Length(text);
+        auto* const       utf16  = static_cast<char16_t*>(Shared::Heap::Allocate((length + 2) * sizeof(char16_t)));
+        if (utf16 != nullptr) {
+            utf16[0] = 0xFEFF; // BOM
+            for (std::size_t i = 0; i <= length; ++i)
+                utf16[i + 1] = static_cast<char16_t>(text[i]);
+        }
+        return utf16;
+    }
+
+#else
+
+    // HAVE_ICONV: iconv from the character set of the locale, as in parse.c of LAME 4.1 (toLatin1, toUtf16 and
+    // convert_text), which reports text it cannot convert; 4.0 left it out silently. Characters outside the target
+    // set are transliterated ("//TRANSLIT").
+
+    char* CommandLine::ToLatin1(const Shared::Char* text, std::int32_t silent)
+    {
+        if (text == nullptr)
+            return nullptr;
+        const std::size_t l = Text::Length(text);
+        return ConvertText("ISO_8859-1", text, l, l * 4, 0, silent);
+    }
+
+    char16_t* CommandLine::ToUtf16(const Shared::Char* text, std::int32_t silent)
+    {
+        if (text == nullptr)
+            return nullptr;
+        // two bytes at the front for the byte order mark, written afterwards so that it survives a conversion that
+        // could not start at all
+        const std::size_t l   = Text::Length(text);
+        char* const       dst = ConvertText("UTF-16LE", text, l, (l + 1) * 4, 2, silent);
+        if (dst != nullptr) {
+            dst[0] = '\xff';
+            dst[1] = '\xfe';
+        }
+        return reinterpret_cast<char16_t*>(dst);
+    }
+
+    char* CommandLine::ConvertText(const char* to, const char* src, std::size_t srcBytes, std::size_t room, std::size_t lead, std::int32_t silent)
+    {
+        auto* const dst = static_cast<char*>(Shared::Heap::Allocate((room + 4) * 4, true));
+        if (dst == nullptr)
+            return nullptr;
+        char toTranslit[32];
+        Text::Copy(toTranslit, sizeof(toTranslit), to);
+        Text::Copy(toTranslit + Text::Length(to), sizeof(toTranslit) - Text::Length(to), "//TRANSLIT");
+        const char* const from   = nl_langinfo(CODESET);
+        const iconv_t     xiconv = iconv_open(toTranslit, from);
+        if (xiconv == reinterpret_cast<iconv_t>(-1)) {
+            if (silent < 9)
+                Console::Print(Stream::Error, CT_TEXT("Cannot convert text from %s to %s on this system; the value is left out of the tag.\n"), from, to);
+            return dst;
+        }
+        char*             iPtr  = const_cast<char*>(src);
+        char*             oPtr  = dst + lead;
+        std::size_t       srcln = srcBytes;
+        std::size_t       avail = room;
+        const std::size_t rc    = iconv(xiconv, &iPtr, &srcln, &oPtr, &avail);
+        iconv_close(xiconv);
+        // the value is echoed back because a run may set several tag fields
+        if (rc == static_cast<std::size_t>(-1) && silent < 9)
+            Console::Print(Stream::Error, CT_TEXT("Only part of '%s' could be written as %s; %zu byte(s) of it were dropped.\n"), src, to, srcln);
+        return dst;
+    }
+
+#endif
 
     void CommandLine::SetProcessPriority(std::int32_t priority)
     {

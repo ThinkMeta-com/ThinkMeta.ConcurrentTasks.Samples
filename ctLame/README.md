@@ -50,7 +50,7 @@ Windows:
 
 ```
 bin\win-x64\lame   -V 2 input.wav lame.mp3
-bin\win-x64\ctLame -V 2 input.wav ctlame.mp3
+bin\win-x64\ctLame -V 2 --noreplaygain input.wav ctlame.mp3
 fc /b lame.mp3 ctlame.mp3
 ```
 
@@ -58,18 +58,22 @@ Linux:
 
 ```
 bin/linux-x64/lame   -V 2 input.wav lame.mp3
-bin/linux-x64/ctLame -V 2 input.wav ctlame.mp3
+bin/linux-x64/ctLame -V 2 --noreplaygain input.wav ctlame.mp3
 cmp lame.mp3 ctlame.mp3
 ```
 
 `fc` and `cmp` report no differences. The command lines are the same, too: ctLame accepts every
-option of the reduced LAME and prints the same messages. If the Linux programs lost their
+option of the reduced LAME and prints the same messages. `--noreplaygain` is there because ctLame,
+like unmodified LAME 4.0, writes the ReplayGain of the input into the LAME tag by default, and the
+reduced LAME has no ReplayGain; ctLame also writes ID3 tags again
+([Tags and ReplayGain](#tags-and-replaygain)). If the Linux programs lost their
 executable bit on the way (an archive unpacked on Windows, for example):
 `chmod +x bin/linux-x64/lame bin/linux-x64/ctLame`.
 
 To measure on your own music on Windows, run `benchmark\run.cmd D:\Music` (any folder of WAV files; the script is Windows only for now). It encodes
 every file with both programs, one process at a time, and writes a report with the times and the
-bit-identity check of each file. Every run reads a fresh copy of the file that is not in the file
+bit-identity check of each file. ctLame runs with `--noreplaygain`, like the reduced lame.exe;
+`-ReplayGain` also times ctLame with its default ReplayGain analysis. Every run reads a fresh copy of the file that is not in the file
 cache (`-Warm` reads the files where they are). For the run it switches to the High Performance
 power plan and restores the previous one afterwards (`-KeepPowerPlan` leaves it alone).
 
@@ -160,6 +164,11 @@ Every check must end with all cases identical. The Verify scripts of all samples
 
 ## Benchmarks
 
+**All benchmarks run ctLame without ReplayGain (`--noreplaygain`).** The reduced lame.exe has no
+ReplayGain analysis, so both programs do the same work and write the same bytes. ctLame runs the
+analysis by default, as unmodified LAME 4.0 does; with it, ctLame takes about 29 % longer on 16
+threads ([room for improvement](#room-for-improvement)).
+
 <details>
 <summary><b>Machine and method</b></summary>
 
@@ -168,7 +177,7 @@ Every check must end with all cases identical. The Verify scripts of all samples
 | CPU | Intel Core i9-11900K (Rocket Lake), 8 cores, 16 threads |
 | System | Windows 11 Pro, power plan High Performance, no other load |
 | Programs | the binaries in `bin\win-x64\`; all numbers in this README are from Windows, there are no Linux measurements yet |
-| Settings | `-V 4` (LAME's default VBR quality), all other options at their defaults |
+| Settings | `-V 4` (LAME's default VBR quality), all other options at their defaults; **no ReplayGain**: the reduced lame.exe has none, the measured ctLame had none yet, and `benchmark\` passes `--noreplaygain` to ctLame |
 | Timing | wall time of the whole process (start, reading the WAV file, encoding, writing the MP3), one process at a time; every run reads a fresh copy of the WAV file that is not in the file cache (cold); per file the programs take turns, three rounds, the median of each file counts, the totals are the sums of the medians |
 | Check | every MP3 of ctLame compared byte for byte with lame.exe's |
 | Run | 17 October 2026 with `benchmark\run.cmd <folder> -Rounds 3`, the script in this repository |
@@ -303,7 +312,7 @@ plus a comparison of 1012 command lines with all their console output.
 | VBR new: `-V 0..9.999`, `-q`, the VBR presets | CBR, ABR, VBR old, free format |
 | MPEG-1: 32, 44.1 and 48 kHz | MPEG-2/2.5, resampling |
 | WAV input: PCM 8/16/24/32 bit, 32-bit float, also WAVE_FORMAT_EXTENSIBLE | AIFF, raw PCM, MP3 input, stdin and stdout |
-| Xing/LAME VBR header | ID3v1/ID3v2 tags, ReplayGain, the frame analyzer |
+| Xing/LAME VBR header | ID3v1/ID3v2 tags and ReplayGain (ctLame has both again, see [Tags and ReplayGain](#tags-and-replaygain)), the frame analyzer |
 | all options that tune VBR new: channel mode, bitrate limits, filters, ATH, noise shaping, short blocks, bit reservoir, scaling | the decoder, `--nogap`, the CPU/assembly dispatch (the SSE2 intrinsics path is always on) |
 
 <details>
@@ -370,6 +379,33 @@ Options of ctLame only:
 
 </details>
 
+### Tags and ReplayGain
+
+ctLame writes ID3 tags and the ReplayGain of the input like unmodified LAME 4.0, with LAME's options;
+the reduced LAME in `lame\` has neither.
+
+| Option | Meaning |
+|---|---|
+| `--tt`, `--ta`, `--tl`, `--ty`, `--tc`, `--tn`, `--tg` | title, artist, album, year, comment, track (`n` or `n/total`), genre (name or number) |
+| `--tv id=value` | any ID3v2 frame, e.g. `TPE2=Album Artist`, `TPOS=1/2`, `TXXX=description=value` |
+| `--ti file` | album art (JPEG, PNG or GIF) |
+| `--add-id3v2`, `--id3v1-only`, `--id3v2-only` | which tags to write; by default the version 1 tag, and the version 2 tag when a text does not fit into version 1 or is Unicode |
+| `--id3v2-utf16`, `--id3v2-latin1` | the text encoding of the following options; UTF-16 is the default |
+| `--pad-id3v2-size n`, `--ignore-tag-errors`, `--genre-list` | padding of the version 2 tag, go on after a bad tag value, list the genres |
+| `--noreplaygain` | no ReplayGain analysis; `--replaygain-fast` is the default and does nothing else |
+
+`ctLame --help id3` lists the tag options. The ID3v2 tag goes in front of the MP3 frames, the ID3v1
+tag behind them. Tags and ReplayGain are bit-identical to unmodified LAME 4.0, checked on Windows and
+Linux; for a few corner cases of the tag code ctLame follows the fixes of LAME 4.1 instead (a
+description that begins another one names a different frame, frame ids need four characters, short
+language codes are padded, the padding is at most 128000 bytes, a tag too large for its size field is
+left out).
+
+The ReplayGain analysis (two IIR filters per channel over the whole file) runs in a task of its own
+per channel, beside the frame stages, and costs about 13 % of the time on one thread and about 29 %
+with 16 threads ([room for improvement](#room-for-improvement)). Like LAME 4.0, ctLame writes only the
+track gain ("radio") into the LAME tag; players that read ReplayGain from the ID3v2 tag do not see it.
+
 ## Reading the code
 
 The parallel version adds a thin task layer (`src\Tasks\`) around an encoder that does not know
@@ -400,7 +436,8 @@ about tasks (`src\Encoder\`). Read it in this order:
    back.
 4. **The nodes** (`src\Tasks\`), each a plain loop that waits on an edge: `WavReaderTask` (Read),
    `DispatchTask`, `WorkerTask` (Prepare and Search), `ResolveTask`, `EncodeTask` with
-   `FrameEncoder` (Encode) and `Mp3WriterTask` (Write). `SequentialEncodeTask` is the one compute
+   `FrameEncoder` (Encode) and `Mp3WriterTask` (Write), and with ReplayGain one `GainTask` per
+   channel, which Dispatch wakes and Encode waits for before the LAME tag. `SequentialEncodeTask` is the one compute
    node of `--sequential`, with the same edges and the same encoder. `ProfiledRun` and `WhileIdle`
    (`NodeProfile.h`) only measure the nodes with `--stats` (or the environment variable `CTLAME_PROFILE`);
    read past them.
@@ -490,6 +527,16 @@ ctLame is fast, but not at the end; the measurements point to these limits and n
   Rocket Lake), AVX-512 lookup tables (would cover only 3 to 7 % more blocks) and a mode without
   bit identity (fused multiply-add): 2 % faster on one thread, nothing on 16.
 
+* **ReplayGain:** its analysis is a serial chain of two IIR filters per channel. Each channel runs
+  in a task of its own, the input part of the first filter with SIMD, the feedback of both filters in
+  one loop; still it costs about 29 % with 16 threads, because it is CPU work on a CPU the encoder
+  already keeps busy (with empty Gain tasks the time is that of `--noreplaygain`). `--noreplaygain`
+  saves it. Like LAME 4.0, ctLame writes only the track gain, into the LAME tag; LAME 4.1 adds
+  `--replaygain-id3v2` (the values as ID3v2 frames, which most players read), and an album gain
+  would need all files of an album.
+* **More for everyday use:** tags taken from the WAV file (its LIST/INFO or `id3 ` chunk), input
+  from a pipe (programs like foobar2000 pass the audio that way), and input above 48 kHz, which would
+  need a resampler.
 * **Linux:** no measurements yet, and the benchmark script and `Compare-LameCli.ps1` are Windows
   only; a Linux benchmark script would come first. The PGO gain of the Linux build (clang) is not
   measured. The Linux programs need glibc 2.38 because libstdc++ is linked in from Ubuntu 24.04; a

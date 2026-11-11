@@ -261,11 +261,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             if (r == 0)
                 break;
             if (r < 0) {
-                PrintUsage();
+                PrintUsage(options.opusVersion);
                 return Shared::ParseResult::Error;
             }
             if (opt.shortOpt == 'h') {
-                PrintUsage();
+                PrintUsage(options.opusVersion);
                 return Shared::ParseResult::Exit;
             }
             if (opt.shortOpt == 'V') {
@@ -290,7 +290,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
                 options.withCvbr    = false;
                 options.withHardCbr = false;
             } else if (std::strcmp(optname, "help") == 0) {
-                PrintUsage();
+                PrintUsage(options.opusVersion);
                 return Shared::ParseResult::Exit;
             } else if (std::strcmp(optname, "help-picture") == 0) {
                 Console::Print(Stream::Output, CT_TEXT("  Pictures (--picture) are not supported by ctOpus.\n"));
@@ -425,7 +425,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
             }
         }
         if (parser.PositionalCount() != 2) {
-            PrintUsage();
+            PrintUsage(options.opusVersion);
             return Shared::ParseResult::Error;
         }
         options.inIndex  = parser.Positional(0);
@@ -436,9 +436,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         return Shared::ParseResult::Run;
     }
 
-    void CommandLine::PrintUsage()
+    void CommandLine::PrintUsage(const char* opusVersion)
     {
+        PrintVersion(opusVersion);
         const auto p = [](const Shared::Char* text) { Console::Print(Stream::Output, CT_TEXT("%s"), text); };
+        p(CT_TEXT("\n"));
         p(CT_TEXT("Usage: opusenc [options] input_file output_file.opus\n"));
         p(CT_TEXT("\n"));
         p(CT_TEXT("Encode audio using Opus.\n"));

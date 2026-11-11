@@ -65,8 +65,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Opus {
         /// </summary>
         static Shared::ParseResult Parse(int argc, Shared::Char** argv, Options& options);
 
-        /// <summary>The help text, to stdout.</summary>
-        static void PrintUsage();
+        /// <summary>The help text behind the version and the copyright (PrintVersion), to stdout.</summary>
+        static void PrintUsage(const char* opusVersion);
 
     private:
         // The strings opusenc and libopusenc write into the stream (OpusTags); kept for bit identity.

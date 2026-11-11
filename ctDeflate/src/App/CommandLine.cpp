@@ -31,7 +31,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
                 return Shared::ParseResult::Exit;
             }
             if (Text::Equal(arg, CT_TEXT("--version"))) {
-                PrintVersion();
+                PrintVersion(Stream::Output);
                 return Shared::ParseResult::Exit;
             }
             if (arg[0] == '-' && arg[1] >= '0' && arg[1] <= '9' && arg[2] == 0)
@@ -60,6 +60,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
 
     void CommandLine::PrintUsage(Stream stream)
     {
+        PrintVersion(stream);
+        Console::Print(stream, CT_TEXT("\n"));
         Console::Print(stream,
                        CT_TEXT("Usage: ctDeflate [-0..-9] [-o OUTPUT] [--threads N] [--sequential] [--in-memory] [--chunk BYTES] [--ahead N] [--stats] FILE\n")
                            CT_TEXT("Compresses FILE to FILE.gz (or OUTPUT), bit-identical to libdeflate 1.26 gzip.\n")
@@ -73,10 +75,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Deflate {
                                                            CT_TEXT("  --help        print this text\n") CT_TEXT("  --version     print the version\n"));
     }
 
-    void CommandLine::PrintVersion()
+    void CommandLine::PrintVersion(Stream stream)
     {
-        Console::Print(Stream::Output, CT_TEXT("ctDeflate %hs, based on libdeflate 1.26 (https://github.com/ebiggers/libdeflate)\n%hs\n"),
-                       CTDEFLATE_VERSION_STRING, CT_SAMPLES_COPYRIGHT);
+        Console::Print(stream, CT_TEXT("ctDeflate %hs, based on libdeflate 1.26 (https://github.com/ebiggers/libdeflate)\n%hs\n"), CTDEFLATE_VERSION_STRING,
+                       CT_SAMPLES_COPYRIGHT);
     }
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Deflate

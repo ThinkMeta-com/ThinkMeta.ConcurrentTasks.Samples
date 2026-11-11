@@ -21,6 +21,7 @@
 // headers with imports last
 #include "FrameEncoder.h"
 #include "FrameRing.h"
+#include "GainTask.h"
 
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 
@@ -36,10 +37,11 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     class EncodeTask final : public Tasks::Task
     {
     public:
-        EncodeTask(FrameRing& ring, SampleStream& stream, FrameEncoder& frameEncoder, TaskProfile* profile) noexcept
+        EncodeTask(FrameRing& ring, SampleStream& stream, FrameEncoder& frameEncoder, GainSignals* gain, TaskProfile* profile) noexcept
             : ring_(ring),
               stream_(stream),
               frameEncoder_(frameEncoder),
+              gain_(gain),
               profile_(profile)
         {}
 
@@ -49,6 +51,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         FrameRing&    ring_;
         SampleStream& stream_;
         FrameEncoder& frameEncoder_;
+        GainSignals*  gain_; // the gain tasks to wait for before the LAME tag; null without them
         TaskProfile*  profile_;
     };
 

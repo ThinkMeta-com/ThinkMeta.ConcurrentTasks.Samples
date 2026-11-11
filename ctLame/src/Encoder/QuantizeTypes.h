@@ -126,6 +126,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         std::int32_t                                        mode_ext;
         std::int32_t                                        encoder_delay;
         std::int32_t                                        encoder_padding;
+        std::int32_t                                        radio_gain; // RgResult_t RadioGain: the ReplayGain in 0.1 dB
     };
 
     // mode_ext values

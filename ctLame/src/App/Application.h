@@ -59,9 +59,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         static void EncoderProgressBegin(const SessionConfig& config, const Options& frontend, const Shared::Char* inPath, const Shared::Char* outPath);
         void        PrintProfile(const EncodeProfile& profile) const;
         static std::uint64_t MaxInputSamples(const WavFile& wavFile, const Shared::Char* inPath, std::int32_t channels, std::uint64_t byteLimit);
-        static bool RunEncodeGraph(Encoder& encoder, const SessionConfig& config, const Options& frontend, const WavFile& wavFile, const Shared::Char* inPath,
-                                   const Shared::Char* outPath, EncodeGraph::Result& result, EncodeProfile* profile, Shared::RunStats& stats,
-                                   const Shared::Char*& failure);
+        static bool          RunEncodeGraph(Encoder& encoder, const SessionConfig& config, const Options& frontend, const Id3Bytes& id3, const WavFile& wavFile,
+                                            const Shared::Char* inPath, const Shared::Char* outPath, EncodeGraph::Result& result, EncodeProfile* profile,
+                                            Shared::RunStats& stats, const Shared::Char*& failure);
 
         Options             options_;
         Shared::ParseResult result_ = Shared::ParseResult::Error;

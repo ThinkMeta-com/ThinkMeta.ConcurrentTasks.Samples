@@ -23,7 +23,7 @@ set(CT_LAME_ENCODER_DIR ${CT_LAME_DIR}/src/Encoder)
 set(CT_LAME_TASKS_DIR ${CT_LAME_DIR}/src/Tasks)
 
 set(CT_LAME_ENCODER_SOURCES
-    BitCount Bitstream ConfigPrint Encoder EncoderOptions Fft FhtAvx2 FhtSse41 HuffmanTables Input Mdct MdctAvx2
+    BitCount Bitstream ConfigPrint Encoder EncoderOptions Fft FhtAvx2 FhtSse41 GainAnalysis GainAvx2 GainSse41 HuffmanTables Id3Tag Input Mdct MdctAvx2
     MdctKernels MdctSse41 Presets Profiling PsyAvx2 PsyInit PsyMath PsyPrepare PsyResolve PsySse41 Quantize QuantizeAvx2
     QuantizeSse41 Reservoir SampleStream SessionConfig SimdFeatures Stages Tables VbrQuantize VbrTag Version
 )
@@ -44,7 +44,7 @@ foreach(file IN LISTS CT_LAME_ENCODER_SOURCES)
 endforeach()
 
 set(CT_LAME_TASKS_SOURCES
-    BlockPipe DispatchTask EncodeGraph EncodeTask FrameEncoder FrameRing Mp3WriterTask PcmFeed SequentialEncodeTask WavReaderTask
+    BlockPipe DispatchTask EncodeGraph EncodeTask FrameEncoder FrameRing GainTask Mp3WriterTask PcmFeed SequentialEncodeTask WavReaderTask
 )
 list(TRANSFORM CT_LAME_TASKS_SOURCES PREPEND ${CT_LAME_TASKS_DIR}/)
 list(TRANSFORM CT_LAME_TASKS_SOURCES APPEND .cpp)
@@ -68,7 +68,7 @@ if(CT_SHARED_TEST_SHIM_DIR)
     set(CT_LAME_TESTS_DIR ${CT_LAME_DIR}/src/Tests)
     # without the two measurements EventCostBenchmark and IoPipelineBenchmark (against CopyFileW): they run on Windows
     set(CT_LAME_TESTS_SOURCES
-        EncoderGoldenTests FrameRingTests InitParamsTests InputMdctTests IoPipelineTests MdctGoldenTests PsyGoldenTests
+        EncoderGoldenTests FrameRingTests Id3TagTests InitParamsTests InputMdctTests IoPipelineTests MdctGoldenTests PsyGoldenTests
         SchedulerHandleTests SimdTests VersionTests
     )
     list(TRANSFORM CT_LAME_TESTS_SOURCES PREPEND ${CT_LAME_TESTS_DIR}/)

@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
+#include <new>
 #include <optional>
 
 #include "CommandLine.h"
@@ -112,6 +113,22 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
         EncoderProgressBegin(config, options_, options_.inPath.data(), options_.outPath.data());
 
+        // lame_encoder_loop: the ID3v2 tag goes in front of the MP3 stream (if its memory is not available, LAME
+        // leaves it out), the ID3v1 tag behind it (write_id3v1_tag); the encode node writes both
+        Id3Bytes                     id3;
+        std::unique_ptr<std::byte[]> id3v2;
+        std::array<std::byte, 128>   id3v1{};
+        const std::size_t            id3v2Size = options_.id3.GetV2Tag(nullptr, 0, config.options.numSamples, config.samplerate_in);
+        if (id3v2Size > 0) {
+            id3v2.reset(new (std::nothrow) std::byte[id3v2Size]);
+            if (id3v2 != nullptr) {
+                id3.v2     = id3v2.get();
+                id3.v2Size = static_cast<std::uint32_t>(options_.id3.GetV2Tag(id3v2.get(), id3v2Size, config.options.numSamples, config.samplerate_in));
+            }
+        }
+        id3.v1     = id3v1.data();
+        id3.v1Size = static_cast<std::uint32_t>(options_.id3.GetV1Tag(id3v1.data(), id3v1.size()));
+
         // read_samples_pcm checks the sample width on the first read, after the configuration
         // has been printed; LAME then encodes no samples at all.
         const std::int32_t bitWidth = wavFile.PcmBitWidth();
@@ -132,7 +149,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         }
 
         const Shared::Char* failure = CT_TEXT("");
-        const bool          started = RunEncodeGraph(*encoder, config, options_, wavFile, options_.inPath.data(), options_.outPath.data(), result,
+        const bool          started = RunEncodeGraph(*encoder, config, options_, id3, wavFile, options_.inPath.data(), options_.outPath.data(), result,
                                                      profile ? &*profile : nullptr, stats_, failure);
         // get_audio: a read error ends the input like its end; LAME reports it, still flushes the
         // encoder and writes the tag, and exits with 0
@@ -157,6 +174,15 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             // write_xing_frame: the writer task has put the tag frame at the start of the file
             Console::Print(Stream::Error, CT_TEXT("Writing LAME Tag..."));
             Console::Print(Stream::Error, CT_TEXT("done\n"));
+        }
+        // print_trailing_info
+        if (started && ret == 0 && options_.silent <= 0 && config.options.findReplayGain != 0) {
+            const std::int32_t radioGain = encoder->Result().radio_gain;
+            Console::Print(Stream::Error, CT_TEXT("ReplayGain: %s%.1fdB\n"), radioGain > 0 ? CT_TEXT("+") : CT_TEXT(""), static_cast<float>(radioGain) / 10.0);
+            if (radioGain > 0x1FE || radioGain < -0x1FE)
+                Console::Print(Stream::Error,
+                               CT_TEXT("WARNING: ReplayGain exceeds the -51dB to +51dB range. Such a result is too\n"
+                                       "         high to be stored in the header.\n"));
         }
         if (profile)
             PrintProfile(*profile);
@@ -231,11 +257,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             const TaskProfile*  task;
         };
         const auto&                   graph = profile.graph;
-        const std::array<TaskLine, 6> tasks = {{{CT_TEXT("read"), &graph.read},
+        const std::array<TaskLine, 7> tasks = {{{CT_TEXT("read"), &graph.read},
                                                 {CT_TEXT("dispatch"), &graph.dispatch},
                                                 {CT_TEXT("worker"), &graph.worker},
                                                 {CT_TEXT("resolve"), &graph.resolve},
                                                 {frontend.sequential ? CT_TEXT("sequential") : CT_TEXT("encode"), &graph.encode},
+                                                {CT_TEXT("gain"), &graph.gain},
                                                 {CT_TEXT("write"), &graph.write}}};
         for (const auto& t : tasks) {
             const std::int32_t count = t.task->tasks.load();
@@ -266,9 +293,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     // lame_encoder_loop: the task graph of the encoder (EncodeGraph) on an I/O and a compute
     // scheduler; the calling thread waits for it. False if a part of the setup failed, with the
     // reason in failure.
-    bool Application::RunEncodeGraph(Encoder& encoder, const SessionConfig& config, const Options& frontend, const WavFile& wavFile, const Shared::Char* inPath,
-                                     const Shared::Char* outPath, EncodeGraph::Result& result, EncodeProfile* profile, Shared::RunStats& stats,
-                                     const Shared::Char*& failure)
+    bool Application::RunEncodeGraph(Encoder& encoder, const SessionConfig& config, const Options& frontend, const Id3Bytes& id3, const WavFile& wavFile,
+                                     const Shared::Char* inPath, const Shared::Char* outPath, EncodeGraph::Result& result, EncodeProfile* profile,
+                                     Shared::RunStats& stats, const Shared::Char*& failure)
     {
         // with a trusted header length LAME reads exactly num_samples, else up to the end
         const std::int32_t  bytesPerSample = (wavFile.PcmBitWidth() + 7) / 8;
@@ -284,6 +311,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         settings.format          = {config.channels_in, wavFile.PcmBitWidth(), wavFile.IsIeeeFloat(), frontend.swapChannel != 0};
         settings.threads         = frontend.threads > 0 ? static_cast<std::uint32_t>(frontend.threads) : Shared::TaskRuntime::LogicalProcessors();
         settings.sequential      = frontend.sequential != 0;
+        settings.id3             = id3;
         if (profile != nullptr)
             profile->threads = static_cast<std::int32_t>(settings.threads);
 

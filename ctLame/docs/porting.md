@@ -73,6 +73,9 @@ scalar code they sit next to.
 | `ResvFrameBegin`, `ResvMaxBits`, `ResvFrameEnd` (reservoir.c) | `Reservoir.cpp`: `ReservoirFrameBegin`, `ReservoirMaxBits`, `ReservoirFrameEnd` |
 | `format_bitstream`, `writeMainData`, `flush_bitstream` (bitstream.c) | `Bitstream.cpp`: `FormatBitstream`, `PrepareMainData` and `WriteMainData`, `FlushBitstream` |
 | `InitVbrTag`, `lame_get_lametag_frame` (VbrTag.c) | `VbrTag.cpp`: `InitVbrTag`, `GetLameTagFrame` |
+| `id3tag_*`, `lame_get_id3v1_tag`, `lame_get_id3v2_tag` (id3tag.c of unmodified LAME 4.0) | `Id3Tag.cpp`: `Id3Tag` (`SetTitle` … `SetFieldValueUtf16`, `GetV1Tag`, `GetV2Tag`), with the ID3 fixes of LAME 4.1 for a few corner cases |
+| `InitGainAnalysis`, `AnalyzeSamples`, `GetTitleGain` (gain_analysis.c of unmodified LAME 4.0) | `GainAnalysis.cpp`: `ChannelGain` (one channel: `Initialize`, `Analyze`), `GainAnalysis::TitleGain`; the input part of `filterYule` in `GainKernels.h` (SIMD in `GainSimd.inc`), the rest of both filters in one loop |
+| `AnalyzeSamples` in `lame_encode_buffer_sample_t`, the padding of `lame_encode_flush`, `save_gain_values` (lame.c) | `SampleStream.cpp`: `GainPiece`, `PlanGainTail`, `FinishGain`; in the parallel graph `src\Tasks\GainTask.cpp` |
 | `lame_init_params` (lame.c) | `SessionConfig.cpp`: `InitParams` |
 
 ## Frontend and input
@@ -81,6 +84,7 @@ scalar code they sit next to.
 |---|---|
 | `main.c`, `lame_main.c` | `src\App\Application.cpp` (`Application::Execute`; the command line in `CommandLine.cpp`); `lame_encoder_loop` is `RunEncodeGraph`, which runs the [task graph](task-graph.md) |
 | `parse.c`: `parse_args`, `usage`, `display_bitrates` | `src\App\CommandLine.cpp`: `CommandLine::Parse`, `PrintUsage`, `DisplayBitrates` |
+| `parse.c`: `help_id3tag`, `id3_tag`, `set_id3tag`, `set_id3v2tag`, `set_id3_albumart`, `toLatin1`, `toUtf16` | `src\App\CommandLine.cpp`: `HelpId3Tag`, `Id3TagOption`, `SetId3Tag`, `SetId3v2Tag`, `SetId3AlbumArt`, `ToLatin1`, `ToUtf16` (on Linux `ConvertText`, as in LAME 4.1) |
 | `get_audio.c`: opening the WAV file and parsing its header | `src\App\WavFile.cpp`: `WavFile` |
 | `get_audio.c`: reading the samples | `src\Encoder\Input.cpp`: `PcmReader` |
 | the input buffering: `lame_copy_inbuffer`, `lame_encode_buffer_sample_t`, `fill_buffer`, `lame_encode_flush` | `src\Encoder\SampleStream.cpp`: `SampleStream` |

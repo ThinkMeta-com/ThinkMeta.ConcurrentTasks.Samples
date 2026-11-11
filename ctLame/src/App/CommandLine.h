@@ -12,6 +12,7 @@
 
 #include "Console.h"
 #include "EncoderOptions.h"
+#include "Id3Tag.h"
 #include "ParseResult.h"
 #include "SimdFeatures.h"
 #include "Text.h"
@@ -27,6 +28,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// </summary>
     struct Options {
         EncoderOptions                        encoder;
+        Id3Tag                                id3; // the ID3 tags (id3tag_spec), written in front of and behind the MP3 frames
         std::array<Shared::Char, PathMax + 1> inPath  = {};
         std::array<Shared::Char, PathMax + 1> outPath = {};
 
@@ -88,6 +90,39 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         static std::int32_t StringToArgv(Shared::Char* str, Shared::Char** argv, std::int32_t n);
         static std::int32_t MergeArgv(std::int32_t argc, Shared::Char** argv, std::int32_t strArgc, Shared::Char** strArgv, std::int32_t n);
         static std::int32_t ParseArgsInternal(Options& options, std::int32_t argc, Shared::Char** argv);
+
+        /// <summary>The text encodings of the ID3 options (TextEncoding of parse.c, without UTF-8).</summary>
+        enum class TextEncoding { Latin1, Utf16 };
+
+        /// <summary>Port of help_id3tag.</summary>
+        static void HelpId3Tag(Shared::Stream fp);
+
+        /// <summary>Port of id3_tag: one ID3 option (type: t, a, l, y, c, n, g or v); in UTF-16 mode the text goes in Latin-1 into the ID3v1 fields
+        /// first.</summary>
+        static std::int32_t Id3TagOption(Id3Tag& tag, char type, TextEncoding encoding, const Shared::Char* text, std::int32_t silent);
+
+        /// <summary>Port of set_id3tag: a Latin-1 text.</summary>
+        static std::int32_t SetId3Tag(Id3Tag& tag, char type, const char* text);
+
+        /// <summary>Port of set_id3v2tag: a UTF-16 text with byte order mark.</summary>
+        static std::int32_t SetId3v2Tag(Id3Tag& tag, char type, const char16_t* text);
+
+        /// <summary>Port of set_id3_albumart: 0, or 1 to 4 after an error (printed).</summary>
+        static std::int32_t SetId3AlbumArt(Id3Tag& tag, const Shared::Char* fileName);
+
+        /// <summary>toLatin1 of the LAME frontend: the argument as Latin-1, on the heap (nullptr if it cannot be converted).</summary>
+        static char* ToLatin1(const Shared::Char* text, std::int32_t silent);
+
+        /// <summary>toUtf16 of the LAME frontend: the argument as UTF-16 after a byte order mark, on the heap.</summary>
+        static char16_t* ToUtf16(const Shared::Char* text, std::int32_t silent);
+
+#if !defined(_WIN32)
+        /// <summary>
+        /// Port of convert_text (parse.c of LAME 4.1): iconv of srcBytes of src from the character set of the locale into a
+        /// zeroed buffer of (room + 4) * 4 bytes, from byte lead on; reports text that cannot be converted (silent < 9).
+        /// </summary>
+        static char* ConvertText(const char* to, const char* src, std::size_t srcBytes, std::size_t room, std::size_t lead, std::int32_t silent);
+#endif
 
         /// <summary>The priorities of setProcessPriority.</summary>
         enum class Priority { Low, Normal, High };

@@ -153,6 +153,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
 
     void CommandLine::PrintUsage(const Shared::Char* programName)
     {
+        PrintVersion();
+        Console::Print(Stream::Output, CT_TEXT("\n"));
         Console::Print(Stream::Output,
                        CT_TEXT("Usage: %s INPUT OUTPUT [OPTIONS...]\n") CT_TEXT(" INPUT   binary PPM (P6) or PGM (P5), 8 bit\n")
                            CT_TEXT(" OUTPUT  the JPEG file, bit-identical to cjpegli (jpegli 031a007) per feature set\n")

@@ -22,6 +22,7 @@
 // headers with imports last
 #include "BlockPipe.h"
 #include "FrameRing.h"
+#include "GainTask.h"
 #include "PcmFeed.h"
 
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
@@ -32,12 +33,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// Node Dispatch of the parallel encoder graph (EncodeGraph.h): takes the
     /// WAV data from the PCM pipe into the sample stream (PcmFeed) and dispatches each frame
     /// whose window is complete into the frame ring, in frame order. Holds back while all slots
-    /// of the ring are in use, so the input runs at most a ring ahead of the encoding.
+    /// of the ring are in use, so the input runs at most a ring ahead of the encoding. Wakes the gain tasks (GainTask)
+    /// when the stream has a new piece for them.
     /// </summary>
     class DispatchTask final : public Tasks::Task
     {
     public:
-        DispatchTask(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format, FrameRing& ring, TaskProfile* profile) noexcept;
+        DispatchTask(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format, FrameRing& ring, GainSignals* gain, TaskProfile* profile) noexcept;
 
         void Run() noexcept override;
 
@@ -47,6 +49,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         PcmFeed       feed_;
         SampleStream& stream_;
         FrameRing&    ring_;
+        GainSignals*  gain_; // the gain tasks to wake as the stream grows; null without them
         TaskProfile*  profile_;
         std::int64_t  next_ = 0; // the next frame to dispatch
     };

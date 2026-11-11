@@ -12,6 +12,11 @@
     the session configuration), the parser quirks (bundled short options, missing arguments,
     LAMEOPT) and WAV header edge cases, generated as small files in the work directory.
 
+    ReplayGain, which the reduced lame.exe does not have, is compared with the unmodified LAME 4.0
+    (-Lame40, a build of the original LAME 4.0 sources; without it these cases are skipped): exit
+    code, MP3 files and the lines of print_trailing_info (its other console output has the progress
+    display). The cases of the reduced lame.exe run ctLame with --noreplaygain.
+
     Needs PowerShell 7. Exit code 0 when every case is identical, 1 otherwise.
 
 .EXAMPLE
@@ -22,11 +27,13 @@
 param(
     [string]$Lame = (Join-Path $PSScriptRoot '..\build\Release\bin\lame.exe'),
     [string]$CtLame = (Join-Path $PSScriptRoot '..\build\Release\bin\ctLame.exe'),
+    [string]$Lame40 = '', # unmodified LAME 4.0
     [switch]$Keep                                # keep the work directory
 )
 
 $ErrorActionPreference = 'Stop'
 foreach ($exe in $Lame, $CtLame) { if (-not (Test-Path -LiteralPath $exe)) { throw "$exe not found" } }
+if ($Lame40 -and -not (Test-Path -LiteralPath $Lame40)) { throw "$Lame40 not found" }
 
 Add-Type -TypeDefinition @'
 using System;
@@ -69,11 +76,11 @@ public static class CtLameCliCompare
     }
 
     static byte[] Wav(int channels = 2, int rate = 44100, int bits = 16, int tag = 1, int frames = 3000, int? extensibleSub = null,
-                      uint? dataSize = null, byte[] extraChunks = null)
+                      uint? dataSize = null, byte[] extraChunks = null, bool silence = false)
     {
         int bytesPerSample = (bits + 7) / 8;
         byte[] data = new byte[frames * channels * bytesPerSample];
-        for (int i = 0; i < data.Length; i++) data[i] = (byte)((i * 37) & 0xFF);
+        if (!silence) for (int i = 0; i < data.Length; i++) data[i] = (byte)((i * 37) & 0xFF);
         var body = new MemoryStream();
         var w = new BinaryWriter(body);
         w.Write(Encoding.ASCII.GetBytes("WAVE"));
@@ -113,6 +120,7 @@ public static class CtLameCliCompare
             new KeyValuePair<string, byte[]>("nolen.wav", Wav(dataSize: 0xFFFFFFFF)),
             new KeyValuePair<string, byte[]>("list.wav", Wav(extraChunks: Chunk("LIST", Ascii("abc")))),
             new KeyValuePair<string, byte[]>("empty.wav", Wav(frames: 0)),
+            new KeyValuePair<string, byte[]>("silence.wav", Wav(frames: 30000, silence: true)),
             new KeyValuePair<string, byte[]>("notwave.wav", Concat(Ascii("RIFF"), new byte[] { 0x10, 0, 0, 0 }, Ascii("AVI junkjunkjunk"))),
             new KeyValuePair<string, byte[]>("text.wav", Ascii("hello world, not a wave file\n")),
             new KeyValuePair<string, byte[]>("nodata.wav", Concat(Ascii("RIFF"), new byte[] { 0x1c, 0, 0, 0 }, Ascii("WAVE"), Chunk("fmt ", FmtPayload(1, 2, 44100, 16, null)))),
@@ -198,7 +206,41 @@ public static class CtLameCliCompare
           "    --simd <level>  the highest SIMD level to use: scalar, sse4.1 or avx2\n" +
           "                    (default: the highest the CPU supports; all levels give\n" +
           "                    the same bits)\n" +
-          "    --features      print the CPU features and the SIMD level in use\n", ""),
+          "    --features      print the CPU features and the SIMD level in use\n" +
+          "    --stats         print the stage and task times after encoding\n" +
+          "                    (also: environment variable CTLAME_PROFILE)\n", ""),
+        // the ReplayGain options, which the reduced lame.exe does not have (compared with the LAME 4.0 oracle by the Rg matrix)
+        A("    --replaygain-fast   compute RG fast but slightly inaccurately (default)\n" +
+          "    --noreplaygain  disable ReplayGain analysis\n", ""),
+        // the ID3 options, which the reduced lame.exe does not have (compared with the LAME 4.0 oracle by the Tags matrix of Verify-Lame.ps1)
+        A("    --help id3      ID3 tagging related options\n\n", ""),
+        A("  ID3 tag options:\n" +
+          "    --tt <title>    audio/song title (max 30 chars for version 1 tag)\n" +
+          "    --ta <artist>   audio/song artist (max 30 chars for version 1 tag)\n" +
+          "    --tl <album>    audio/song album (max 30 chars for version 1 tag)\n" +
+          "    --ty <year>     audio/song year of issue (1 to 9999)\n" +
+          "    --tc <comment>  user-defined text (max 30 chars for v1 tag, 28 for v1.1)\n" +
+          "    --tn <track[/total]>   audio/song track number and (optionally) the total\n" +
+          "                           number of tracks on the original recording. (track\n" +
+          "                           and total each 1 to 255. just the track number\n" +
+          "                           creates v1.1 tag, providing a total forces v2.0).\n" +
+          "    --tg <genre>    audio/song genre (name or number in list)\n" +
+          "    --ti <file>     audio/song albumArt (jpeg/png/gif file, v2.3 tag)\n" +
+          "    --tv <id=value> user-defined frame specified by id and value (v2.3 tag)\n" +
+          "                    syntax: --tv \"TXXX=description=content\"\n" +
+          "    --add-id3v2     force addition of version 2 tag\n" +
+          "    --id3v1-only    add only a version 1 tag\n" +
+          "    --id3v2-only    add only a version 2 tag\n" +
+          "    --id3v2-utf16   add following options in unicode UTF-16 text encoding\n" +
+          "    --id3v2-latin1  add following options in latin-1 text encoding\n" +
+          "    --pad-id3v2-size <value> adds version 2 tag, pad with extra <value> bytes\n" +
+          "    --genre-list    print alphabetically sorted ID3 genre list and exit\n" +
+          "    --ignore-tag-errors  ignore errors in values passed for tags\n" +
+          "\n" +
+          "    Note: A version 2 tag will NOT be added unless one of the input fields\n" +
+          "    won't fit in a version 1 tag (e.g. the title string is longer than 30\n" +
+          "    characters), or the '--add-id3v2' or '--id3v2-only' options are used.\n" +
+          "    Unicode text (the default, see '--id3v2-utf16') also adds it.\n", ""),
         A("ctLame encodes MPEG-1", "LAME encodes MPEG-1"),
         A("    ctlame -V2 input.wav output.mp3", "    lame -V2 input.wav output.mp3"),
         A("lets ctLame ignore noise", "lets LAME ignore noise"),
@@ -207,11 +249,28 @@ public static class CtLameCliCompare
 
     static string AsLameText(string text)
     {
+        // the banner without ctLame's version number
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"ctLame \d+(\.\d+)* 64bits, based on", "ctLame 0.1 64bits, based on");
         foreach (var t in CtLameTexts) text = text.Replace(t[0], t[1]);
         return text;
     }
 
     sealed class Case { public string[] Args; public string EnvOpt; }
+
+    // against the unmodified LAME 4.0 (the oracle's default is CBR 128, so -V 2): the gain of noise, mono, 48 kHz,
+    // silence (+64.8 dB, the warning), no samples, --quiet (no output) and --noreplaygain
+    static readonly string[][] ReplayGainCases =
+    {
+        A("-V", "2", "in.wav", "out.mp3"), A("-V", "2", "mono.wav", "out.mp3"), A("-V", "2", "r48.wav", "out.mp3"),
+        A("-V", "2", "silence.wav", "out.mp3"), A("-V", "2", "empty.wav", "out.mp3"), A("-V", "2", "--quiet", "in.wav", "out.mp3"),
+        A("-V", "2", "--noreplaygain", "in.wav", "out.mp3"),
+    };
+
+    // the lines of print_trailing_info: the gain and its warning
+    static string ReplayGainLines(string text)
+    {
+        return string.Join("\n", text.Replace("\r", "").Split('\n').Where(l => l.Contains("ReplayGain")));
+    }
 
     static List<Case> BuildCases()
     {
@@ -370,7 +429,7 @@ public static class CtLameCliCompare
         return "'" + s.Replace("\\", "\\\\").Replace("\n", "\\n").Replace("'", "\\'") + "'";
     }
 
-    public static int Compare(string lame, string ctLame, bool keep)
+    public static int Compare(string lame, string ctLame, string lame40, bool keep)
     {
         string work = Path.Combine(Path.GetTempPath(), "ctlame-cli-" + Guid.NewGuid().ToString("N").Substring(0, 8));
         string lameDir = Path.Combine(work, "lame"), ctLameDir = Path.Combine(work, "ctlame");
@@ -383,7 +442,10 @@ public static class CtLameCliCompare
             var c = cases[index];
             uint eCode, aCode; string eOut, eErr, aOut, aErr;
             Run(lame, c.Args, c.EnvOpt, lameDir, out eCode, out eOut, out eErr);
-            Run(ctLame, c.Args, c.EnvOpt, ctLameDir, out aCode, out aOut, out aErr);
+            // the reduced lame.exe has no ReplayGain; ctLame computes it by default like LAME 4.0 (without arguments
+            // it only prints the usage)
+            var ctArgs = c.Args.Length == 0 ? c.Args : new[] { "--noreplaygain" }.Concat(c.Args).ToArray();
+            Run(ctLame, ctArgs, c.EnvOpt, ctLameDir, out aCode, out aOut, out aErr);
             var eFiles = TakeMp3Files(lameDir);
             var aFiles = TakeMp3Files(ctLameDir);
             aOut = AsLameText(aOut); aErr = AsLameText(aErr);
@@ -414,6 +476,28 @@ public static class CtLameCliCompare
 
         Console.WriteLine((cases.Count - failures - known) + " of " + cases.Count + " cases identical, " + known + " expected differences, " + failures + " failures");
         Console.WriteLine(mp3Files + " MP3 files of lame compared");
+
+        int rgFailures = 0;
+        // PowerShell passes $null as an empty string
+        bool haveLame40 = !string.IsNullOrEmpty(lame40);
+        if (!haveLame40) Console.WriteLine("ReplayGain cases skipped: no unmodified LAME 4.0 (-Lame40)");
+        foreach (var args in haveLame40 ? ReplayGainCases : new string[0][])
+        {
+            uint eCode, aCode; string eOut, eErr, aOut, aErr;
+            Run(lame40, args, null, lameDir, out eCode, out eOut, out eErr);
+            Run(ctLame, args, null, ctLameDir, out aCode, out aOut, out aErr);
+            var eFiles = TakeMp3Files(lameDir);
+            var aFiles = TakeMp3Files(ctLameDir);
+            string eLines = ReplayGainLines(eOut) + "|" + ReplayGainLines(eErr), aLines = ReplayGainLines(aOut) + "|" + ReplayGainLines(aErr);
+            if (eCode == aCode && eLines == aLines && eFiles.Count == 1 && SameFiles(eFiles, aFiles)) continue;
+            rgFailures++;
+            Console.WriteLine("--- ReplayGain case: " + string.Join(" ", args));
+            if (eCode != aCode) Console.WriteLine("  exit code differs:\n    lame 4.0: " + eCode + "\n    ctLame  : " + aCode);
+            if (eLines != aLines) Console.WriteLine("  ReplayGain output differs:\n    lame 4.0: " + Quote(eLines) + "\n    ctLame  : " + Quote(aLines));
+            if (eFiles.Count != 1 || !SameFiles(eFiles, aFiles)) Console.WriteLine("  MP3 file differs or is missing");
+        }
+        if (haveLame40) Console.WriteLine((ReplayGainCases.Length - rgFailures) + " of " + ReplayGainCases.Length + " ReplayGain cases identical with LAME 4.0");
+        failures += rgFailures;
         if (keep) Console.WriteLine("work directory: " + work);
         else try { Directory.Delete(work, true); } catch (IOException) { }
         return failures > 0 ? 1 : 0;
@@ -421,5 +505,6 @@ public static class CtLameCliCompare
 }
 '@
 
-$exitCode = [CtLameCliCompare]::Compare((Resolve-Path -LiteralPath $Lame).Path, (Resolve-Path -LiteralPath $CtLame).Path, $Keep.IsPresent)
+$exitCode = [CtLameCliCompare]::Compare((Resolve-Path -LiteralPath $Lame).Path, (Resolve-Path -LiteralPath $CtLame).Path,
+    $(if ($Lame40) { (Resolve-Path -LiteralPath $Lame40).Path } else { '' }), $Keep.IsPresent)
 exit $exitCode

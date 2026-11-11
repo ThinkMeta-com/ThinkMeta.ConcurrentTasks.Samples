@@ -95,7 +95,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
         if (Error::Succeeded(error) && header_ != nullptr && headerSize_ > 0) {
             AsyncIo::AsyncFile::ByteCount written = 0;
-            error                                 = file.Write(header_, headerSize_, written, 0);
+            error                                 = file.Write(header_, headerSize_, written, headerOffset_);
             if (Error::Succeeded(error) && written != headerSize_)
                 error = Error::WriteFault;
         }

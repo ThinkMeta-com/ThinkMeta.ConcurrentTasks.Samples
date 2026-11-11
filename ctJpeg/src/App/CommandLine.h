@@ -44,10 +44,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Jpeg {
         /// <summary>Reads the command line into options; prints the help text or the error.</summary>
         static Shared::ParseResult Parse(std::int32_t argc, Shared::Char** argv, Options& options);
 
-        /// <summary>The help text, to stdout.</summary>
+        /// <summary>The help text behind the version and the copyright, to stdout.</summary>
         static void PrintUsage(const Shared::Char* programName);
 
-        /// <summary>The version and the copyright, to stdout.</summary>
+        /// <summary>The version and the copyright, to stdout (--version, and the head of the help text).</summary>
         static void PrintVersion();
 
     private:

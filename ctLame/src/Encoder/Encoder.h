@@ -86,10 +86,16 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         /// <summary>encoder_padding, known once the sample stream has been flushed.</summary>
         void SetEncoderPadding(std::int32_t padding) noexcept { bitstream_.result.encoder_padding = padding; }
 
+        /// <summary>save_gain_values: the ReplayGain of the input in 0.1 dB, for the LAME tag.</summary>
+        void SetRadioGain(std::int32_t radioGain) noexcept { bitstream_.result.radio_gain = radioGain; }
+
         /// <summary>lame_get_lametag_frame: the final tag frame, see GetLameTagFrame.</summary>
         std::size_t GetLameTagFrame(std::byte* buffer, std::size_t size) const noexcept;
 
         const EncoderResult& Result() const noexcept { return bitstream_.result; }
+
+        /// <summary>The SIMD level of Initialize, for the parts of the encoding outside the encoder (ReplayGain).</summary>
+        SimdLevel Simd() const noexcept { return simd_; }
 
         /// <summary>Times the stages into profile (CTLAME_PROFILE); null switches it off.</summary>
         void SetProfile(StageProfile* profile) noexcept { profile_ = profile; }
@@ -105,6 +111,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         BitstreamStageState bitstream_;
         FrameData           frame_;
         std::int64_t        frames_ = 0; // frames through RunAllStages
+        SimdLevel           simd_   = SimdLevel::Scalar;
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

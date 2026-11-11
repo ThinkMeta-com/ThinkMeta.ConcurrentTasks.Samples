@@ -132,10 +132,26 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             const double       lowpass  = (config.lowpassfreq / 100.0) + .5;
             const std::uint8_t nLowpass = static_cast<std::uint8_t>(lowpass > 255 ? 255 : static_cast<std::int32_t>(lowpass));
 
-            // no ReplayGain analysis: peak and gain fields stay 0
+            // without a decoder there is no peak sample (findPeakSample), and LAME has no audiophile gain
             const std::uint32_t peakSignalAmplitude  = 0;
-            const std::int32_t  radioReplayGain      = 0;
+            std::int32_t        radioReplayGain      = 0;
             const std::int32_t  audiophileReplayGain = 0;
+
+            if (options.findReplayGain != 0) {
+                std::int32_t radioGain = result.radio_gain;
+                if (radioGain > 0x1FE)
+                    radioGain = 0x1FE;
+                if (radioGain < -0x1FE)
+                    radioGain = -0x1FE;
+                radioReplayGain = 0x2000; // set name code
+                radioReplayGain |= 0xC00; // set originator code to `determined automatically'
+                if (radioGain >= 0)
+                    radioReplayGain |= radioGain; // set gain adjustment
+                else {
+                    radioReplayGain |= 0x200;      // set the sign bit
+                    radioReplayGain |= -radioGain; // set gain adjustment
+                }
+            }
 
             const std::uint8_t noiseShaping = static_cast<std::uint8_t>(config.noise_shaping);
             const std::uint8_t expNPsyTune  = 1; // only NsPsytune

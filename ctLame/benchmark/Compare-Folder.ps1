@@ -13,7 +13,9 @@
     so no program reads it from the file cache, as when a file is encoded for the first time; the
     copy is not timed and is deleted afterwards. -Warm reads the files where they are.
 
-    Bit identity: ctLame's MP3 must be byte for byte the same as lame.exe's (first round).
+    Bit identity: ctLame's MP3 must be byte for byte the same as lame.exe's (first round). ctLame
+    runs with --noreplaygain, as lame.exe has no ReplayGain. -ReplayGain adds ctLame with its
+    default ReplayGain analysis, which writes the gain into the LAME tag; its MP3 is not compared.
 
     The report lists per file the audio length, the median time of each program and the factor,
     and the totals (sum of the medians) as a multiple of real time and of lame.exe. It goes to
@@ -31,12 +33,14 @@
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File Compare-Folder.ps1 D:\Musik
     powershell -ExecutionPolicy Bypass -File Compare-Folder.ps1 D:\Musik -Rounds 3 -Sequential -EncodeArgs '-V 2'
+    powershell -ExecutionPolicy Bypass -File Compare-Folder.ps1 D:\Musik -Rounds 3 -ReplayGain
 #>
 param(
     [Parameter(Position = 0)][string]$WavDir, # folder with the WAV files; asked for if missing
     [string]$EncodeArgs = '-V 4',             # encoder settings for both programs
     [int]$Rounds = 1,                         # runs per file and program; the median counts
     [switch]$Sequential,                      # also ctLame --sequential (one thread)
+    [switch]$ReplayGain,                      # also ctLame with ReplayGain (its default; MP3 not compared)
     [int]$Threads = 0,                        # ctLame --threads n; 0 = all logical processors
     [switch]$Recurse,                         # also the WAV files in subfolders
     [switch]$KeepMp3,                         # keep the MP3 files in work\
@@ -77,9 +81,16 @@ $argList = @($EncodeArgs -split ' ' | Where-Object { $_ })
 
 $candidates = @(
     [pscustomobject]@{ Name = 'lame.exe'; Exe = $lame; Extra = @() }
-    [pscustomobject]@{ Name = 'ctLame'; Exe = $ctLame; Extra = @(if ($Threads -gt 0) { '--threads', "$Threads" }) }
+    # --noreplaygain: lame.exe (the reduced LAME) has no ReplayGain, so ctLame does the same work and writes the same tag
+    [pscustomobject]@{ Name = 'ctLame'; Exe = $ctLame; Extra = @(@('--noreplaygain') + @(if ($Threads -gt 0) { '--threads', "$Threads" })) }
 )
-if ($Sequential) { $candidates += [pscustomobject]@{ Name = 'ctLame --sequential'; Exe = $ctLame; Extra = @('--sequential') } }
+if ($Sequential) { $candidates += [pscustomobject]@{ Name = 'ctLame --sequential'; Exe = $ctLame; Extra = @('--noreplaygain', '--sequential') } }
+# ctLame as it runs by default: with the ReplayGain analysis, whose result goes into the LAME tag (so the MP3 differs from lame.exe's)
+if ($ReplayGain) {
+    $candidates += [pscustomobject]@{ Name = 'ctLame ReplayGain'; Exe = $ctLame; Extra = @(if ($Threads -gt 0) { '--threads', "$Threads" }) }
+    if ($Sequential) { $candidates += [pscustomobject]@{ Name = 'ctLame --seq. RG'; Exe = $ctLame; Extra = @('--sequential') } }
+}
+$notCompared = @('ctLame ReplayGain', 'ctLame --seq. RG')
 
 function Write-Report([string]$text) {
     Write-Host $text
@@ -254,7 +265,7 @@ try {
     $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
     # a warm-up encode of the first file (not measured) that also prints ctLame's feature line
     $warmup = Join-Path $work 'warmup.mp3'
-    $null = Invoke-Timed $ctLame (@('--features', '--silent') + $argList + @($wavs[0].FullName, $warmup))
+    $null = Invoke-Timed $ctLame (@('--features', '--silent', '--noreplaygain') + $argList + @($wavs[0].FullName, $warmup))
     Remove-Item -LiteralPath $warmup -ErrorAction SilentlyContinue
     $featureLine = ($script:lastOutput -split "`n" | Where-Object { $_ -match 'ctLame features' } | Select-Object -First 1)
     $plan = (Get-ActivePlan).Text
@@ -265,6 +276,7 @@ try {
     if ($planNote) { Write-Report "power plan note: $planNote" }
     Write-Report "folder: $WavDir  ($($wavs.Count) WAV files)"
     Write-Report "settings: $EncodeArgs, rounds: $Rounds$(if ($Threads -gt 0) { ", ctLame --threads $Threads" }), $(if ($Warm) { 'warm (files from the cache)' } else { 'cold (fresh unbuffered copy before every run)' })"
+    Write-Report "ctLame runs with --noreplaygain like lame.exe$(if ($ReplayGain) { '; the ReplayGain runs are timed but their MP3 is not compared (the gain is in the LAME tag)' })"
     Write-Report ''
 
     $rows = @()
@@ -300,7 +312,7 @@ try {
         $lameTime = $row['lame.exe']
         $row['Factor'] = if ($row['ctLame'] -gt 0 -and -not [double]::IsNaN($lameTime)) { $lameTime / $row['ctLame'] } else { [double]::NaN }
         $same = @()
-        foreach ($c in $candidates | Where-Object { $_.Name -ne 'lame.exe' }) {
+        foreach ($c in $candidates | Where-Object { $_.Name -ne 'lame.exe' -and $notCompared -notcontains $_.Name }) {
             if ($hashes.ContainsKey('lame.exe') -and $hashes.ContainsKey($c.Name)) { $same += ($hashes[$c.Name] -eq $hashes['lame.exe']) }
         }
         $row['Identical'] = if ($errors.Count -gt 0) { 'error' } elseif ($same.Count -gt 0 -and -not ($same -contains $false)) { 'yes' } else { 'NO' }

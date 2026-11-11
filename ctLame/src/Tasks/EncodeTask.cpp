@@ -24,8 +24,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             ring_.CompleteEncode();
         }
 
-        // the ring has ended, so the analysis has finished the sample stream
-        frameEncoder_.Finish(stream_.EncoderPadding(), stream_.Failed() ? -3 : 0);
+        // the ring has ended, so the analysis has finished the sample stream; the ReplayGain of the gain tasks
+        if (gain_ != nullptr) {
+            WhileIdle(profile_, [&] { gain_->WaitDone(); });
+            stream_.FinishGain();
+        }
+        frameEncoder_.Finish(stream_.EncoderPadding(), stream_.RadioGain(), stream_.Failed() ? -3 : 0);
     }
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

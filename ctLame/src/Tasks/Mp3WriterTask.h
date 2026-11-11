@@ -33,7 +33,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// <summary>
     /// Node Write of the encoder graph (EncodeGraph.h): writes the blocks of a pipe
     /// to a file with several overlapped writes in flight. At the end
-    /// it can write a final header at offset 0, e.g. the LAME tag frame, whose content is only
+    /// it can write a final header, e.g. the LAME tag frame behind an ID3v2 tag, whose content is only
     /// known after encoding. Runs on the I/O scheduler and sets its own priority by the fill
     /// level of the pipe.
     /// </summary>
@@ -56,13 +56,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         Mp3WriterTask(BlockPipe& pipe, const Settings& settings) noexcept;
 
         /// <summary>
-        /// Data to write at offset 0 after the last block. The producer sets it before it ends the
+        /// Data to write at the offset (default 0) after the last block. The producer sets it before it ends the
         /// stream and keeps the memory alive until the task has finished.
         /// </summary>
-        void SetFinalHeader(const std::byte* data, std::uint32_t size) noexcept
+        void SetFinalHeader(const std::byte* data, std::uint32_t size, std::uint64_t offset = 0) noexcept
         {
-            header_     = data;
-            headerSize_ = size;
+            header_       = data;
+            headerSize_   = size;
+            headerOffset_ = offset;
         }
 
         void Run() noexcept override;
@@ -75,9 +76,10 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     private:
         BlockPipe&       pipe_;
         Settings         settings_;
-        const std::byte* header_     = nullptr;
-        std::uint32_t    headerSize_ = 0;
-        std::uint32_t    error_      = 0;
+        const std::byte* header_       = nullptr;
+        std::uint64_t    headerOffset_ = 0;
+        std::uint32_t    headerSize_   = 0;
+        std::uint32_t    error_        = 0;
         IoStats          stats_;
 
         std::array<AsyncIo::WaitableAsyncFileIoRequest_s, MaxWritesInFlight> requests_;

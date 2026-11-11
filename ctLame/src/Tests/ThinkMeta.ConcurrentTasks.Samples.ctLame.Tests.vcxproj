@@ -34,6 +34,7 @@
     <ClCompile Include="EncoderGoldenTests.cpp" />
     <ClCompile Include="EventCostBenchmark.cpp" />
     <ClCompile Include="FrameRingTests.cpp" />
+    <ClCompile Include="Id3TagTests.cpp" />
     <ClCompile Include="InitParamsTests.cpp" />
     <ClCompile Include="InputMdctTests.cpp" />
     <ClCompile Include="IoPipelineBenchmark.cpp" />

@@ -13,6 +13,7 @@
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -28,6 +29,7 @@
 #include "EncodeTask.h"
 #include "FrameEncoder.h"
 #include "FrameRing.h"
+#include "GainTask.h"
 #include "Mp3WriterTask.h"
 #include "ResolveTask.h"
 #include "SequentialEncodeTask.h"
@@ -50,6 +52,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     ///  (async        (serial,           (parallel,        (serial,          (parallel,       (serial,        (async
     ///   ReadFile)     in order)          any order)        in order, High)   any order)       in order, High)  WriteFile)
     ///                                    └────────── the same N worker tasks ──────┘
+    ///                    └──stream──► Gain L, Gain R ──────────────────────────────────────────────►┘ (ReplayGain, before the tag)
     /// </code>
     /// <list type="bullet">
     /// <item>Read and Write run on the I/O scheduler with overlapped file I/O; the pipes between them and the compute
@@ -57,6 +60,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// <item>The ring carries each frame through the five frame stages (FrameRing.h). Prepare and Search are the same
     /// worker tasks, one per compute thread; the serial nodes Resolve and Encode run with High priority, so the
     /// pipeline drains before the input runs further ahead.</item>
+    /// <item>With ReplayGain, one Gain task per channel analyzes the sample stream beside the frame stages, in LAME's pieces;
+    /// Dispatch wakes them as the stream grows, and Encode waits for them before it writes the LAME tag.</item>
     /// <item>The sequential graph (--sequential) has one compute node instead of the five frame stages:
     /// Read ──pcm──► SequentialEncode ──mp3──► Write.</item>
     /// </list>
@@ -73,6 +78,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             PcmReader::Format   format;
             std::uint32_t       threads    = 1; // compute threads: one worker each
             bool                sequential = false;
+            Id3Bytes            id3; // the ID3 tags around the MP3 stream (none by default)
             // reading the WAV file: what counts is the data in flight; 256 KB x 5 was among the
             // fastest shapes measured (cold, NVMe; the numbers are in docs/task-graph.md, step 1)
             std::uint32_t readSize      = 256 * 1024; // bytes per read (the PCM pipe's block size)
@@ -86,6 +92,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             TaskProfile  worker; // Prepare and Search
             TaskProfile  resolve;
             TaskProfile  encode; // Encode, or SequentialEncode
+            TaskProfile  gain;   // Gain (both channels)
             TaskProfile  write;
             std::int64_t start = 0;
             std::int64_t end   = 0;
@@ -135,6 +142,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         std::optional<FrameEncoder>                  frameEncoder_; // the work of Encode, writes into mp3 and hands the tag to Write
         std::optional<EncodeTask>                    encode_;
         std::optional<SequentialEncodeTask>          sequential_;
+        std::optional<GainSignals>                   gainSignals_; // with ReplayGain in the parallel graph
+        std::array<std::optional<GainTask>, 2>       gains_;       // Gain, one per channel
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

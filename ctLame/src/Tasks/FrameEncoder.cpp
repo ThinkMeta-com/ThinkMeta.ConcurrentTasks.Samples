@@ -12,15 +12,18 @@
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
-    FrameEncoder::FrameEncoder(BlockPipe& mp3, Encoder& encoder, Mp3WriterTask& writer, TaskProfile* profile) noexcept
+    FrameEncoder::FrameEncoder(BlockPipe& mp3, Encoder& encoder, Mp3WriterTask& writer, const Id3Bytes& id3, TaskProfile* profile) noexcept
         : mp3_(mp3),
           encoder_(encoder),
           writer_(writer),
+          id3_(id3),
           profile_(profile)
     {}
 
     void FrameEncoder::Begin() noexcept
     {
+        if (id3_.v2Size > 0)
+            Write(id3_.v2, static_cast<std::int32_t>(id3_.v2Size));
         Write(buffer_.data(), encoder_.TakeHeaderBytes(buffer_.data(), sizeof(buffer_)));
     }
 
@@ -59,18 +62,21 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         }
     }
 
-    void FrameEncoder::Finish(std::int32_t encoderPadding, std::int32_t error) noexcept
+    void FrameEncoder::Finish(std::int32_t encoderPadding, std::int32_t radioGain, std::int32_t error) noexcept
     {
         if (error_ == 0)
             error_ = error;
         if (error_ == 0) {
             encoder_.SetEncoderPadding(encoderPadding);
+            encoder_.SetRadioGain(radioGain);
             const std::int32_t bytes = encoder_.Flush(buffer_.data(), sizeof(buffer_));
             if (bytes < 0)
                 error_ = bytes;
             else
                 Write(buffer_.data(), bytes);
         }
+        if (error_ == 0 && id3_.v1Size > 0)
+            Write(id3_.v1, static_cast<std::int32_t>(id3_.v1Size));
         if (block_ != nullptr && blockUsed_ > 0) {
             mp3_.CommitWriteBlock(blockUsed_);
             block_ = nullptr;
@@ -79,7 +85,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         if (error_ == 0) {
             const std::size_t size = encoder_.GetLameTagFrame(tag_.data(), sizeof(tag_));
             if (size > 0 && size <= sizeof(tag_))
-                writer_.SetFinalHeader(tag_.data(), static_cast<std::uint32_t>(size));
+                writer_.SetFinalHeader(tag_.data(), static_cast<std::uint32_t>(size), id3_.v2Size); // write_xing_frame(gf, outf, id3v2_size)
         }
         mp3_.SetEndOfStream();
     }

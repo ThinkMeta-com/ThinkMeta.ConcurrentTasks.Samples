@@ -28,6 +28,7 @@
     <ClInclude Include="EncodeTask.h" />
     <ClInclude Include="FrameEncoder.h" />
     <ClInclude Include="FrameRing.h" />
+    <ClInclude Include="GainTask.h" />
     <ClInclude Include="IoPriority.h" />
     <ClInclude Include="Mp3WriterTask.h" />
     <ClInclude Include="PcmFeed.h" />
@@ -43,6 +44,7 @@
     <ClCompile Include="EncodeTask.cpp" />
     <ClCompile Include="FrameEncoder.cpp" />
     <ClCompile Include="FrameRing.cpp" />
+    <ClCompile Include="GainTask.cpp" />
     <ClCompile Include="Mp3WriterTask.cpp" />
     <ClCompile Include="PcmFeed.cpp" />
     <ClCompile Include="SequentialEncodeTask.cpp" />

@@ -10,6 +10,8 @@
 #include <memory>
 #include <new>
 
+#include "SessionConfig.h"
+
 import ThinkMeta.ConcurrentTasks.Synchronization.TaskGroup;
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
@@ -40,7 +42,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         const std::uint32_t pcmBlocks = settings_.readsInFlight * 2 > PipeBlockCount ? settings_.readsInFlight * 2 : PipeBlockCount;
         if (!pcm_.Initialize(pcmBlocks, settings_.readSize) || !mp3_.Initialize(PipeBlockCount, PipeBlockSize))
             return false;
-        if (!stream_.Initialize(config_, settings_.maxInputSamples))
+        // ReplayGain: in the sequential graph the stream analyzes it itself, else Gain tasks do
+        if (!stream_.Initialize(config_, settings_.maxInputSamples, !settings_.sequential && config_.options.findReplayGain != 0, encoder_.Simd()))
             return false;
         if (!settings_.sequential) {
             ring_.emplace();
@@ -74,15 +77,21 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         write_.emplace(mp3_, writeSettings);
 
         // --- nodes on the compute scheduler; the encode node's profile also counts its waiting for the MP3 pipe
-        frameEncoder_.emplace(mp3_, encoder_, *write_, Of(profile, &Profile::encode));
+        frameEncoder_.emplace(mp3_, encoder_, *write_, settings_.id3, Of(profile, &Profile::encode));
         if (settings_.sequential) {
             sequential_.emplace(pcm_, stream_, settings_.format, encoder_, *frameEncoder_, Of(profile, &Profile::encode));
         } else {
-            dispatch_.emplace(pcm_, stream_, settings_.format, *ring_, Of(profile, &Profile::dispatch));
+            if (stream_.Gain() != nullptr) {
+                gainSignals_.emplace(stream_.Gain()->Channels());
+                for (std::int32_t ch = 0; ch < stream_.Gain()->Channels(); ++ch)
+                    gains_[ch].emplace(stream_, ch, *gainSignals_, Of(profile, &Profile::gain));
+            }
+            GainSignals* const gain = gainSignals_ ? &*gainSignals_ : nullptr;
+            dispatch_.emplace(pcm_, stream_, settings_.format, *ring_, gain, Of(profile, &Profile::dispatch));
             for (std::uint32_t i = 0; i < workerCount_; ++i)
                 workers_[i].emplace(*ring_, encoder_, Of(profile, &Profile::worker));
             resolve_.emplace(*ring_, encoder_, Of(profile, &Profile::resolve));
-            encode_.emplace(*ring_, stream_, *frameEncoder_, Of(profile, &Profile::encode));
+            encode_.emplace(*ring_, stream_, *frameEncoder_, gain, Of(profile, &Profile::encode));
         }
 
         // --- start: all nodes of the graph in one group, the later stages first with High priority
@@ -99,6 +108,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             group.AddTask(&*encode_);
         for (std::uint32_t i = 0; i < workerCount_; ++i)
             group.AddTask(&*workers_[i]);
+        for (auto& gain : gains_)
+            if (gain)
+                group.AddTask(&*gain);
         if (profile != nullptr)
             profile->start = ProfileNow();
 
@@ -112,6 +124,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             compute.AddTask(&*sequential_, TaskPriority::Normal);
         if (dispatch_)
             compute.AddTask(&*dispatch_, TaskPriority::Normal);
+        for (auto& gain : gains_)
+            if (gain)
+                compute.AddTask(&*gain, TaskPriority::Normal);
         for (std::uint32_t i = 0; i < workerCount_; ++i)
             compute.AddTask(&*workers_[i], TaskPriority::Normal);
         group.Wait();
