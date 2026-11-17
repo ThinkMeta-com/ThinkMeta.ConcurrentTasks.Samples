@@ -19,12 +19,12 @@
 #include "FrameData.h"
 #include "Input.h"
 #include "NodeProfile.h"
-#include "SampleStream.h"
 
 // headers with imports last
 #include "BlockPipe.h"
 #include "FrameEncoder.h"
 #include "PcmFeed.h"
+#include "SharedSampleStream.h"
 
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 
@@ -34,13 +34,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// The one compute node of the sequential encoder graph (--sequential, EncodeGraph.h): takes
     /// the WAV data from the PCM pipe into the sample stream (PcmFeed) and runs all four calls of
     /// the encoder on each frame in turn, Prepare, Resolve, Search and Encode (FrameEncoder), into
-    /// the MP3 pipe. The same encoder and the same edges as the parallel graph, on one thread: the
+    /// the MP3 file. The same encoder and the same edges as the parallel graph, on one thread: the
     /// reference for bisecting the parallel path.
     /// </summary>
     class SequentialEncodeTask final : public Tasks::Task
     {
     public:
-        SequentialEncodeTask(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format, Encoder& encoder, FrameEncoder& frameEncoder,
+        SequentialEncodeTask(BlockPipe& pcm, SharedSampleStream& stream, const PcmReader::Format& format, Encoder& encoder, FrameEncoder& frameEncoder,
                              TaskProfile* profile) noexcept;
         ~SequentialEncodeTask();
 
@@ -50,13 +50,13 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         void EncodeReady() noexcept;
         bool Stopped() const noexcept { return frameEncoder_.Error() != 0; }
 
-        PcmFeed       feed_;
-        SampleStream& stream_;
-        Encoder&      encoder_;
-        FrameEncoder& frameEncoder_;
-        TaskProfile*  profile_;
-        FrameData*    frame_ = nullptr; // the one frame in flight
-        std::int64_t  next_  = 0;       // the next frame to encode
+        PcmFeed             feed_;
+        SharedSampleStream& stream_;
+        Encoder&            encoder_;
+        FrameEncoder&       frameEncoder_;
+        TaskProfile*        profile_;
+        FrameData*          frame_ = nullptr; // the one frame in flight
+        std::int64_t        next_  = 0;       // the next frame to encode
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

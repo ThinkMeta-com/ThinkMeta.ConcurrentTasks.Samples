@@ -8,23 +8,15 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
-    FrameEncoder::FrameEncoder(BlockPipe& mp3, Encoder& encoder, Mp3WriterTask& writer, const Id3Bytes& id3, TaskProfile* profile) noexcept
-        : mp3_(mp3),
-          encoder_(encoder),
-          writer_(writer),
-          id3_(id3),
-          profile_(profile)
+    FrameEncoder::FrameEncoder(Mp3File& mp3, Encoder& encoder) noexcept : mp3_(mp3), encoder_(encoder)
     {}
 
     void FrameEncoder::Begin() noexcept
     {
-        if (id3_.v2Size > 0)
-            Write(id3_.v2, static_cast<std::int32_t>(id3_.v2Size));
-        Write(buffer_.data(), encoder_.TakeHeaderBytes(buffer_.data(), sizeof(buffer_)));
+        mp3_.Append(buffer_.data(), encoder_.TakeHeaderBytes(buffer_.data(), sizeof(buffer_)));
     }
 
     void FrameEncoder::EncodeFrame(FrameData& frame) noexcept
@@ -39,27 +31,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             error_ = -1;
             return;
         }
-        Write(frame.output.data(), frame.outputSize);
-    }
-
-    void FrameEncoder::Write(const std::byte* data, std::int32_t size) noexcept
-    {
-        while (size > 0) {
-            if (block_ == nullptr) {
-                block_     = WhileIdle(profile_, [&] { return mp3_.AcquireWriteBlock(); });
-                blockUsed_ = 0;
-            }
-            const auto space = mp3_.BlockSize() - blockUsed_;
-            const auto n     = static_cast<std::uint32_t>(size) < space ? static_cast<std::uint32_t>(size) : space;
-            std::memcpy(block_ + blockUsed_, data, n);
-            blockUsed_ += n;
-            data += n;
-            size -= static_cast<std::int32_t>(n);
-            if (blockUsed_ == mp3_.BlockSize()) {
-                mp3_.CommitWriteBlock(blockUsed_);
-                block_ = nullptr;
-            }
-        }
+        mp3_.Append(frame.output.data(), frame.outputSize);
     }
 
     void FrameEncoder::Finish(std::int32_t encoderPadding, std::int32_t radioGain, std::int32_t error) noexcept
@@ -73,21 +45,16 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             if (bytes < 0)
                 error_ = bytes;
             else
-                Write(buffer_.data(), bytes);
-        }
-        if (error_ == 0 && id3_.v1Size > 0)
-            Write(id3_.v1, static_cast<std::int32_t>(id3_.v1Size));
-        if (block_ != nullptr && blockUsed_ > 0) {
-            mp3_.CommitWriteBlock(blockUsed_);
-            block_ = nullptr;
+                mp3_.Append(buffer_.data(), bytes);
         }
 
-        if (error_ == 0) {
-            const std::size_t size = encoder_.GetLameTagFrame(tag_.data(), sizeof(tag_));
-            if (size > 0 && size <= sizeof(tag_))
-                writer_.SetFinalHeader(tag_.data(), static_cast<std::uint32_t>(size), id3_.v2Size); // write_xing_frame(gf, outf, id3v2_size)
+        if (error_ != 0) {
+            mp3_.EndAfterError();
+            return;
         }
-        mp3_.SetEndOfStream();
+        // write_xing_frame(gf, outf, id3v2_size): the frame goes over its placeholder, behind the ID3v2 tag
+        const std::size_t size = encoder_.GetLameTagFrame(mp3_.LameTagBuffer(), Mp3File::MaxLameTagBytes);
+        mp3_.End(size <= Mp3File::MaxLameTagBytes ? static_cast<std::uint32_t>(size) : 0);
     }
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

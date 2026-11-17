@@ -53,10 +53,10 @@ namespace LameTests {
                     return;
                 GranuleChannel<PsyRatio>            maskingLr, maskingMs;
                 std::array<std::array<float, 4>, 2> energy;
-                GranuleChannel<float>               pe   = {};
-                GranuleChannel<float>               peMs = {};
-                const std::int32_t channels    = config.channels_out;
-                const std::int32_t psyChannels = config.mode == JointStereo ? 4 : channels;
+                GranuleChannel<float>               pe          = {};
+                GranuleChannel<float>               peMs        = {};
+                const std::int32_t                  channels    = config.channels_out;
+                const std::int32_t                  psyChannels = config.mode == JointStereo ? 4 : channels;
                 std::memset(&maskingLr, 0, sizeof(maskingLr));
                 std::memset(&maskingMs, 0, sizeof(maskingMs));
                 std::memset(&energy, 0, sizeof(energy));
@@ -155,83 +155,89 @@ namespace LameTests {
 
     } // namespace
 
-    TEST_CLASS(PsyGoldenTests){public: TEST_METHOD(V4){Run(CT_TEXT("V4"), Corpus, [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 3000, PerPlatform(0x868D5F2CD3D92041ull, 0xDB9BF43B81D50202ull));
-} // namespace LameTests
+    TEST_CLASS(PsyGoldenTests)
+    {
+    public:
+        TEST_METHOD(V4)
+        {
+            Run(CT_TEXT("V4"), Corpus, [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 3000, PerPlatform(0x868D5F2CD3D92041ull, 0xDB9BF43B81D50202ull));
+        }
 
-TEST_METHOD(V0)
-{
-    Run(CT_TEXT("V0"), Corpus, [](EncoderOptions& o) { o.SetVbrQuality(0.0f); }, 3000, PerPlatform(0x043AFCE30D1CD063ull, 0xE7781D05B1121E84ull));
-}
+        TEST_METHOD(V0)
+        {
+            Run(CT_TEXT("V0"), Corpus, [](EncoderOptions& o) { o.SetVbrQuality(0.0f); }, 3000, PerPlatform(0x043AFCE30D1CD063ull, 0xE7781D05B1121E84ull));
+        }
 
-TEST_METHOD(V9999)
-{
-    Run(CT_TEXT("V9999"), Corpus, [](EncoderOptions& o) { o.SetVbrQuality(9.999f); }, 3000, 0xA3356836B5F88500ull);
-}
+        TEST_METHOD(V9999)
+        {
+            Run(CT_TEXT("V9999"), Corpus, [](EncoderOptions& o) { o.SetVbrQuality(9.999f); }, 3000, 0xA3356836B5F88500ull);
+        }
 
-TEST_METHOD(SimpleStereoV2)
-{
-    Run(
-        CT_TEXT("SimpleStereoV2"), Corpus,
-        [](EncoderOptions& o) {
-            o.SetVbrQuality(2.0f);
-            o.SetMode(Stereo);
-        },
-        3000, PerPlatform(0x6F8D3106E52151A2ull, 0xB7ED62A87EB26A5Bull));
-}
+        TEST_METHOD(SimpleStereoV2)
+        {
+            Run(
+                CT_TEXT("SimpleStereoV2"), Corpus,
+                [](EncoderOptions& o) {
+                    o.SetVbrQuality(2.0f);
+                    o.SetMode(Stereo);
+                },
+                3000, PerPlatform(0x6F8D3106E52151A2ull, 0xB7ED62A87EB26A5Bull));
+        }
 
-TEST_METHOD(MonoDownmixV5)
-{
-    Run(
-        CT_TEXT("MonoDownmixV5"), Corpus,
-        [](EncoderOptions& o) {
-            o.SetVbrQuality(5.0f);
-            o.SetMode(Mono);
-        },
-        3000, PerPlatform(0x2E4CE0BF19C886F8ull, 0x3E3F507501E2925Bull));
-}
+        TEST_METHOD(MonoDownmixV5)
+        {
+            Run(
+                CT_TEXT("MonoDownmixV5"), Corpus,
+                [](EncoderOptions& o) {
+                    o.SetVbrQuality(5.0f);
+                    o.SetMode(Mono);
+                },
+                3000, PerPlatform(0x2E4CE0BF19C886F8ull, 0x3E3F507501E2925Bull));
+        }
 
-TEST_METHOD(ExperimentalZV3)
-{
-    Run(
-        CT_TEXT("ExperimentalZV3"), Corpus,
-        [](EncoderOptions& o) {
-            o.SetVbrQuality(3.0f);
-            o.SetExperimentalZ(1);
-        },
-        3000, PerPlatform(0xEB7ACB566A313EACull, 0xF9619F6A0DF53A47ull));
-}
+        TEST_METHOD(ExperimentalZV3)
+        {
+            Run(
+                CT_TEXT("ExperimentalZV3"), Corpus,
+                [](EncoderOptions& o) {
+                    o.SetVbrQuality(3.0f);
+                    o.SetExperimentalZ(1);
+                },
+                3000, PerPlatform(0xEB7ACB566A313EACull, 0xF9619F6A0DF53A47ull));
+        }
 
-TEST_METHOD(AthaaSensitivityV4)
-{
-    Run(
-        CT_TEXT("AthaaSensitivityV4"), Corpus,
-        [](EncoderOptions& o) {
-            o.SetVbrQuality(4.0f);
-            o.SetAthaaSensitivity(6.0f);
-        },
-        3000, PerPlatform(0x1A7B1CBF280BD8D6ull, 0xB0409244496C662Dull));
-}
+        TEST_METHOD(AthaaSensitivityV4)
+        {
+            Run(
+                CT_TEXT("AthaaSensitivityV4"), Corpus,
+                [](EncoderOptions& o) {
+                    o.SetVbrQuality(4.0f);
+                    o.SetAthaaSensitivity(6.0f);
+                },
+                3000, PerPlatform(0x1A7B1CBF280BD8D6ull, 0xB0409244496C662Dull));
+        }
 
-TEST_METHOD(Rate32kV73)
-{
-    RunSynth(CT_TEXT("Rate32kV73"), CT_TEXT("s16-stereo-32000.wav"), [](EncoderOptions& o) { o.SetVbrQuality(7.3f); }, 767, 0x0E0FB2A117DD5B3Aull);
-}
+        TEST_METHOD(Rate32kV73)
+        {
+            RunSynth(CT_TEXT("Rate32kV73"), CT_TEXT("s16-stereo-32000.wav"), [](EncoderOptions& o) { o.SetVbrQuality(7.3f); }, 767, 0x0E0FB2A117DD5B3Aull);
+        }
 
-TEST_METHOD(Rate48kV15)
-{
-    RunSynth(CT_TEXT("Rate48kV15"), CT_TEXT("s16-stereo-48000.wav"), [](EncoderOptions& o) { o.SetVbrQuality(1.5f); }, 767, 0xABDDC233C3B953FEull);
-}
+        TEST_METHOD(Rate48kV15)
+        {
+            RunSynth(CT_TEXT("Rate48kV15"), CT_TEXT("s16-stereo-48000.wav"), [](EncoderOptions& o) { o.SetVbrQuality(1.5f); }, 767, 0xABDDC233C3B953FEull);
+        }
 
-TEST_METHOD(MonoInputV4)
-{
-    RunSynth(CT_TEXT("MonoInputV4"), CT_TEXT("s16-mono-44100.wav"), [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 767, 0xA3F7E83F43B04B3Aull);
-}
+        TEST_METHOD(MonoInputV4)
+        {
+            RunSynth(CT_TEXT("MonoInputV4"), CT_TEXT("s16-mono-44100.wav"), [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 767, 0xA3F7E83F43B04B3Aull);
+        }
 
-TEST_METHOD(ClippedV2)
-{
-    RunSynth(CT_TEXT("ClippedV2"), CT_TEXT("s16-stereo-44100-clipped.wav"), [](EncoderOptions& o) { o.SetVbrQuality(2.0f); }, 767, PerPlatform(0x04809653B7024C30ull, 0x6461483BDBEDD468ull));
-}
-}
-;
+        TEST_METHOD(ClippedV2)
+        {
+            RunSynth(
+                CT_TEXT("ClippedV2"), CT_TEXT("s16-stereo-44100-clipped.wav"), [](EncoderOptions& o) { o.SetVbrQuality(2.0f); }, 767,
+                PerPlatform(0x04809653B7024C30ull, 0x6461483BDBEDD468ull));
+        }
+    };
 
 } // namespace LameTests

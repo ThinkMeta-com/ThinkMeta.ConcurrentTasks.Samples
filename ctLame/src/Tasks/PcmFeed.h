@@ -16,42 +16,49 @@
 #include <cstdint>
 
 #include "Input.h"
-#include "NodeProfile.h"
-#include "SampleStream.h"
-
 // headers with imports last
 #include "BlockPipe.h"
+#include "SharedSampleStream.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     /// <summary>
-    /// The edge from the PCM pipe into the sample stream: converts the WAV blocks
+    /// The work at the start of the encoder, from the PCM pipe into the sample stream: converts the WAV blocks
     /// of the reader into the float stream of each channel (read_samples_pcm, then
     /// lame_copy_inbuffer), and at the end of the pipe completes the stream with the last,
-    /// incomplete block and the flush padding (lame_encode_flush). The task at the start of the
-    /// encoder (DispatchTask, SequentialEncodeTask) drives it.
+    /// incomplete block and the flush padding (lame_encode_flush). Not an edge: one task owns it and nobody waits
+    /// in it. The task at the start of the encoder (DispatchTask, SequentialEncodeTask) drives it and is thereby the
+    /// writer of the stream: it calls Next until the pipe has ended, and End on every path.
     /// </summary>
     class PcmFeed
     {
     public:
-        PcmFeed(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format) noexcept;
+        PcmFeed(BlockPipe& pcm, SharedSampleStream& stream, const PcmReader::Format& format) noexcept;
 
         /// <summary>
-        /// Converts the next piece of the pipe into the stream, at most StepSize bytes of a block;
-        /// waits for a block (idle time into profile). At the end of the pipe it completes the
-        /// stream and returns false.
+        /// Converts the next piece of the pipe into the stream, at most StepSize bytes of a block; waits for a block.
+        /// False once the pipe has ended.
         /// </summary>
-        bool Next(TaskProfile* profile) noexcept;
+        bool Next() noexcept;
+
+        /// <summary>
+        /// The end of the input (the end of lame_encoder_loop): the last, incomplete block goes into the stream, and
+        /// the stream is padded and ended. Call it on every path.
+        /// </summary>
+        void End() noexcept;
 
         /// <summary>Bytes converted per step: independent of the read size, so the frames go out evenly.</summary>
         static constexpr std::uint32_t StepSize = 64 * 1024;
 
-        /// <summary>After an error: releases the rest of the pipe without converting it, so the reader can finish.</summary>
-        void Drain(TaskProfile* profile) noexcept;
+        /// <summary>
+        /// After an error of the encoder (SequentialEncodeTask): releases the rest of the pipe without converting it, so
+        /// Read can finish.
+        /// </summary>
+        void Drain() noexcept;
 
     private:
         BlockPipe&           pcm_;
-        SampleStream&        stream_;
+        SharedSampleStream&  stream_;
         PcmReader            reader_;
         BlockPipe::ReadBlock block_{};    // the block being converted
         std::uint32_t        offset_ = 0; // its bytes converted so far

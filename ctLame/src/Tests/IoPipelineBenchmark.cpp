@@ -50,38 +50,32 @@ namespace LameTests {
             Logger::WriteMessage(text);
         }
 
-        double CopyWithPipeline(const wchar_t* source, const wchar_t* target, std::uint32_t blockCount, std::uint32_t blockSize, std::uint32_t inFlight,
-                                IoStats& readStats, IoStats& writeStats)
+        double CopyWithPipeline(const wchar_t* source, const wchar_t* target, std::uint32_t blockCount, std::uint32_t blockSize)
         {
             Shared::TaskRuntime      runtime(1);
             Shared::RunningScheduler compute(SchedulerKind::Default, 2);
             Assert::IsTrue(runtime && compute);
 
             BlockPipe pcm;
-            BlockPipe mp3;
+            Mp3File   mp3(Id3Bytes{});
             pcm.Initialize(blockCount, blockSize);
             mp3.Initialize(blockCount, blockSize);
 
             WavReaderTask::Settings readSettings;
-            readSettings.path          = source;
-            readSettings.readsInFlight = inFlight;
+            readSettings.path = source;
             WavReaderTask reader(pcm, readSettings);
 
             Mp3WriterTask::Settings writeSettings;
-            writeSettings.path             = target;
-            writeSettings.writesInFlight   = inFlight;
-            writeSettings.producerFinished = reader.FinishedFlag();
+            writeSettings.path = target;
             Mp3WriterTask writer(mp3, writeSettings);
 
             auto copy = Tasks::Task::Create([&] {
                 BlockPipe::ReadBlock block{};
                 while (pcm.AcquireReadBlock(block)) {
-                    std::byte* const out = mp3.AcquireWriteBlock();
-                    CopyMemory(out, block.data, block.size);
-                    mp3.CommitWriteBlock(block.size);
+                    mp3.Append(block.data, static_cast<std::int32_t>(block.size));
                     pcm.ReleaseReadBlock();
                 }
-                mp3.SetEndOfStream();
+                mp3.End(0);
             });
 
             LARGE_INTEGER start;
@@ -92,7 +86,7 @@ namespace LameTests {
             group.AddTask(&writer);
             group.AddTask(&copy);
             runtime.Io()->AddTask(&reader, TaskPriority::Normal);
-            runtime.Io()->AddTask(&writer, TaskPriority::Normal);
+            runtime.Io()->AddTask(&writer, TaskPriority::High);
             compute->AddTask(&copy, TaskPriority::Normal);
             group.Wait();
             QueryPerformanceCounter(&end);
@@ -102,8 +96,6 @@ namespace LameTests {
 
             Assert::AreEqual(static_cast<std::uint32_t>(ERROR_SUCCESS), reader.Error());
             Assert::AreEqual(static_cast<std::uint32_t>(ERROR_SUCCESS), writer.Error());
-            readStats  = reader.Stats();
-            writeStats = writer.Stats();
             return Seconds(start, end);
         }
 
@@ -119,47 +111,45 @@ namespace LameTests {
 
     } // namespace
 
-    TEST_CLASS(IoPipelineBenchmark){public: TEST_METHOD(PipelineVersusCopyFile){wchar_t source[MAX_PATH];
-    if (!Shared::TestEnvironment::Get(L"CTLAME_BENCH_FILE", source)) {
-        wchar_t text[200];
-        Logger::WriteMessage(Shared::TestEnvironment::SkipText(text, L"CTLAME_BENCH_FILE", L"a large file to copy"));
-        return;
-    }
-    wchar_t directory[MAX_PATH];
-    wchar_t target[MAX_PATH];
-    GetTempPathW(MAX_PATH, directory);
-    swprintf_s(target, L"%lsctlame-bench.out", directory);
+    TEST_CLASS(IoPipelineBenchmark)
+    {
+    public:
+        TEST_METHOD(PipelineVersusCopyFile)
+        {
+            wchar_t source[MAX_PATH];
+            if (!Shared::TestEnvironment::Get(L"CTLAME_BENCH_FILE", source)) {
+                wchar_t text[200];
+                Logger::WriteMessage(Shared::TestEnvironment::SkipText(text, L"CTLAME_BENCH_FILE", L"a large file to copy"));
+                return;
+            }
+            wchar_t directory[MAX_PATH];
+            wchar_t target[MAX_PATH];
+            GetTempPathW(MAX_PATH, directory);
+            swprintf_s(target, L"%lsctlame-bench.out", directory);
 
-    WIN32_FILE_ATTRIBUTE_DATA attributes{};
-    GetFileAttributesExW(source, GetFileExInfoStandard, &attributes);
-    const double megabytes = (static_cast<double>(attributes.nFileSizeHigh) * 4294967296.0 + attributes.nFileSizeLow) / (1024.0 * 1024.0);
+            WIN32_FILE_ATTRIBUTE_DATA attributes{};
+            GetFileAttributesExW(source, GetFileExInfoStandard, &attributes);
+            const double megabytes = (static_cast<double>(attributes.nFileSizeHigh) * 4294967296.0 + attributes.nFileSizeLow) / (1024.0 * 1024.0);
 
-    CopyWithCopyFile(source, target); // warm the file cache
+            CopyWithCopyFile(source, target); // warm the file cache
 
-    struct Config {
-        std::uint32_t blockCount;
-        std::uint32_t blockSize;
-        std::uint32_t inFlight;
-    };
-    const Config configs[] = {{32, 256 * 1024, 4}, {16, 1024 * 1024, 4}, {8, 1024 * 1024, 2}, {64, 64 * 1024, 8}};
+            struct Config {
+                std::uint32_t blockCount;
+                std::uint32_t blockSize;
+            };
+            const Config configs[] = {{16, 256 * 1024}, {4, 1024 * 1024}, {4, 4 * 1024 * 1024}, {64, 64 * 1024}};
 
-    for (std::int32_t run = 0; run < 3; ++run) {
-        const double copyFile = CopyWithCopyFile(source, target);
-        Log(L"run %d CopyFileW                          %7.3f s  %8.1f MB/s", run, copyFile, megabytes / copyFile);
-        for (const Config& config : configs) {
-            IoStats      readStats;
-            IoStats      writeStats;
-            const double seconds = CopyWithPipeline(source, target, config.blockCount, config.blockSize, config.inFlight, readStats, writeStats);
-            Log(L"run %d pipeline %2u x %4u KiB, %u in flight %7.3f s  %8.1f MB/s | read: %u ops, %u high, %u prio changes, fill %u..%u | write: %u ops, %u "
-                L"high, %u prio changes, fill %u..%u",
-                run, config.blockCount, config.blockSize / 1024, config.inFlight, seconds, megabytes / seconds, readStats.operations, readStats.highOperations,
-                readStats.priorityChanges, readStats.minFilled, readStats.maxFilled, writeStats.operations, writeStats.highOperations,
-                writeStats.priorityChanges, writeStats.minFilled, writeStats.maxFilled);
+            for (std::int32_t run = 0; run < 3; ++run) {
+                const double copyFile = CopyWithCopyFile(source, target);
+                Log(L"run %d CopyFileW                          %7.3f s  %8.1f MB/s", run, copyFile, megabytes / copyFile);
+                for (const Config& config : configs) {
+                    const double seconds = CopyWithPipeline(source, target, config.blockCount, config.blockSize);
+                    Log(L"run %d pipeline %2u x %4u KiB            %7.3f s  %8.1f MB/s", run, config.blockCount, config.blockSize / 1024, seconds,
+                        megabytes / seconds);
+                }
+            }
+            DeleteFileW(target);
         }
-    }
-    DeleteFileW(target);
-} // namespace LameTests
-}
-;
+    };
 
 } // namespace LameTests

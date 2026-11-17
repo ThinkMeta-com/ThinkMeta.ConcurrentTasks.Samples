@@ -26,30 +26,23 @@ import ThinkMeta.ConcurrentTasks.Tasks.Task;
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     /// <summary>
-    /// Nodes Prepare and Search of the parallel encoder graph (EncodeGraph.h): one worker per
-    /// compute thread claims work from the frame ring, the preparation of a
-    /// dispatched frame (psychoacoustic model without state, polyphase filterbank) or the search
-    /// of a resolved frame (MDCT, stereo decision, quantization search, main data). The workers
-    /// run at once, each on its own frame.
+    /// Node Prepare of the parallel encoder graph (EncodeGraph.h): takes the dispatched frames from the ring and
+    /// prepares them, the psychoacoustic model without state and the polyphase filterbank. The stage keeps nothing
+    /// from frame to frame, so the graph runs several of these tasks at once, each on its own frame. It runs with
+    /// Normal priority, the stages behind it with High: their frames are older and free slots sooner. The task does
+    /// not yield to them after a frame; that was measured and cost time (with ReplayGain about 1 %).
     /// </summary>
-    class WorkerTask final : public Tasks::Task
+    class PrepareTask final : public Tasks::Task
     {
     public:
-        WorkerTask(FrameRing& ring, const Encoder& encoder, TaskProfile* profile) noexcept : ring_(ring), encoder_(encoder), profile_(profile) {}
+        PrepareTask(FrameRing& ring, const Encoder& encoder, TaskProfile* profile) noexcept : ring_(ring), encoder_(encoder), profile_(profile) {}
 
         void Run() noexcept override
         {
             const ProfiledRun run(profile_);
-            for (;;) {
-                FrameRing::Work  work;
-                FrameData* const frame = WhileIdle(profile_, [&] { return ring_.AcquireWork(work); });
-                if (frame == nullptr)
-                    break;
-                if (work == FrameRing::Work::Prepare)
-                    encoder_.Prepare(frame->input, *frame);
-                else
-                    encoder_.Search(*frame);
-                ring_.CompleteWork(*frame, work);
+            while (FrameData* const frame = ring_.AcquirePrepare()) {
+                encoder_.Prepare(frame->input, *frame);
+                ring_.CompletePrepare(*frame);
             }
         }
 

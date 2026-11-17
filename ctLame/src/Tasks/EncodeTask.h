@@ -16,12 +16,11 @@
 #include <cstdint>
 
 #include "NodeProfile.h"
-#include "SampleStream.h"
 
 // headers with imports last
 #include "FrameEncoder.h"
 #include "FrameRing.h"
-#include "GainTask.h"
+#include "SharedSampleStream.h"
 
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 
@@ -30,29 +29,28 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// <summary>
     /// Node Encode of the parallel encoder graph (EncodeGraph.h): takes the
     /// searched frames from the ring in frame order, encodes them with the FrameEncoder
-    /// (quantization with the reservoir, bit stream, into the MP3 pipe) and frees each frame's
-    /// slot and input window. A serial node, so it runs with High priority: the pipeline drains
+    /// (quantization with the reservoir, bit stream, into the MP3 file) and frees each frame's
+    /// slot and input window. After the last frame it takes the end of the sample stream, which carries what the
+    /// LAME tag needs (SharedSampleStream::StreamEnd). A serial node, so it runs with High priority: the pipeline drains
     /// before the input runs further ahead.
     /// </summary>
     class EncodeTask final : public Tasks::Task
     {
     public:
-        EncodeTask(FrameRing& ring, SampleStream& stream, FrameEncoder& frameEncoder, GainSignals* gain, TaskProfile* profile) noexcept
+        EncodeTask(FrameRing& ring, SharedSampleStream& stream, FrameEncoder& frameEncoder, TaskProfile* profile) noexcept
             : ring_(ring),
               stream_(stream),
               frameEncoder_(frameEncoder),
-              gain_(gain),
               profile_(profile)
         {}
 
         void Run() noexcept override;
 
     private:
-        FrameRing&    ring_;
-        SampleStream& stream_;
-        FrameEncoder& frameEncoder_;
-        GainSignals*  gain_; // the gain tasks to wait for before the LAME tag; null without them
-        TaskProfile*  profile_;
+        FrameRing&          ring_;
+        SharedSampleStream& stream_;
+        FrameEncoder&       frameEncoder_;
+        TaskProfile*        profile_;
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

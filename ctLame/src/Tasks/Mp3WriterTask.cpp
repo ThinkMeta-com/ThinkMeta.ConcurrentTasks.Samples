@@ -14,94 +14,61 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     using Platform::Error;
 
-    Mp3WriterTask::Mp3WriterTask(BlockPipe& pipe, const Settings& settings) noexcept : pipe_(pipe), settings_(settings)
-    {
-        if (settings_.writesInFlight < 1)
-            settings_.writesInFlight = 1;
-        if (settings_.writesInFlight > MaxWritesInFlight)
-            settings_.writesInFlight = MaxWritesInFlight;
-        if (settings_.writesInFlight >= pipe_.BlockCount())
-            settings_.writesInFlight = pipe_.BlockCount() > 1 ? pipe_.BlockCount() - 1 : 1;
-    }
+    namespace {
+
+        // Creates the file for writing, or empties it; others may read it meanwhile.
+        std::uint32_t CreateForWriting(AsyncIo::AsyncFile& file, const Shared::Char* path) noexcept
+        {
+#if defined(_WIN32)
+            return file.Create(path, GENERIC_WRITE, FILE_SHARE_READ, CREATE_ALWAYS, FILE_FLAG_SEQUENTIAL_SCAN);
+#else
+            return file.Create(path, Platform::FileOptions{.access = Platform::FileAccess::Write, .creation = Platform::FileCreation::CreateAlways});
+#endif
+        }
+
+    } // namespace
+
+    Mp3WriterTask::Mp3WriterTask(Mp3File& mp3, const Settings& settings) noexcept : mp3_(mp3), settings_(settings)
+    {}
 
     void Mp3WriterTask::Run() noexcept
     {
-        TaskProfile* const profile = settings_.profile;
-        const ProfiledRun  run(profile);
+        const ProfiledRun run(settings_.profile);
 
-        AsyncIo::AsyncFile file;
-#if defined(_WIN32)
-        std::uint32_t error = file.Create(settings_.path, GENERIC_WRITE, FILE_SHARE_READ, settings_.creationDisposition, FILE_FLAG_SEQUENTIAL_SCAN);
-#else
-        std::uint32_t error
-            = file.Create(settings_.path, Platform::FileOptions{.access = Platform::FileAccess::Write, .creation = Platform::FileCreation::CreateAlways});
-#endif
+        AsyncIo::AsyncFile output;
+        error_ = CreateForWriting(output, settings_.path);
 
-        const std::uint32_t inFlight    = settings_.writesInFlight;
-        std::uint64_t       issued      = 0;
-        std::uint64_t       completed   = 0;
-        std::uint64_t       offset      = 0;
-        bool                endOfStream = false;
-        TaskPriority        priority    = TaskPriority::Normal;
+        // the file, front to back
+        std::uint64_t position = 0;
 
-        auto producerFinished = [this] { return settings_.producerFinished != nullptr && settings_.producerFinished->load(std::memory_order_acquire); };
+        Write(output, position, mp3_.Id3v2());
 
-        for (;;) {
-            // take blocks while slots are free; wait for data only with nothing in flight, since
-            // the producer may need the blocks this task still holds
-            while (!endOfStream && issued - completed < inFlight) {
-                BlockPipe::ReadBlock block{};
-                bool                 ended = false;
-                if (issued == completed) {
-                    endOfStream = !WhileIdle(profile, [&] { return pipe_.AcquireReadBlock(block); });
-                } else if (!pipe_.TryAcquireReadBlock(block, ended)) {
-                    endOfStream = ended;
-                    break;
-                }
-                if (endOfStream)
-                    break;
-
-                auto& request = requests_[issued % inFlight];
-                request.Reset();
-                request.SetOffset(offset);
-                offset += block.size;
-                const std::uint32_t result = Error::Succeeded(error) ? file.WriteAsync(block.data, block.size, request) : error;
-                if (Error::Failed(result) && !Error::IsPending(result)) {
-                    // keep draining the pipe, so that the producer is never stuck on a full pipe
-                    error = result;
-                    request.RequestCompleted(result, 0);
-                }
-                ++issued;
-            }
-
-            if (completed == issued) {
-                if (endOfStream)
-                    break;
-                continue;
-            }
-
-            // blocks go back to the producer in the order they were taken
-            auto& request = requests_[completed % inFlight];
-            WhileIdle(profile, [&] { request.Wait(); });
-            ++completed;
-            if (Error::Failed(request.GetError()) && Error::Succeeded(error))
-                error = request.GetError();
-            pipe_.ReleaseReadBlock();
-
-            const std::uint32_t filled = pipe_.FilledBlocks();
-            CountOperation(stats_, priority, filled, request.GetTransferredBytes());
-            ApplyPriority(priority, settings_.policy.ForConsumer(filled, pipe_.BlockCount(), producerFinished(), priority), stats_);
+        // the MP3 stream; it begins with the placeholder of the LAME tag
+        const std::uint64_t lameTagAt = position;
+        Mp3File::Bytes      block;
+        while (mp3_.AcquireBlock(block)) {
+            Write(output, position, block);
+            mp3_.ReleaseBlock(); // also after an error (Write then does nothing), so Encode never waits for a full stream
         }
 
-        if (Error::Succeeded(error) && header_ != nullptr && headerSize_ > 0) {
+        Write(output, position, mp3_.Id3v1());
+
+        // only now known: the LAME tag, over its placeholder
+        position = lameTagAt;
+        Write(output, position, mp3_.LameTag());
+
+        output.Close();
+    }
+
+    void Mp3WriterTask::Write(AsyncIo::AsyncFile& output, std::uint64_t& position, Mp3File::Bytes bytes) noexcept
+    {
+        if (bytes.size > 0 && Error::Succeeded(error_)) {
             AsyncIo::AsyncFile::ByteCount written = 0;
-            error                                 = file.Write(header_, headerSize_, written, headerOffset_);
-            if (Error::Succeeded(error) && written != headerSize_)
-                error = Error::WriteFault;
+            error_                                = Waiting(settings_.profile, [&] { return output.Write(bytes.data, bytes.size, written, position); });
+            if (Error::Succeeded(error_) && written != bytes.size)
+                error_ = Error::WriteFault;
         }
-
-        file.Close();
-        error_ = error;
+        position += bytes.size;
     }
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

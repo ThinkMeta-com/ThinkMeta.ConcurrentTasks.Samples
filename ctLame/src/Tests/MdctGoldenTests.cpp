@@ -108,45 +108,46 @@ namespace LameTests {
 
     } // namespace
 
-    TEST_CLASS(MdctGoldenTests){public: TEST_METHOD(Default44k){Check(CT_TEXT("Default44k"), 0x9DAE9E0A19199F6Bull, RunMdct(nullptr, 0x9E3779B97F4A7C15ull));
-} // namespace LameTests
+    TEST_CLASS(MdctGoldenTests)
+    {
+    public:
+        TEST_METHOD(Default44k) { Check(CT_TEXT("Default44k"), 0x9DAE9E0A19199F6Bull, RunMdct(nullptr, 0x9E3779B97F4A7C15ull)); }
 
-TEST_METHOD(Lowpass32kV7)
-{
-    Check(CT_TEXT("Lowpass32kV7"), 0xE98D7D5D9CC3A830ull,
-          RunMdct(
-              [](EncoderOptions& o) {
-                  o.SetInSamplerate(32000);
-                  o.SetVbrQuality(7.3f);
-              },
-              0x243F6A8885A308D3ull));
-}
+        TEST_METHOD(Lowpass32kV7)
+        {
+            Check(CT_TEXT("Lowpass32kV7"), 0xE98D7D5D9CC3A830ull,
+                  RunMdct(
+                      [](EncoderOptions& o) {
+                          o.SetInSamplerate(32000);
+                          o.SetVbrQuality(7.3f);
+                      },
+                      0x243F6A8885A308D3ull));
+        }
 
-TEST_METHOD(HighpassAndLowpass48k)
-{
-    Check(CT_TEXT("HighpassAndLowpass48k"), 0x8F4CA879B1CE0478ull,
-          RunMdct(
-              [](EncoderOptions& o) {
-                  o.SetInSamplerate(48000);
-                  o.SetHighpassFreq(120);
-                  o.SetHighpassWidth(200);
-                  o.SetLowpassFreq(9000);
-                  o.SetLowpassWidth(1500);
-              },
-              0x13198A2E03707344ull));
-}
+        TEST_METHOD(HighpassAndLowpass48k)
+        {
+            Check(CT_TEXT("HighpassAndLowpass48k"), 0x8F4CA879B1CE0478ull,
+                  RunMdct(
+                      [](EncoderOptions& o) {
+                          o.SetInSamplerate(48000);
+                          o.SetHighpassFreq(120);
+                          o.SetHighpassWidth(200);
+                          o.SetLowpassFreq(9000);
+                          o.SetLowpassWidth(1500);
+                      },
+                      0x13198A2E03707344ull));
+        }
 
-TEST_METHOD(NoFilterV0)
-{
-    Check(CT_TEXT("NoFilterV0"), 0x131AB18166E099C5ull,
-          RunMdct(
-              [](EncoderOptions& o) {
-                  o.SetVbrQuality(0.0f);
-                  o.SetLowpassFreq(-1);
-              },
-              0xA4093822299F31D0ull));
-}
-}
-;
+        TEST_METHOD(NoFilterV0)
+        {
+            Check(CT_TEXT("NoFilterV0"), 0x131AB18166E099C5ull,
+                  RunMdct(
+                      [](EncoderOptions& o) {
+                          o.SetVbrQuality(0.0f);
+                          o.SetLowpassFreq(-1);
+                      },
+                      0xA4093822299F31D0ull));
+        }
+    };
 
 } // namespace LameTests

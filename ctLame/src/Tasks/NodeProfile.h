@@ -31,9 +31,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         std::int64_t begin_;
     };
 
-    /// <summary>Calls wait() (an Acquire on an edge) and counts its time as the node's idle time.</summary>
+    /// <summary>
+    /// CTLAME_PROFILE: calls wait() and counts its time as the node's idle time. For a wait that is not in an edge:
+    /// the file I/O of Read and Write. The edges count the waits of their nodes themselves (MeasureWaits).
+    /// </summary>
     template <typename Wait>
-    decltype(auto) WhileIdle(TaskProfile* profile, Wait&& wait) noexcept
+    decltype(auto) Waiting(TaskProfile* profile, Wait&& wait) noexcept
     {
         ProfileScope idle(IdleCounter(profile));
         return wait();

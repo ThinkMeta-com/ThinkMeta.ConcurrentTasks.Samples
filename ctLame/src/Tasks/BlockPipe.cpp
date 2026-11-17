@@ -32,22 +32,12 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         return true;
     }
 
-    std::uint32_t BlockPipe::FilledBlocks() const noexcept
-    {
-        return static_cast<std::uint32_t>(committed_.load(std::memory_order_acquire) - released_.load(std::memory_order_acquire));
-    }
-
     std::byte* BlockPipe::AcquireWriteBlock() noexcept
     {
-        while (writeAcquired_ - released_.load(std::memory_order_acquire) >= blockCount_)
+        while (writeAcquired_ - released_.load(std::memory_order_acquire) >= blockCount_) {
+            const ProfileScope idle(producerIdle_);
             spaceAvailable_.Wait();
-        return memory_ + static_cast<std::size_t>(writeAcquired_++ % blockCount_) * blockSize_;
-    }
-
-    std::byte* BlockPipe::TryAcquireWriteBlock() noexcept
-    {
-        if (writeAcquired_ - released_.load(std::memory_order_acquire) >= blockCount_)
-            return nullptr;
+        }
         return memory_ + static_cast<std::size_t>(writeAcquired_++ % blockCount_) * blockSize_;
     }
 
@@ -59,9 +49,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         dataAvailable_.Set();
     }
 
-    void BlockPipe::SetEndOfStream() noexcept
+    void BlockPipe::End() noexcept
     {
-        endOfStream_.store(true, std::memory_order_release);
+        ended_.store(true, std::memory_order_release);
         dataAvailable_.Set();
     }
 
@@ -69,25 +59,14 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     {
         for (;;) {
             // read the end mark first: once it is set, every block has been committed before it
-            const bool ended = endOfStream_.load(std::memory_order_acquire);
+            const bool ended = ended_.load(std::memory_order_acquire);
             if (committed_.load(std::memory_order_acquire) > readAcquired_)
                 break;
             if (ended)
                 return false;
+            const ProfileScope idle(consumerIdle_);
             dataAvailable_.Wait();
         }
-        const std::uint32_t slot = static_cast<std::uint32_t>(readAcquired_++ % blockCount_);
-        block.data               = memory_ + static_cast<std::size_t>(slot) * blockSize_;
-        block.size               = sizes_[slot];
-        return true;
-    }
-
-    bool BlockPipe::TryAcquireReadBlock(ReadBlock& block, bool& ended) noexcept
-    {
-        ended = endOfStream_.load(std::memory_order_acquire);
-        if (committed_.load(std::memory_order_acquire) <= readAcquired_)
-            return false;
-        ended                    = false;
         const std::uint32_t slot = static_cast<std::uint32_t>(readAcquired_++ % blockCount_);
         block.data               = memory_ + static_cast<std::size_t>(slot) * blockSize_;
         block.size               = sizes_[slot];

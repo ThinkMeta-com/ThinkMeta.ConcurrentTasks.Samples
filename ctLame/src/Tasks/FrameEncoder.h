@@ -19,73 +19,58 @@
 
 #include "Encoder.h"
 #include "FrameData.h"
-#include "NodeProfile.h"
 
 // headers with imports last
-#include "BlockPipe.h"
-#include "Mp3WriterTask.h"
+#include "Mp3File.h"
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     /// <summary>
-    /// The ID3 tags of the frontend (lame_main.c): the version 2 tag goes in front of the MP3 stream, the version 1 tag
-    /// behind it; each may be empty. The memory stays valid until the encoding has ended.
-    /// </summary>
-    struct Id3Bytes {
-        const std::byte* v2     = nullptr;
-        std::uint32_t    v2Size = 0;
-        const std::byte* v1     = nullptr;
-        std::uint32_t    v1Size = 0;
-    };
-
-    /// <summary>
     /// The work of node Encode: quantization with the reservoir and bit stream of
-    /// each searched frame, the bytes into the MP3 pipe in frame order, and at the end
-    /// lame_encode_flush and the LAME tag frame for the writer. Used by EncodeTask in the
+    /// each searched frame, the bytes into the MP3 stream in frame order, and at the end
+    /// lame_encode_flush and the LAME tag frame. Used by EncodeTask in the
     /// parallel graph and by SequentialEncodeTask in the sequential one.
     /// </summary>
     class FrameEncoder
     {
     public:
-        FrameEncoder(BlockPipe& mp3, Encoder& encoder, Mp3WriterTask& writer, const Id3Bytes& id3, TaskProfile* profile) noexcept;
+        FrameEncoder(Mp3File& mp3, Encoder& encoder) noexcept;
 
         /// <summary>
-        /// The ID3v2 tag and the placeholder of the LAME tag behind it (lame_encode_buffer copies it out before the first
-        /// frame).
+        /// The start of the MP3 stream: the placeholder of the LAME tag (lame_encode_buffer copies it out before the
+        /// first frame).
         /// </summary>
         void Begin() noexcept;
 
-        /// <summary>Encodes an analyzed frame and writes its bytes; does nothing after an error.</summary>
+        /// <summary>Encodes an analyzed frame and appends its bytes; does nothing after an error.</summary>
         void EncodeFrame(FrameData& frame) noexcept;
 
         /// <summary>
         /// The end of lame_encoder_loop: lame_encode_flush with the padding and the ReplayGain of the sample stream,
-        /// the ID3v1 tag, the LAME tag (behind the ID3v2 tag), the end of the MP3 stream. error is an
-        /// error of the input side (0: none).
+        /// then the end of the MP3 stream with the LAME tag frame for the file. error is an
+        /// error of the input side (0: none, or OutOfMemory).
         /// </summary>
         void Finish(std::int32_t encoderPadding, std::int32_t radioGain, std::int32_t error) noexcept;
 
-        /// <summary>0, or LAME's error code of lame_encode_buffer/lame_encode_flush (-1 buffer too small, -2 internal error).</summary>
+        /// <summary>
+        /// ctLame's own error code beside LAME's: the input side ran out of memory (the sample stream, or the frame of
+        /// the sequential graph), so the output is incomplete.
+        /// </summary>
+        static constexpr std::int32_t OutOfMemory = -3;
+
+        /// <summary>
+        /// 0, LAME's error code of lame_encode_buffer/lame_encode_flush (-1 buffer too small, -2 internal error), or
+        /// OutOfMemory.
+        /// </summary>
         std::int32_t Error() const noexcept { return error_; }
 
     private:
-        void Write(const std::byte* data, std::int32_t size) noexcept;
+        Mp3File& mp3_;
+        Encoder& encoder_;
 
-        BlockPipe&     mp3_;
-        Encoder&       encoder_;
-        Mp3WriterTask& writer_;
-        Id3Bytes       id3_;
-        TaskProfile*   profile_;
+        std::int32_t error_ = 0;
 
-        std::byte*    block_     = nullptr; // the MP3 block being filled
-        std::uint32_t blockUsed_ = 0;
-        std::int32_t  error_     = 0;
-
-        /// <summary>The largest LAME tag frame: MAXFRAMESIZE of VbrTag.c, the largest free-format frame (640 kbit/s at 32 kHz).</summary>
-        static constexpr std::size_t MaxLameTagBytes = 2880;
-
-        std::array<std::byte, MaxFrameBytes>   buffer_; // the tag placeholder and the flushed bytes
-        std::array<std::byte, MaxLameTagBytes> tag_;    // the LAME tag frame, kept for the writer
+        std::array<std::byte, MaxFrameBytes> buffer_; // the tag placeholder and the flushed bytes
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

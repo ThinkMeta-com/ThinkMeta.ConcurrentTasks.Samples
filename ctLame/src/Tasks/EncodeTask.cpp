@@ -14,22 +14,17 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     {
         const ProfiledRun run(profile_);
         frameEncoder_.Begin();
-        for (;;) {
-            FrameData* const frame = WhileIdle(profile_, [&] { return ring_.AcquireEncode(); });
-            if (frame == nullptr)
-                break;
-            // after an error the frames are only released, so the analysis can finish
+        // after an error EncodeFrame does nothing; the frames are still taken and released, so the stages before and
+        // the Gain tasks run to their end
+        while (FrameData* const frame = ring_.AcquireEncode()) {
             frameEncoder_.EncodeFrame(*frame);
             stream_.Release(frame->frameNumber);
             ring_.CompleteEncode();
         }
 
-        // the ring has ended, so the analysis has finished the sample stream; the ReplayGain of the gain tasks
-        if (gain_ != nullptr) {
-            WhileIdle(profile_, [&] { gain_->WaitDone(); });
-            stream_.FinishGain();
-        }
-        frameEncoder_.Finish(stream_.EncoderPadding(), stream_.RadioGain(), stream_.Failed() ? -3 : 0);
+        // the end of the sample stream: the padding, the ReplayGain of the Gain tasks and whether samples were lost
+        const SharedSampleStream::StreamEnd end = stream_.WaitForEnd();
+        frameEncoder_.Finish(end.encoderPadding, end.radioGain, end.failed ? FrameEncoder::OutOfMemory : 0);
     }
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

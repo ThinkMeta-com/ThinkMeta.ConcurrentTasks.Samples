@@ -17,13 +17,12 @@
 
 #include "Input.h"
 #include "NodeProfile.h"
-#include "SampleStream.h"
 
 // headers with imports last
 #include "BlockPipe.h"
 #include "FrameRing.h"
-#include "GainTask.h"
 #include "PcmFeed.h"
+#include "SharedSampleStream.h"
 
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
 
@@ -33,25 +32,28 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     /// Node Dispatch of the parallel encoder graph (EncodeGraph.h): takes the
     /// WAV data from the PCM pipe into the sample stream (PcmFeed) and dispatches each frame
     /// whose window is complete into the frame ring, in frame order. Holds back while all slots
-    /// of the ring are in use, so the input runs at most a ring ahead of the encoding. Wakes the gain tasks (GainTask)
-    /// when the stream has a new piece for them.
+    /// of the ring are in use, so the input runs at most a ring ahead of the encoding. It is the writer of the
+    /// sample stream (SharedSampleStream.h): PcmFeed adds the samples for it, and it ends the stream.
+    ///
+    /// Converting and dispatching are one task, although each has state of its own: a frame can only be dispatched
+    /// once its samples are in the stream, so the two never run at the same time, and the conversion is a small part
+    /// of the work (ReplayGain, which is not, has tasks of its own: GainTask.h).
     /// </summary>
     class DispatchTask final : public Tasks::Task
     {
     public:
-        DispatchTask(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format, FrameRing& ring, GainSignals* gain, TaskProfile* profile) noexcept;
+        DispatchTask(BlockPipe& pcm, SharedSampleStream& stream, const PcmReader::Format& format, FrameRing& ring, TaskProfile* profile) noexcept;
 
         void Run() noexcept override;
 
     private:
         void DispatchReady() noexcept;
 
-        PcmFeed       feed_;
-        SampleStream& stream_;
-        FrameRing&    ring_;
-        GainSignals*  gain_; // the gain tasks to wake as the stream grows; null without them
-        TaskProfile*  profile_;
-        std::int64_t  next_ = 0; // the next frame to dispatch
+        PcmFeed             feed_;
+        SharedSampleStream& stream_;
+        FrameRing&          ring_;
+        TaskProfile*        profile_;
+        std::int64_t        next_ = 0; // the next frame to dispatch
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

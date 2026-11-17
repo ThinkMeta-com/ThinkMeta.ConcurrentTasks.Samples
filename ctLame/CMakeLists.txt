@@ -44,7 +44,7 @@ foreach(file IN LISTS CT_LAME_ENCODER_SOURCES)
 endforeach()
 
 set(CT_LAME_TASKS_SOURCES
-    BlockPipe DispatchTask EncodeGraph EncodeTask FrameEncoder FrameRing GainTask Mp3WriterTask PcmFeed SequentialEncodeTask WavReaderTask
+    BlockPipe DispatchTask EncodeGraph EncodeTask FrameEncoder FrameRing GainTask Mp3File Mp3WriterTask PcmFeed SequentialEncodeTask SharedSampleStream WavReaderTask
 )
 list(TRANSFORM CT_LAME_TASKS_SOURCES PREPEND ${CT_LAME_TASKS_DIR}/)
 list(TRANSFORM CT_LAME_TASKS_SOURCES APPEND .cpp)
@@ -68,7 +68,7 @@ if(CT_SHARED_TEST_SHIM_DIR)
     set(CT_LAME_TESTS_DIR ${CT_LAME_DIR}/src/Tests)
     # without the two measurements EventCostBenchmark and IoPipelineBenchmark (against CopyFileW): they run on Windows
     set(CT_LAME_TESTS_SOURCES
-        EncoderGoldenTests FrameRingTests Id3TagTests InitParamsTests InputMdctTests IoPipelineTests MdctGoldenTests PsyGoldenTests
+        EncodeGraphOrderTests EncoderGoldenTests FrameRingTests Id3TagTests InitParamsTests InputMdctTests IoPipelineTests MdctGoldenTests PsyGoldenTests
         SchedulerHandleTests SimdTests VersionTests
     )
     list(TRANSFORM CT_LAME_TESTS_SOURCES PREPEND ${CT_LAME_TESTS_DIR}/)

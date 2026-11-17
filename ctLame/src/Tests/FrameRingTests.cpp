@@ -34,7 +34,7 @@ namespace LameTests {
 
         enum Stage : std::int32_t { Dispatched = 1, Prepared, Resolved, Searched };
 
-        constexpr std::uint32_t MaxWorkers = 15;
+        constexpr std::uint32_t MaxStageTasks = 15;
 
         template <typename Function>
         class FunctionTask final : public Tasks::Task
@@ -52,9 +52,9 @@ namespace LameTests {
             std::int64_t wrong   = 0;
         };
 
-        RingResult RunRing(std::int64_t frames, std::uint32_t slots, std::uint32_t workers)
+        RingResult RunRing(std::int64_t frames, std::uint32_t slots, std::uint32_t stageTasks)
         {
-            Assert::IsTrue(workers <= MaxWorkers);
+            Assert::IsTrue(stageTasks <= MaxStageTasks);
             FrameRing ring;
             Assert::IsTrue(ring.Initialize(slots));
 
@@ -74,17 +74,18 @@ namespace LameTests {
                 }
                 ring.EndDispatch();
             };
-            auto work = [&] {
-                FrameRing::Work kind;
-                while (FrameData* frame = ring.AcquireWork(kind)) {
-                    if (kind == FrameRing::Work::Prepare) {
-                        expect(frame->modeExt == Dispatched);
-                        frame->modeExt = Prepared;
-                    } else {
-                        expect(frame->modeExt == Resolved);
-                        frame->modeExt = Searched;
-                    }
-                    ring.CompleteWork(*frame, kind);
+            auto prepare = [&] {
+                while (FrameData* frame = ring.AcquirePrepare()) {
+                    expect(frame->modeExt == Dispatched);
+                    frame->modeExt = Prepared;
+                    ring.CompletePrepare(*frame);
+                }
+            };
+            auto search = [&] {
+                while (FrameData* frame = ring.AcquireSearch()) {
+                    expect(frame->modeExt == Resolved);
+                    frame->modeExt = Searched;
+                    ring.CompleteSearch(*frame);
                 }
             };
             auto resolve = [&] {
@@ -106,26 +107,34 @@ namespace LameTests {
 
             {
                 Shared::TaskRuntime      runtime(0);
-                Shared::RunningScheduler compute(SchedulerKind::Default, workers + 3);
+                Shared::RunningScheduler compute(SchedulerKind::Default, stageTasks + 3);
                 Assert::IsTrue(runtime && compute);
                 FunctionTask dispatchTask(dispatch);
                 FunctionTask resolveTask(resolve);
                 FunctionTask encodeTask(encode);
-                std::array<std::optional<FunctionTask<decltype(work)>>, MaxWorkers> workerTasks;
-                for (std::uint32_t i = 0; i < workers; ++i)
-                    workerTasks[i].emplace(work);
+                std::array<std::optional<FunctionTask<decltype(prepare)>>, MaxStageTasks> prepareTasks;
+                std::array<std::optional<FunctionTask<decltype(search)>>, MaxStageTasks>  searchTasks;
+                for (std::uint32_t i = 0; i < stageTasks; ++i) {
+                    prepareTasks[i].emplace(prepare);
+                    searchTasks[i].emplace(search);
+                }
 
                 Synchronization::TaskGroup group;
                 group.AddTask(&dispatchTask);
                 group.AddTask(&resolveTask);
                 group.AddTask(&encodeTask);
-                for (std::uint32_t i = 0; i < workers; ++i)
-                    group.AddTask(&*workerTasks[i]);
-                compute->AddTask(&encodeTask, TaskPriority::High);
+                for (std::uint32_t i = 0; i < stageTasks; ++i) {
+                    group.AddTask(&*prepareTasks[i]);
+                    group.AddTask(&*searchTasks[i]);
+                }
+                // the priorities of the encoder graph: the stages behind Prepare with High
+                compute->AddTask(&dispatchTask, TaskPriority::Normal);
+                for (std::uint32_t i = 0; i < stageTasks; ++i)
+                    compute->AddTask(&*prepareTasks[i], TaskPriority::Normal);
                 compute->AddTask(&resolveTask, TaskPriority::High);
-                compute->AddTask(&dispatchTask, TaskPriority::High);
-                for (std::uint32_t i = 0; i < workers; ++i)
-                    compute->AddTask(&*workerTasks[i], TaskPriority::Normal);
+                for (std::uint32_t i = 0; i < stageTasks; ++i)
+                    compute->AddTask(&*searchTasks[i], TaskPriority::High);
+                compute->AddTask(&encodeTask, TaskPriority::High);
                 group.Wait();
                 compute.Stop();
             }
@@ -140,12 +149,12 @@ namespace LameTests {
     {
     public:
         // Every frame through all five stages, in order where the stage is serial; with few slots the
-        // ring wraps all the time, with many workers the parallel stages overtake each other.
+        // ring wraps all the time, with many tasks per stage the parallel stages overtake each other.
         TEST_METHOD(EveryFrameThroughEveryStage)
         {
             for (std::int32_t round = 0; round < 5; ++round) {
-                for (const std::uint32_t workers : {1u, 2u, 7u, 15u}) {
-                    const RingResult r = RunRing(20000, FrameRing::SlotsFor(workers), workers);
+                for (const std::uint32_t stageTasks : {1u, 2u, 7u, 15u}) {
+                    const RingResult r = RunRing(20000, FrameRing::SlotsFor(stageTasks), stageTasks);
                     Assert::AreEqual(std::int64_t{20000}, r.encoded);
                     Assert::AreEqual(std::int64_t{0}, r.wrong);
                 }

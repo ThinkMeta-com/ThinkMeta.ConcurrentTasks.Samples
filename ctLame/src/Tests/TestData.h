@@ -8,7 +8,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
+
+#if !defined(_WIN32)
+#    include <unistd.h>
+#endif
 
 #include "File.h"
 #include "Formatter.h"
@@ -120,6 +125,30 @@ namespace LameTests {
     {
         Shared::Formatter::Format(text, static_cast<std::int32_t>(N), format, values...);
     }
+
+    // a new empty file in the temp directory, deleted at the end of the test
+    struct TempFile {
+        Char path[Shared::File::MaxPath];
+
+        explicit TempFile(const Char* prefix)
+        {
+#if defined(_WIN32)
+            wchar_t directory[MAX_PATH];
+            GetTempPathW(MAX_PATH, directory);
+            GetTempFileNameW(directory, prefix, 0, path);
+#else
+            const char* directory = std::getenv("TMPDIR");
+            FormatTo(path, "%s/%sXXXXXX", directory != nullptr && *directory != 0 ? directory : "/tmp", prefix);
+            const int file = mkstemp(path);
+            Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsTrue(file >= 0);
+            close(file);
+#endif
+        }
+        ~TempFile() { Shared::File::Delete(path); }
+
+        TempFile(const TempFile&)            = delete;
+        TempFile& operator=(const TempFile&) = delete;
+    };
 
     // The log line of a golden test whose input file is missing: the variable to set, or the file that is not there.
     inline const Char* MissingInputText(Char (&text)[400], const Char* test, const Char* path)

@@ -40,10 +40,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         void Run() noexcept override
         {
             const ProfiledRun run(profile_);
-            for (;;) {
-                FrameData* const frame = WhileIdle(profile_, [&] { return ring_.AcquireResolve(); });
-                if (frame == nullptr)
-                    break;
+            while (FrameData* const frame = ring_.AcquireResolve()) {
                 encoder_.Resolve(*frame);
                 ring_.CompleteResolve();
             }

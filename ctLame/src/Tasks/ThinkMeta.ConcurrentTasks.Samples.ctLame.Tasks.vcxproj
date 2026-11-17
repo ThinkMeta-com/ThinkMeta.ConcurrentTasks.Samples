@@ -29,13 +29,16 @@
     <ClInclude Include="FrameEncoder.h" />
     <ClInclude Include="FrameRing.h" />
     <ClInclude Include="GainTask.h" />
-    <ClInclude Include="IoPriority.h" />
+    <ClInclude Include="Mp3File.h" />
     <ClInclude Include="Mp3WriterTask.h" />
+    <ClInclude Include="NodeProfile.h" />
     <ClInclude Include="PcmFeed.h" />
+    <ClInclude Include="PrepareTask.h" />
     <ClInclude Include="ResolveTask.h" />
+    <ClInclude Include="SearchTask.h" />
     <ClInclude Include="SequentialEncodeTask.h" />
+    <ClInclude Include="SharedSampleStream.h" />
     <ClInclude Include="WavReaderTask.h" />
-    <ClInclude Include="WorkerTask.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BlockPipe.cpp" />
@@ -45,9 +48,11 @@
     <ClCompile Include="FrameEncoder.cpp" />
     <ClCompile Include="FrameRing.cpp" />
     <ClCompile Include="GainTask.cpp" />
+    <ClCompile Include="Mp3File.cpp" />
     <ClCompile Include="Mp3WriterTask.cpp" />
     <ClCompile Include="PcmFeed.cpp" />
     <ClCompile Include="SequentialEncodeTask.cpp" />
+    <ClCompile Include="SharedSampleStream.cpp" />
     <ClCompile Include="WavReaderTask.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -116,138 +116,145 @@ namespace LameTests {
 
     } // namespace
 
-    TEST_CLASS(EncoderGoldenTests){public: TEST_METHOD(V4){Run(CT_TEXT("V4"), Clipped, [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 385718, 0x5E783E2D1529CD12ull);
-} // namespace LameTests
+    TEST_CLASS(EncoderGoldenTests)
+    {
+    public:
+        TEST_METHOD(V4)
+        {
+            Run(CT_TEXT("V4"), Clipped, [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 385718, 0x5E783E2D1529CD12ull);
+        }
 
-TEST_METHOD(V0)
-{
-    Run(CT_TEXT("V0"), Clipped, [](EncoderOptions& o) { o.SetVbrQuality(0.0f); }, 718945, 0x8A5969A07E0A1BA2ull);
-}
+        TEST_METHOD(V0)
+        {
+            Run(CT_TEXT("V0"), Clipped, [](EncoderOptions& o) { o.SetVbrQuality(0.0f); }, 718945, 0x8A5969A07E0A1BA2ull);
+        }
 
-TEST_METHOD(V9999)
-{
-    Run(CT_TEXT("V9999"), Clipped, [](EncoderOptions& o) { o.SetVbrQuality(9.999f); }, 160979, 0xAC4E7B562DBAA8C3ull);
-}
+        TEST_METHOD(V9999)
+        {
+            Run(CT_TEXT("V9999"), Clipped, [](EncoderOptions& o) { o.SetVbrQuality(9.999f); }, 160979, 0xAC4E7B562DBAA8C3ull);
+        }
 
-TEST_METHOD(MonoInputV4)
-{
-    Run(CT_TEXT("MonoInputV4"), CT_TEXT("s16-mono-44100.wav"), [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 204722, 0x5210300AF1773B59ull);
-}
+        TEST_METHOD(MonoInputV4)
+        {
+            Run(CT_TEXT("MonoInputV4"), CT_TEXT("s16-mono-44100.wav"), [](EncoderOptions& o) { o.SetVbrQuality(4.0f); }, 204722, 0x5210300AF1773B59ull);
+        }
 
-TEST_METHOD(Rate32kV73)
-{
-    Run(CT_TEXT("Rate32kV73"), CT_TEXT("s16-stereo-32000.wav"), [](EncoderOptions& o) { o.SetVbrQuality(7.3f); }, 304416, 0x4E2A5B8892FD249Bull);
-}
+        TEST_METHOD(Rate32kV73)
+        {
+            Run(CT_TEXT("Rate32kV73"), CT_TEXT("s16-stereo-32000.wav"), [](EncoderOptions& o) { o.SetVbrQuality(7.3f); }, 304416, 0x4E2A5B8892FD249Bull);
+        }
 
-TEST_METHOD(Rate48kStereoV15)
-{
-    Run(
-        CT_TEXT("Rate48kStereoV15"), CT_TEXT("s16-stereo-48000.wav"),
-        [](EncoderOptions& o) {
-            o.SetMode(Stereo);
-            o.SetVbrQuality(1.5f);
-        },
-        489216, 0x7274089E472C22DAull);
-}
+        TEST_METHOD(Rate48kStereoV15)
+        {
+            Run(
+                CT_TEXT("Rate48kStereoV15"), CT_TEXT("s16-stereo-48000.wav"),
+                [](EncoderOptions& o) {
+                    o.SetMode(Stereo);
+                    o.SetVbrQuality(1.5f);
+                },
+                489216, 0x7274089E472C22DAull);
+        }
 
-TEST_METHOD(MonoDownmixV5)
-{
-    Run(
-        CT_TEXT("MonoDownmixV5"), Clipped,
-        [](EncoderOptions& o) {
-            o.SetMode(Mono);
-            o.SetVbrQuality(5.0f);
-        },
-        180180, 0x47E87EE8F175CBA5ull);
-}
+        TEST_METHOD(MonoDownmixV5)
+        {
+            Run(
+                CT_TEXT("MonoDownmixV5"), Clipped,
+                [](EncoderOptions& o) {
+                    o.SetMode(Mono);
+                    o.SetVbrQuality(5.0f);
+                },
+                180180, 0x47E87EE8F175CBA5ull);
+        }
 
-TEST_METHOD(ExperimentalZV3)
-{
-    Run(
-        CT_TEXT("ExperimentalZV3"), Clipped,
-        [](EncoderOptions& o) {
-            o.SetExperimentalZ(1);
-            o.SetVbrQuality(3.0f);
-        },
-        433449, 0x13AA434D5877B3BCull);
-}
+        TEST_METHOD(ExperimentalZV3)
+        {
+            Run(
+                CT_TEXT("ExperimentalZV3"), Clipped,
+                [](EncoderOptions& o) {
+                    o.SetExperimentalZ(1);
+                    o.SetVbrQuality(3.0f);
+                },
+                433449, 0x13AA434D5877B3BCull);
+        }
 
-TEST_METHOD(ErrorProtectionV2)
-{
-    Run(
-        CT_TEXT("ErrorProtectionV2"), Clipped,
-        [](EncoderOptions& o) {
-            o.SetErrorProtection(1);
-            o.SetVbrQuality(2.0f);
-        },
-        494610, 0x2E1BD07BC5E58C51ull);
-}
+        TEST_METHOD(ErrorProtectionV2)
+        {
+            Run(
+                CT_TEXT("ErrorProtectionV2"), Clipped,
+                [](EncoderOptions& o) {
+                    o.SetErrorProtection(1);
+                    o.SetVbrQuality(2.0f);
+                },
+                494610, 0x2E1BD07BC5E58C51ull);
+        }
 
-TEST_METHOD(HardMinMaxV4)
-{
-    Run(
-        CT_TEXT("HardMinMaxV4"), Clipped,
-        [](EncoderOptions& o) {
-            o.SetVbrMinBitrateKbps(64);
-            o.SetVbrMaxBitrateKbps(160);
-            o.SetVbrHardMin(1);
-            o.SetVbrQuality(4.0f);
-        },
-        379690, 0xD4E560C478F2A192ull);
-}
+        TEST_METHOD(HardMinMaxV4)
+        {
+            Run(
+                CT_TEXT("HardMinMaxV4"), Clipped,
+                [](EncoderOptions& o) {
+                    o.SetVbrMinBitrateKbps(64);
+                    o.SetVbrMaxBitrateKbps(160);
+                    o.SetVbrHardMin(1);
+                    o.SetVbrQuality(4.0f);
+                },
+                379690, 0xD4E560C478F2A192ull);
+        }
 
-TEST_METHOD(NoReservoirV4)
-{
-    Run(
-        CT_TEXT("NoReservoirV4"), Clipped,
-        [](EncoderOptions& o) {
-            o.SetDisableReservoir(1);
-            o.SetVbrQuality(4.0f);
-        },
-        423526, 0xC224A70A656037F9ull);
-}
+        TEST_METHOD(NoReservoirV4)
+        {
+            Run(
+                CT_TEXT("NoReservoirV4"), Clipped,
+                [](EncoderOptions& o) {
+                    o.SetDisableReservoir(1);
+                    o.SetVbrQuality(4.0f);
+                },
+                423526, 0xC224A70A656037F9ull);
+        }
 
-TEST_METHOD(NoTagV4)
-{
-    Run(
-        CT_TEXT("NoTagV4"), Clipped,
-        [](EncoderOptions& o) {
-            o.SetWriteVbrTag(0);
-            o.SetVbrQuality(4.0f);
-        },
-        385301, 0xBD4ECAAC55016997ull);
-}
-}
-;
-
-TEST_CLASS(EncoderTableTests){public:
-                                // the packed code lengths, computed from the tables, against values of LAME's largetbl,
-                                // table23 and table56
-                                TEST_METHOD(HuffmanPairLengths){ThinkMeta::ConcurrentTasks::Samples::Lame::HuffmanPairLengths lengths;
-InitHuffmanPairLengths(lengths);
-Assert::AreEqual(0x010004u, lengths.largetbl[0]);
-Assert::AreEqual(0x0d000cu, lengths.largetbl[11]);
-Assert::AreEqual(0x0a0006u, lengths.largetbl[255]);
-Assert::AreEqual(0x010002u, lengths.table23[0]);
-Assert::AreEqual(0x080008u, lengths.table23[8]);
-Assert::AreEqual(0x010003u, lengths.table56[0]);
-Assert::AreEqual(0x0a0009u, lengths.table56[15]);
-}
-
-TEST_METHOD(FrameBits)
-{
-    auto bits = [](std::int32_t rate, std::int32_t index) {
-        EncoderOptions options;
-        options.SetInSamplerate(rate);
-        SessionConfig config;
-        Assert::AreEqual(0, InitParams(options, config));
-        return ThinkMeta::ConcurrentTasks::Samples::Lame::FrameBits(config, index);
+        TEST_METHOD(NoTagV4)
+        {
+            Run(
+                CT_TEXT("NoTagV4"), Clipped,
+                [](EncoderOptions& o) {
+                    o.SetWriteVbrTag(0);
+                    o.SetVbrQuality(4.0f);
+                },
+                385301, 0xBD4ECAAC55016997ull);
+        }
     };
-    Assert::AreEqual(8 * 417, bits(44100, 9));  // 128 kbps: 417.96 bytes, never padded in VBR
-    Assert::AreEqual(8 * 960, bits(48000, 14)); // 320 kbps
-    Assert::AreEqual(8 * 144, bits(32000, 1));  // 32 kbps
-}
-}
-;
+
+    TEST_CLASS(EncoderTableTests)
+    {
+    public:
+        // the packed code lengths, computed from the tables, against values of LAME's largetbl,
+        // table23 and table56
+        TEST_METHOD(HuffmanPairLengths)
+        {
+            ThinkMeta::ConcurrentTasks::Samples::Lame::HuffmanPairLengths lengths;
+            InitHuffmanPairLengths(lengths);
+            Assert::AreEqual(0x010004u, lengths.largetbl[0]);
+            Assert::AreEqual(0x0d000cu, lengths.largetbl[11]);
+            Assert::AreEqual(0x0a0006u, lengths.largetbl[255]);
+            Assert::AreEqual(0x010002u, lengths.table23[0]);
+            Assert::AreEqual(0x080008u, lengths.table23[8]);
+            Assert::AreEqual(0x010003u, lengths.table56[0]);
+            Assert::AreEqual(0x0a0009u, lengths.table56[15]);
+        }
+
+        TEST_METHOD(FrameBits)
+        {
+            auto bits = [](std::int32_t rate, std::int32_t index) {
+                EncoderOptions options;
+                options.SetInSamplerate(rate);
+                SessionConfig config;
+                Assert::AreEqual(0, InitParams(options, config));
+                return ThinkMeta::ConcurrentTasks::Samples::Lame::FrameBits(config, index);
+            };
+            Assert::AreEqual(8 * 417, bits(44100, 9));  // 128 kbps: 417.96 bytes, never padded in VBR
+            Assert::AreEqual(8 * 960, bits(48000, 14)); // 320 kbps
+            Assert::AreEqual(8 * 144, bits(32000, 1));  // 32 kbps
+        }
+    };
 
 } // namespace LameTests

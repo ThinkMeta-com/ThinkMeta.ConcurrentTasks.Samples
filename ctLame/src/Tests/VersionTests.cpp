@@ -13,17 +13,20 @@ using namespace ThinkMeta::ConcurrentTasks::Samples::Lame;
 
 namespace LameTests {
 
-    TEST_CLASS(VersionTests){public:
-                                 // The reference lame.exe writes exactly these bytes into the LAME tag and prints these
-                                 // strings; any difference breaks the bit compare.
-                                 TEST_METHOD(MatchesLame40){Assert::AreEqual("4.0", GetLameVersion());
-    Assert::AreEqual("4.0", GetLameShortVersion());
-    Assert::AreEqual("LAME4.0 ", GetLameVeryShortVersion());
-    Assert::AreEqual("LAME4.0 ", GetLameTagEncoderShortVersion());
-    Assert::AreEqual("https://lame.sourceforge.io", GetLameUrl());
-    Assert::AreEqual("64bits", GetLameOsBitness());
-} // namespace LameTests
-}
-;
+    TEST_CLASS(VersionTests)
+    {
+    public:
+        // The reference lame.exe writes exactly these bytes into the LAME tag and prints these
+        // strings; any difference breaks the bit compare.
+        TEST_METHOD(MatchesLame40)
+        {
+            Assert::AreEqual("4.0", GetLameVersion());
+            Assert::AreEqual("4.0", GetLameShortVersion());
+            Assert::AreEqual("LAME4.0 ", GetLameVeryShortVersion());
+            Assert::AreEqual("LAME4.0 ", GetLameTagEncoderShortVersion());
+            Assert::AreEqual("https://lame.sourceforge.io", GetLameUrl());
+            Assert::AreEqual("64bits", GetLameOsBitness());
+        }
+    };
 
 } // namespace LameTests

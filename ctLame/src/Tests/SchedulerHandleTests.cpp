@@ -16,31 +16,35 @@ using ThinkMeta::ConcurrentTasks::Samples::Shared::SchedulerHandle;
 
 namespace LameTests {
 
-    TEST_CLASS(SchedulerHandleTests){public: TEST_METHOD(CreatesAndDestroys){auto scheduler = SchedulerHandle::Create(SchedulerKind::Default, 1);
-    Assert::IsTrue(static_cast<bool>(scheduler));
-    scheduler->Start();
-    scheduler->Stop();
-    scheduler.Reset();
-    Assert::IsFalse(static_cast<bool>(scheduler));
-} // namespace LameTests
+    TEST_CLASS(SchedulerHandleTests)
+    {
+    public:
+        TEST_METHOD(CreatesAndDestroys)
+        {
+            auto scheduler = SchedulerHandle::Create(SchedulerKind::Default, 1);
+            Assert::IsTrue(static_cast<bool>(scheduler));
+            scheduler->Start();
+            scheduler->Stop();
+            scheduler.Reset();
+            Assert::IsFalse(static_cast<bool>(scheduler));
+        }
 
-TEST_METHOD(MoveTransfersOwnership)
-{
-    auto            first = SchedulerHandle::Create(SchedulerKind::Default, 1);
-    ITaskScheduler* raw   = first.Get();
+        TEST_METHOD(MoveTransfersOwnership)
+        {
+            auto            first = SchedulerHandle::Create(SchedulerKind::Default, 1);
+            ITaskScheduler* raw   = first.Get();
 
-    SchedulerHandle second = std::move(first);
-    Assert::IsNull(first.Get());
-    Assert::IsTrue(second.Get() == raw);
-}
+            SchedulerHandle second = std::move(first);
+            Assert::IsNull(first.Get());
+            Assert::IsTrue(second.Get() == raw);
+        }
 
-// TaskSwap needs a switch policy; without one the core refuses to create it.
-TEST_METHOD(EmptyWhenRejected)
-{
-    auto scheduler = SchedulerHandle::Create(SchedulerKind::TaskSwap, 1);
-    Assert::IsFalse(static_cast<bool>(scheduler));
-}
-}
-;
+        // TaskSwap needs a switch policy; without one the core refuses to create it.
+        TEST_METHOD(EmptyWhenRejected)
+        {
+            auto scheduler = SchedulerHandle::Create(SchedulerKind::TaskSwap, 1);
+            Assert::IsFalse(static_cast<bool>(scheduler));
+        }
+    };
 
 } // namespace LameTests

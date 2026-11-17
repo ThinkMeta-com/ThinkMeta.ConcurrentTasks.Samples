@@ -298,111 +298,73 @@ namespace LameTests {
 
     } // namespace
 
-    TEST_CLASS(SimdTests){public: TEST_METHOD(FhtSse41MatchesScalar){CheckFht(SimdLevel::Sse41);
-} // namespace LameTests
+    TEST_CLASS(SimdTests)
+    {
+    public:
+        TEST_METHOD(FhtSse41MatchesScalar) { CheckFht(SimdLevel::Sse41); }
 
-TEST_METHOD(FhtAvx2MatchesScalar)
-{
-    CheckFht(SimdLevel::Avx2);
-}
+        TEST_METHOD(FhtAvx2MatchesScalar) { CheckFht(SimdLevel::Avx2); }
 
-TEST_METHOD(XrpowSse41MatchesScalar)
-{
-    CheckXrpow(SimdLevel::Sse41);
-}
+        TEST_METHOD(XrpowSse41MatchesScalar) { CheckXrpow(SimdLevel::Sse41); }
 
-TEST_METHOD(XrpowAvx2MatchesScalar)
-{
-    CheckXrpow(SimdLevel::Avx2);
-}
+        TEST_METHOD(XrpowAvx2MatchesScalar) { CheckXrpow(SimdLevel::Avx2); }
 
-TEST_METHOD(QuantizeBandsSse41MatchScalar)
-{
-    CheckQuantizeBands(SimdLevel::Sse41);
-}
+        TEST_METHOD(QuantizeBandsSse41MatchScalar) { CheckQuantizeBands(SimdLevel::Sse41); }
 
-TEST_METHOD(QuantizeBandsAvx2MatchScalar)
-{
-    CheckQuantizeBands(SimdLevel::Avx2);
-}
+        TEST_METHOD(QuantizeBandsAvx2MatchScalar) { CheckQuantizeBands(SimdLevel::Avx2); }
 
-TEST_METHOD(AttackPrepSse41MatchesScalar)
-{
-    CheckAttackPrep(SimdLevel::Sse41);
-}
+        TEST_METHOD(AttackPrepSse41MatchesScalar) { CheckAttackPrep(SimdLevel::Sse41); }
 
-TEST_METHOD(AttackPrepAvx2MatchesScalar)
-{
-    CheckAttackPrep(SimdLevel::Avx2);
-}
+        TEST_METHOD(AttackPrepAvx2MatchesScalar) { CheckAttackPrep(SimdLevel::Avx2); }
 
-TEST_METHOD(MaskChainsSse41MatchesScalar)
-{
-    CheckMaskChains(SimdLevel::Sse41);
-}
+        TEST_METHOD(MaskChainsSse41MatchesScalar) { CheckMaskChains(SimdLevel::Sse41); }
 
-TEST_METHOD(MaskChainsAvx2MatchesScalar)
-{
-    CheckMaskChains(SimdLevel::Avx2);
-}
+        TEST_METHOD(MaskChainsAvx2MatchesScalar) { CheckMaskChains(SimdLevel::Avx2); }
 
-// the index limits of the SIMD vbrpsy_mask_add give the index of FastLog10X for every float ratio
-// from 1 below MaskAddMaxI1
-TEST_METHOD(MaskAddIndexLimitsMatchFastLog)
-{
-    const float*  limits = MaskAddIndexLimits();
-    std::uint32_t bits;
-    std::uint32_t high;
-    const float   one = 1.0f;
-    std::memcpy(&bits, &one, sizeof(bits));
-    std::memcpy(&high, &MaskAddMaxI1, sizeof(high));
-    for (; bits < high; ++bits) {
-        float ratio;
-        std::memcpy(&ratio, &bits, sizeof(ratio));
-        std::int32_t count = 0;
-        for (std::int32_t k = 0; k < 9; ++k)
-            count += ratio >= limits[k] ? 1 : 0;
-        const std::int32_t index = static_cast<std::int32_t>(FastLog10X(ratio, 16.0f));
-        if (count != index)
-            Assert::Fail(L"index limits differ from FastLog10X");
-    }
-}
+        // the index limits of the SIMD vbrpsy_mask_add give the index of FastLog10X for every float ratio
+        // from 1 below MaskAddMaxI1
+        TEST_METHOD(MaskAddIndexLimitsMatchFastLog)
+        {
+            const float*  limits = MaskAddIndexLimits();
+            std::uint32_t bits;
+            std::uint32_t high;
+            const float   one = 1.0f;
+            std::memcpy(&bits, &one, sizeof(bits));
+            std::memcpy(&high, &MaskAddMaxI1, sizeof(high));
+            for (; bits < high; ++bits) {
+                float ratio;
+                std::memcpy(&ratio, &bits, sizeof(ratio));
+                std::int32_t count = 0;
+                for (std::int32_t k = 0; k < 9; ++k)
+                    count += ratio >= limits[k] ? 1 : 0;
+                const std::int32_t index = static_cast<std::int32_t>(FastLog10X(ratio, 16.0f));
+                if (count != index)
+                    Assert::Fail(L"index limits differ from FastLog10X");
+            }
+        }
 
-TEST_METHOD(WindowSubbandSse41MatchesScalar)
-{
-    CheckWindowSubband(SimdLevel::Sse41);
-}
+        TEST_METHOD(WindowSubbandSse41MatchesScalar) { CheckWindowSubband(SimdLevel::Sse41); }
 
-TEST_METHOD(WindowSubbandAvx2MatchesScalar)
-{
-    CheckWindowSubband(SimdLevel::Avx2);
-}
+        TEST_METHOD(WindowSubbandAvx2MatchesScalar) { CheckWindowSubband(SimdLevel::Avx2); }
 
-TEST_METHOD(MaskingLongSse41MatchesScalar)
-{
-    CheckMaskingLong(SimdLevel::Sse41);
-}
+        TEST_METHOD(MaskingLongSse41MatchesScalar) { CheckMaskingLong(SimdLevel::Sse41); }
 
-TEST_METHOD(MaskingLongAvx2MatchesScalar)
-{
-    CheckMaskingLong(SimdLevel::Avx2);
-}
+        TEST_METHOD(MaskingLongAvx2MatchesScalar) { CheckMaskingLong(SimdLevel::Avx2); }
 
-TEST_METHOD(ChooseCapsAtTheCpu)
-{
-    CpuFeatures none;
-    Assert::IsTrue(ChooseSimdLevel(SimdLevel::Avx2, none) == SimdLevel::Scalar);
-    CpuFeatures sse;
-    sse.sse41 = true;
-    Assert::IsTrue(ChooseSimdLevel(SimdLevel::Avx2, sse) == SimdLevel::Sse41);
-    CpuFeatures all;
-    all.sse41 = all.avx2 = true;
-    Assert::IsTrue(ChooseSimdLevel(SimdLevel::Sse41, all) == SimdLevel::Sse41);
-    SimdLevel level = SimdLevel::Scalar;
-    Assert::IsTrue(ParseSimdLevel(CT_TEXT("avx2"), level) && level == SimdLevel::Avx2);
-    Assert::IsFalse(ParseSimdLevel(CT_TEXT("avx512"), level));
-}
-}
-;
+        TEST_METHOD(ChooseCapsAtTheCpu)
+        {
+            CpuFeatures none;
+            Assert::IsTrue(ChooseSimdLevel(SimdLevel::Avx2, none) == SimdLevel::Scalar);
+            CpuFeatures sse;
+            sse.sse41 = true;
+            Assert::IsTrue(ChooseSimdLevel(SimdLevel::Avx2, sse) == SimdLevel::Sse41);
+            CpuFeatures all;
+            all.sse41 = all.avx2 = true;
+            Assert::IsTrue(ChooseSimdLevel(SimdLevel::Sse41, all) == SimdLevel::Sse41);
+            SimdLevel level = SimdLevel::Scalar;
+            Assert::IsTrue(ParseSimdLevel(CT_TEXT("avx2"), level) && level == SimdLevel::Avx2);
+            Assert::IsFalse(ParseSimdLevel(CT_TEXT("avx512"), level));
+        }
+    };
 
 } // namespace LameTests

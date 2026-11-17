@@ -88,7 +88,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         /// </summary>
         std::int32_t GainPiece(std::uint64_t position) const noexcept;
 
-        /// <summary>The stream length the gain tasks may read (for GainSignals).</summary>
+        /// <summary>The stream length the gain tasks may read (for the writer, which wakes them).</summary>
         std::uint64_t GainAvailable() const noexcept { return available_.load(std::memory_order_acquire) & ~Ended; }
 
         /// <summary>The position of the first AnalyzeSamples call: behind the start zeros.</summary>

@@ -6,6 +6,7 @@
 
 #include "FrameRing.h"
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 
@@ -15,18 +16,15 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     namespace {
 
-        constexpr auto Acquire = std::memory_order_acquire;
-        constexpr auto Release = std::memory_order_release;
-
-        std::atomic<std::int32_t>* NewFlags(std::uint32_t count) noexcept
+        std::atomic<std::int32_t>* NewMarks(std::uint32_t count) noexcept
         {
             void* memory = Shared::Heap::Allocate(count * sizeof(std::atomic<std::int32_t>));
             if (memory == nullptr)
                 return nullptr;
-            auto* flags = static_cast<std::atomic<std::int32_t>*>(memory);
+            auto* marks = static_cast<std::atomic<std::int32_t>*>(memory);
             for (std::uint32_t i = 0; i < count; ++i)
-                new (&flags[i]) std::atomic<std::int32_t>(0);
-            return flags;
+                new (&marks[i]) std::atomic<std::int32_t>(0);
+            return marks;
         }
 
     } // namespace
@@ -43,8 +41,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         // zeroed memory, like the FrameData of the sequential encoder
         slotBytes_ = static_cast<std::size_t>(slotCount) * sizeof(FrameData);
         slots_     = static_cast<FrameData*>(Shared::AddressSpace::Allocate(slotBytes_));
-        prepared_  = NewFlags(slotCount);
-        searched_  = NewFlags(slotCount);
+        prepared_  = NewMarks(slotCount);
+        searched_  = NewMarks(slotCount);
         if (slots_ == nullptr || prepared_ == nullptr || searched_ == nullptr)
             return false;
         slotCount_ = slotCount;
@@ -53,92 +51,79 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         return true;
     }
 
+    // --- 1. Dispatch
+
     FrameData& FrameRing::AcquireDispatch() noexcept
     {
-        while (written_ - released_.load(Acquire) >= slotCount_)
-            slotFree_.Wait();
+        while (dispatchAcquired_ - encoded_.load(std::memory_order_acquire) >= slotCount_) {
+            const ProfileScope idle(dispatchIdle_);
+            dispatchReady_.Wait();
+        }
 
-        // the slot held frame written_ - slotCount_, which Encode has completed
-        const std::uint32_t slot  = static_cast<std::uint32_t>(written_ % slotCount_);
+        // the slot held frame dispatchAcquired_ - slotCount_, which Encode has completed
+        const std::uint32_t slot  = static_cast<std::uint32_t>(dispatchAcquired_ % slotCount_);
         FrameData&          frame = slots_[slot];
-        assert(frame.frameNumber == (written_ >= slotCount_ ? written_ - slotCount_ : -1));
-        assert(prepared_[slot].load(Acquire) == 0 && searched_[slot].load(Acquire) == 0);
-        frame.frameNumber = written_++;
+        assert(frame.frameNumber == (dispatchAcquired_ >= slotCount_ ? dispatchAcquired_ - slotCount_ : -1));
+        assert(prepared_[slot].load(std::memory_order_acquire) == 0 && searched_[slot].load(std::memory_order_acquire) == 0);
+        frame.frameNumber = dispatchAcquired_++;
         return frame;
     }
 
     void FrameRing::CompleteDispatch() noexcept
     {
-        assert(committed_.load(std::memory_order_relaxed) < written_);
-        committed_.store(committed_.load(std::memory_order_relaxed) + 1, Release);
-        workReady_.Set();
+        assert(dispatched_.load(std::memory_order_relaxed) < dispatchAcquired_);
+        dispatched_.store(dispatched_.load(std::memory_order_relaxed) + 1, std::memory_order_release); // only Dispatch moves it
+        prepareReady_.Set();
     }
 
     void FrameRing::EndDispatch() noexcept
     {
-        assert(committed_.load(std::memory_order_relaxed) == written_);
-        ended_.store(true, Release);
-        frameReady_.Set();
-        frameSearched_.Set();
+        assert(dispatched_.load(std::memory_order_relaxed) == dispatchAcquired_);
+        dispatchEnded_.store(true, std::memory_order_release);
+        // every stage that tells its end from the dispatched frames; Search hears it from Resolve
+        prepareReady_.Set();
+        resolveReady_.Set();
+        encodeReady_.Set();
     }
 
-    bool FrameRing::MoreWork() const noexcept
-    {
-        return searchClaimed_.load(Acquire) < resolved_.load(Acquire) || prepareClaimed_.load(Acquire) < committed_.load(Acquire);
-    }
+    // --- 2. Prepare
 
-    FrameData* FrameRing::AcquireWork(Work& work) noexcept
+    FrameData* FrameRing::AcquirePrepare() noexcept
     {
         for (;;) {
-            // read the end mark first: once it is set, every frame has been resolved before it
-            const bool resolveEnded = resolveEnded_.load(Acquire);
+            // read the end mark first: once it is set, every frame has been dispatched before it
+            const bool ended = dispatchEnded_.load(std::memory_order_acquire);
 
-            // searches first: they belong to older frames and free slots sooner
-            std::int64_t searchClaimed = searchClaimed_.load(Acquire);
-            if (searchClaimed < resolved_.load(Acquire)) {
-                if (!searchClaimed_.compare_exchange_strong(searchClaimed, searchClaimed + 1))
-                    continue; // another worker claimed it
-                if (MoreWork())
-                    workReady_.Set(); // one Set wakes one waiting worker
-                work             = Work::Search;
-                FrameData& frame = slots_[searchClaimed % slotCount_];
-                assert(frame.frameNumber == searchClaimed);
+            std::int64_t       claimed    = prepareClaimed_.load(std::memory_order_acquire);
+            const std::int64_t dispatched = dispatched_.load(std::memory_order_acquire);
+            if (claimed < dispatched) {
+                if (!prepareClaimed_.compare_exchange_strong(claimed, claimed + 1))
+                    continue; // another task claimed it
+                if (claimed + 1 < dispatched)
+                    prepareReady_.Set(); // more are left: wake the next task (Sets merge, one Set wakes one task)
+                FrameData& frame = slots_[claimed % slotCount_];
+                assert(frame.frameNumber == claimed);
                 return &frame;
             }
 
-            std::int64_t prepareClaimed = prepareClaimed_.load(Acquire);
-            if (prepareClaimed < committed_.load(Acquire)) {
-                if (!prepareClaimed_.compare_exchange_strong(prepareClaimed, prepareClaimed + 1))
-                    continue;
-                if (MoreWork())
-                    workReady_.Set();
-                work             = Work::Prepare;
-                FrameData& frame = slots_[prepareClaimed % slotCount_];
-                assert(frame.frameNumber == prepareClaimed);
-                return &frame;
-            }
-
-            if (resolveEnded) {
-                workReady_.Set(); // pass the end on to the next waiting worker
+            if (ended) {
+                prepareReady_.Set(); // pass the end on to the next waiting task
                 return nullptr;
             }
-            workReady_.Wait();
+            const ProfileScope idle(prepareIdle_);
+            prepareReady_.Wait();
         }
     }
 
-    void FrameRing::CompleteWork(const FrameData& frame, Work work) noexcept
+    void FrameRing::CompletePrepare(const FrameData& frame) noexcept
     {
         const std::uint32_t slot = static_cast<std::uint32_t>(frame.frameNumber % slotCount_);
-        if (work == Work::Prepare) {
-            assert(prepared_[slot].load(std::memory_order_relaxed) == 0);
-            prepared_[slot].store(1, Release);
-            frameReady_.Set();
-        } else {
-            assert(searched_[slot].load(std::memory_order_relaxed) == 0);
-            searched_[slot].store(1, Release);
-            frameSearched_.Set();
-        }
+        assert(prepared_[slot].load(std::memory_order_relaxed) == 0);
+        prepared_[slot].store(1, std::memory_order_release);
+        resolveReady_.Set();
     }
+
+    // --- 3. Resolve
 
     FrameData* FrameRing::AcquireResolve() noexcept
     {
@@ -146,16 +131,18 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         const std::uint32_t slot = static_cast<std::uint32_t>(next % slotCount_);
         for (;;) {
             // read the end mark first: once it is set, every frame has been dispatched before it
-            const bool ended = ended_.load(Acquire);
-            if (next < committed_.load(Acquire)) {
-                if (prepared_[slot].load(Acquire) != 0)
-                    break;
+            const bool ended = dispatchEnded_.load(std::memory_order_acquire);
+            if (next < dispatched_.load(std::memory_order_acquire)) {
+                if (prepared_[slot].load(std::memory_order_acquire) != 0)
+                    break; // the frame whose turn it is has been prepared
             } else if (ended) {
-                resolveEnded_.store(true, Release);
-                workReady_.Set();
+                // Search may only take resolved frames: it hears the end from here
+                resolveEnded_.store(true, std::memory_order_release);
+                searchReady_.Set();
                 return nullptr;
             }
-            frameReady_.Wait();
+            const ProfileScope idle(resolveIdle_);
+            resolveReady_.Wait();
         }
         FrameData& frame = slots_[slot];
         assert(frame.frameNumber == next);
@@ -164,39 +151,79 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     void FrameRing::CompleteResolve() noexcept
     {
-        resolved_.store(resolved_.load(std::memory_order_relaxed) + 1, Release);
-        workReady_.Set();
+        resolved_.store(resolved_.load(std::memory_order_relaxed) + 1, std::memory_order_release);
+        searchReady_.Set();
     }
+
+    // --- 4. Search
+
+    FrameData* FrameRing::AcquireSearch() noexcept
+    {
+        for (;;) {
+            // read the end mark first: once it is set, every frame has been resolved before it
+            const bool ended = resolveEnded_.load(std::memory_order_acquire);
+
+            std::int64_t       claimed  = searchClaimed_.load(std::memory_order_acquire);
+            const std::int64_t resolved = resolved_.load(std::memory_order_acquire);
+            if (claimed < resolved) {
+                if (!searchClaimed_.compare_exchange_strong(claimed, claimed + 1))
+                    continue; // another task claimed it
+                if (claimed + 1 < resolved)
+                    searchReady_.Set(); // more are left: wake the next task (Sets merge, one Set wakes one task)
+                FrameData& frame = slots_[claimed % slotCount_];
+                assert(frame.frameNumber == claimed);
+                return &frame;
+            }
+
+            if (ended) {
+                searchReady_.Set(); // pass the end on to the next waiting task
+                return nullptr;
+            }
+            const ProfileScope idle(searchIdle_);
+            searchReady_.Wait();
+        }
+    }
+
+    void FrameRing::CompleteSearch(const FrameData& frame) noexcept
+    {
+        const std::uint32_t slot = static_cast<std::uint32_t>(frame.frameNumber % slotCount_);
+        assert(searched_[slot].load(std::memory_order_relaxed) == 0);
+        searched_[slot].store(1, std::memory_order_release);
+        encodeReady_.Set();
+    }
+
+    // --- 5. Encode
 
     FrameData* FrameRing::AcquireEncode() noexcept
     {
-        const std::uint32_t slot = static_cast<std::uint32_t>(read_ % slotCount_);
+        const std::uint32_t slot = static_cast<std::uint32_t>(encodeAcquired_ % slotCount_);
         for (;;) {
             // read the end mark first: once it is set, every frame has been dispatched before it
-            const bool ended = ended_.load(Acquire);
-            if (read_ < committed_.load(Acquire)) {
-                if (searched_[slot].load(Acquire) != 0)
-                    break;
+            const bool ended = dispatchEnded_.load(std::memory_order_acquire);
+            if (encodeAcquired_ < dispatched_.load(std::memory_order_acquire)) {
+                if (searched_[slot].load(std::memory_order_acquire) != 0)
+                    break; // the frame whose turn it is has been searched
             } else if (ended) {
                 return nullptr;
             }
-            frameSearched_.Wait();
+            const ProfileScope idle(encodeIdle_);
+            encodeReady_.Wait();
         }
         FrameData& frame = slots_[slot];
-        assert(frame.frameNumber == read_);
-        ++read_;
+        assert(frame.frameNumber == encodeAcquired_);
+        ++encodeAcquired_;
         return &frame;
     }
 
     void FrameRing::CompleteEncode() noexcept
     {
-        const std::int64_t released = released_.load(std::memory_order_relaxed); // only Encode moves it
-        assert(released < read_);
-        const std::uint32_t slot = static_cast<std::uint32_t>(released % slotCount_);
-        prepared_[slot].store(0, Release);
-        searched_[slot].store(0, Release);
-        released_.store(released + 1, Release);
-        slotFree_.Set();
+        const std::int64_t encoded = encoded_.load(std::memory_order_relaxed); // only Encode moves it
+        assert(encoded < encodeAcquired_);
+        const std::uint32_t slot = static_cast<std::uint32_t>(encoded % slotCount_);
+        prepared_[slot].store(0, std::memory_order_release);
+        searched_[slot].store(0, std::memory_order_release);
+        encoded_.store(encoded + 1, std::memory_order_release);
+        dispatchReady_.Set();
     }
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

@@ -114,7 +114,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         EncoderProgressBegin(config, options_, options_.inPath.data(), options_.outPath.data());
 
         // lame_encoder_loop: the ID3v2 tag goes in front of the MP3 stream (if its memory is not available, LAME
-        // leaves it out), the ID3v1 tag behind it (write_id3v1_tag); the encode node writes both
+        // leaves it out), the ID3v1 tag behind it (write_id3v1_tag); the Write node writes both (Mp3File.h)
         Id3Bytes                     id3;
         std::unique_ptr<std::byte[]> id3v2;
         std::array<std::byte, 128>   id3v1{};
@@ -135,7 +135,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         if (bitWidth != 8 && bitWidth != 16 && bitWidth != 24 && bitWidth != 32 && options_.silent < 10)
             Console::Print(Stream::Error, CT_TEXT("Only 8, 16, 24 and 32 bit input files supported \n"));
 
-        // the writer task opens the file again for asynchronous I/O
+        // the Read task of the graph opens the file again, for asynchronous I/O
         wavFile.Close();
 
         EncodeGraph::Result result;
@@ -257,17 +257,18 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             const TaskProfile*  task;
         };
         const auto&                   graph = profile.graph;
-        const std::array<TaskLine, 7> tasks = {{{CT_TEXT("read"), &graph.read},
+        const std::array<TaskLine, 8> tasks = {{{CT_TEXT("read"), &graph.read},
                                                 {CT_TEXT("dispatch"), &graph.dispatch},
-                                                {CT_TEXT("worker"), &graph.worker},
+                                                {CT_TEXT("prepare"), &graph.prepare},
                                                 {CT_TEXT("resolve"), &graph.resolve},
+                                                {CT_TEXT("search"), &graph.search},
                                                 {frontend.sequential ? CT_TEXT("sequential") : CT_TEXT("encode"), &graph.encode},
                                                 {CT_TEXT("gain"), &graph.gain},
                                                 {CT_TEXT("write"), &graph.write}}};
         for (const auto& t : tasks) {
             const std::int32_t count = t.task->tasks.load();
             if (count == 0)
-                continue; // not in the graph (dispatch, workers and resolve with --sequential)
+                continue; // not in the graph (dispatch, prepare, resolve and search with --sequential)
             const std::int64_t life = t.task->life.load();
             const std::int64_t idle = t.task->idle.load();
             Console::Print(Stream::Error, CT_TEXT("  %-10s %10.1f %8.1f%s"), t.name, (life - idle) / perMs, idle / perMs,
@@ -316,8 +317,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
             profile->threads = static_cast<std::int32_t>(settings.threads);
 
         // The setup of ThinkMeta.ConcurrentTasks (Shared::TaskRuntime) with one I/O thread for Read and Write, and a
-        // compute scheduler with one thread per worker. In reverse order on return: the compute scheduler stops, the
-        // graph goes (and closes its files), then the I/O scheduler, async I/O and the task.
+        // compute scheduler with settings.threads threads. In reverse order on return: the compute scheduler stops, the
+        // graph goes (its tasks have closed their files in Run), then the I/O scheduler, async I/O and the task.
         Shared::TaskRuntime runtime(1);
         EncodeGraph         graph(encoder, config, settings, profile != nullptr ? &profile->graph : nullptr);
         if (!graph.Initialize()) {

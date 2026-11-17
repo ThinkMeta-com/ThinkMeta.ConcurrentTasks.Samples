@@ -6,7 +6,7 @@ after each step: what changed, why, what it gave, and where it is in the code.
 
 [← back to the README](../README.md)
 
-**Steps and stages.** The steps 0 to 8 on this page are the history. The stages a frame passes in
+**Steps and stages.** The steps 0 to 10 on this page are the history. The stages a frame passes in
 the finished graph are numbered 1 to 5, the same as in the code (`FrameRing.h`, `Stages.h`,
 `Encoder.h`): **1 Dispatch, 2 Prepare, 3 Resolve, 4 Search, 5 Encode**. The diagrams from step 5 on
 carry these numbers; [Reading the code](../README.md#reading-the-code) has them as a table.
@@ -19,7 +19,7 @@ corpus, as the time of the whole process. Only numbers within one series compare
 | Shape | Meaning |
 |---|---|
 | box | a task |
-| box ×N | one task per compute thread; Prepare ×N and Search ×N are the same N worker tasks |
+| box ×N | one task per compute thread; up to step 9 Prepare ×N and Search ×N are the same N worker tasks, from step 10 on each stage has N tasks of its own |
 | frame | a scheduler: the I/O scheduler or the compute scheduler |
 | arrow | an edge: a pipe of bytes, the sample stream or the ring of frames |
 | dotted loop | a stage that carries state from frame to frame |
@@ -64,8 +64,8 @@ flowchart LR
 (one thread for both); the whole encoder is one task on the compute scheduler.
 
 **Why:** reading and writing now happen *while* the encoder works, not between its frames. The pipes
-are bounded; their fill levels raise and lower the priority of the I/O tasks, so the encoder never
-waits for data and memory stays small. The LAME tag at the start of the file is only known after the
+are bounded, so memory stays small. (Up to step 9 their fill levels also raised and lowered the
+priority of the I/O tasks.) The LAME tag at the start of the file is only known after the
 last frame, so Write puts it there at the end. The I/O chain manages about 600 MB/s, far more than
 the encoder will ever need.
 
@@ -75,16 +75,16 @@ Later, measured cold (a fresh copy of the WAV file that is not in the file cache
 is the amount of data in flight. Reads of 256 KB with five in flight were among the fastest shapes,
 3 to 4 % faster than the first setting of 64 KB with four in flight; beyond about 1 MB in flight
 nothing changed. The conversion into samples takes each block in pieces of 64 KB, whatever the read
-size, so the frames go out evenly.
+size, so the frames go out evenly. Since step 10 Read does one read of 1 MB at a time, the simplest
+form with that much data in flight.
 
 In the code: `EncodeGraph` (`src\Tasks\EncodeGraph.h`) with `--sequential`: `WavReaderTask` (Read)
-→ PCM pipe → `SequentialEncodeTask` → MP3 pipe → `Mp3WriterTask` (Write). Both pipes are
-`BlockPipe`s of 16 blocks, 256 KB each for the PCM pipe (the read size, `EncodeGraph::Settings`)
-and 64 KB for the MP3 pipe; the I/O tasks keep up to five reads and four writes in flight with
-`WaitableAsyncFileIoRequest_s`. `FillLevelPolicy` (`IoPriority.h`) sets their priority: the reader
-runs with `High` while its pipe is less than 25 % full and with `Normal` again from 50 %, the writer
-the other way round. `FrameEncoder::Finish` hands the LAME tag to the writer
-(`Mp3WriterTask::SetFinalHeader`).
+→ PCM pipe → `SequentialEncodeTask` → MP3 file → `Mp3WriterTask` (Write). The PCM pipe is a
+`BlockPipe` of 4 blocks of 1 MB (the read size, `EncodeGraph::Settings`). `Mp3File` is the MP3 file
+in its sections; its stream is a `BlockPipe` of 16 blocks of 64 KB. Each I/O task does one request
+at a time at a position of its own (`AsyncFile`), and the graph gives Read `Normal` and Write `High`
+priority. `FrameEncoder::Finish` ends the file with the LAME tag (`Mp3File::End`), and Write puts
+it where the stream began.
 
 ---
 
@@ -195,9 +195,9 @@ and free slots sooner. Serial are now only three short links: Dispatch, Resolve 
 **Result:** 1050 → **290 ms**, about 8 times as fast as `lame.exe` on the test file.
 
 In the code: the encoder has four calls, `Encoder::Prepare`, `Resolve`, `Search` and `Encode`
-(`src\Encoder\Encoder.h`), for the stages 2 to 5; the nodes are `DispatchTask`, `WorkerTask` (for
-both kinds of work), `ResolveTask` and `EncodeTask` (`src\Tasks\`). A worker takes its work with
-`FrameRing::AcquireWork`, which hands out searches before preparations. LAME's
+(`src\Encoder\Encoder.h`), for the stages 2 to 5; the nodes are `DispatchTask`, `PrepareTask`,
+`ResolveTask`, `SearchTask` and `EncodeTask` (`src\Tasks\`). The one worker task for both kinds
+of work became two task types in step 10. LAME's
 `L3psycho_anal_vbr` became `PsyPrepare` (`PsyPrepare.cpp`, stage 2b) and `PsyResolve`
 (`PsyResolve.cpp`, stage 3a).
 
@@ -289,14 +289,14 @@ flowchart LR
     E -- "MP3 pipe" --> W
 ```
 
-With 16 threads: 21 tasks (Read, Dispatch, 16 workers, Resolve, Encode, Write), and a frame
+At this step, with 16 threads: 21 tasks (Read, Dispatch, 16 workers, Resolve, Encode, Write), and a frame
 finished about every 13 µs. The serial tasks wait in the middle of their work (Dispatch for a free
 slot, Resolve for the frame before, Encode for the bits it left over); on ConcurrentTasks such a wait
 suspends only the task, and its thread meanwhile runs the search of other frames.
 
 | Edge | Carries | Bounded by |
 |---|---|---|
-| PCM pipe | the bytes of the WAV data | 16 blocks of 256 KB |
+| PCM pipe | the bytes of the WAV data | 16 blocks of 256 KB (4 blocks of 1 MB since step 10) |
 | sample stream | one float stream per channel in reserved virtual memory | only the windows of the frames in flight are committed |
 | frame ring | one `FrameData` per frame, through the five stages | 4 slots per compute thread, 16 to 128 |
 | MP3 pipe | the MP3 bytes in frame order | 16 blocks of 64 KB |
@@ -308,7 +308,7 @@ Details in the [benchmarks](../README.md#benchmarks).
 In the code: `EncodeGraph` (`src\Tasks\EncodeGraph.h`) owns the edges and the nodes and has this
 graph as a diagram in its header; `EncodeGraph::Run` starts all nodes in one `TaskGroup_s` and waits
 for them. The ring's events: Dispatch, Resolve and Encode each wait on an `AutoResetEvent_s` of their
-own (one waiter), the workers share one `AutoResetEvent`; `FrameRing.h` explains why the ring does not
+own (one waiter), the tasks of Prepare share one `AutoResetEvent` and those of Search another; `FrameRing.h` explains why the ring does not
 use the library's `Semaphore_s`, and `src\Tests\FrameRingTests.cpp` runs it under load. The README's
 [Reading the code](../README.md#reading-the-code) gives an order to read the files in.
 
@@ -345,8 +345,83 @@ the nodes and their wake-ups cost nothing, the rest is the work itself on a CPU 
 The benchmarks run both programs with `--noreplaygain`; the reduced `lame.exe` has ReplayGain again,
 on by default like ctLame.
 
-In the code: `GainTask` and `GainSignals` (`src\Tasks\GainTask.h`); `ChannelGain` and `GainAnalysis`
+In the code: `GainTask` (`src\Tasks\GainTask.h`), which reads the stream through its port
+`SharedSampleStream::GainReader`; `ChannelGain` and `GainAnalysis`
 (`src\Encoder\GainAnalysis.h`), the SIMD kernels in `GainKernels.h`; the pieces come from
 `SampleStream::GainPiece`, and `SampleStream::Release` keeps every sample a Gain task has not read yet.
+
+---
+
+## 10 · One task type per activity
+
+```mermaid
+flowchart LR
+    subgraph io ["I/O scheduler · 1 thread"]
+        R["Read<br/>one read at a time"]
+        W["Write · High<br/>ID3v2, MP3 stream, ID3v1, LAME tag"]
+    end
+    subgraph cpu ["compute scheduler · N threads"]
+        D["1 Dispatch"]
+        P["2 Prepare ×N<br/>tasks of its own"]
+        V["3 Resolve<br/>High"]
+        S["4 Search ×N<br/>tasks of its own · High"]
+        E["5 Encode<br/>High"]
+        G["Gain L, Gain R"]
+    end
+    R -- "PCM pipe" --> D
+    D -- "frame ring" --> P
+    P -- "frame ring" --> V
+    V -- "frame ring" --> S
+    S -- "frame ring" --> E
+    D -. "sample stream" .-> G
+    G -. "end of the stream" .-> E
+    E -- "MP3 file" --> W
+```
+
+**Change:** the graph stays as it is. Its tasks and edges take the form that the chapter
+"Task-based programming" of the ConcurrentTasks documentation describes:
+
+- **One task type per stage.** The worker task that took both kinds of work becomes `PrepareTask`
+  and `SearchTask`, N of each. Each is a loop over the frames of its stage: take one, work on it,
+  hand it on.
+- **Precedence is a priority.** The rule "searches before preparations" is no longer in the ring.
+  Search, Resolve and Encode run with `High` priority, Prepare with `Normal`. A Prepare task that
+  also yielded to them after every frame was tried and measured: it cost about 1 % with ReplayGain
+  and gave nothing without, so it is not in the code.
+- **File I/O in file order.** Read keeps a position and reads block after block. Write writes the
+  file front to back in its sections: the ID3v2 tag, the MP3 stream, the ID3v1 tag, and then the
+  LAME tag in its place. Requests in flight and the priority by fill level are gone.
+- **The sample stream is a shared object.** It wakes the Gain tasks itself as Dispatch writes, and
+  its end carries what is only known then: the padding, the ReplayGain and an error of the input.
+- **The nodes are a table.** `EncodeGraph::CreateNodes` creates the nodes in the order of the
+  diagram and says for each on which scheduler and with which priority it runs; `Run` starts them
+  in a loop.
+- **Nothing but the activity in a task.** The time a node waits is counted by the edge it waits
+  in, so a task's loop reads `while (FrameData* frame = ring.AcquirePrepare())`. Dispatch ends the
+  sample stream in its own `Run`, next to the end of the ring.
+
+**Why:** every node is now one activity with one loop, and everything two nodes share is an object
+that holds the data and owns the waiting:
+
+| Edge | Object | Who waits | Who wakes | How the end gets through |
+|---|---|---|---|---|
+| PCM pipe | `BlockPipe` | Dispatch for the next block, Read for a free one | the other side | Read sets it on every path; Dispatch gets no more blocks |
+| sample stream | `SharedSampleStream` | a Gain task for the next piece of its channel, Encode for the end | Dispatch, the writer, wakes the Gain tasks; `End` and the last Gain task wake Encode | `End` on every path of the writer; the end carries padding, ReplayGain and error |
+| frame ring | `FrameRing` | Dispatch for a free slot; every stage for the next frame of the stage before, the serial ones in frame order | the stage before; Encode frees the slot and wakes Dispatch | `EndDispatch`; the end passes all stages behind the last frame, and the tasks of a parallel stage hand it on to each other |
+| MP3 file | `Mp3File` | Write for the next block of the stream, Encode for a free one | the other side | Encode ends it on every path; the end carries the LAME tag and whether the ID3v1 tag follows |
+
+With 16 threads these are 37 tasks, 39 with ReplayGain; at most 16 of them run at a time.
+
+**Result:** bit-identical to LAME on Windows and Linux. A new test runs all nodes on one thread,
+started in many orders and with other priorities, and compares each file with the one of the
+sequential graph. The form costs nothing that can be measured: cold on the Core i9-11900K against the
+graph of step 9 (86 files, 16 threads), encoding takes 0.2 % longer without ReplayGain and 0.4 %
+less with it, and two builds of the same code already differ by about 0.3 %. Measuring the changes
+one by one showed that the simple file I/O is as fast as the requests in flight were. The
+benchmarks on this page were measured with the graph of steps 8 and 9.
+
+In the code: `PrepareTask.h` and `SearchTask.h`; `WavReaderTask.cpp` and `Mp3WriterTask.cpp` with
+`Mp3File.h`; `SharedSampleStream.h`; `EncodeGraph::CreateNodes` (`src\Tasks\`);
+`src\Tests\EncodeGraphOrderTests.cpp`.
 
 [← back to the README](../README.md)

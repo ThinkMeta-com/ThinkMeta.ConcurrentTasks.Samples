@@ -42,7 +42,7 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     /// <summary>
     /// Life time and waiting time of a task, or summed over several tasks of one kind (the
-    /// search workers): busy = life - idle.
+    /// Prepare, Search or Gain tasks): busy = life - idle.
     /// </summary>
     struct TaskProfile {
         std::atomic<std::int64_t> life  = 0;

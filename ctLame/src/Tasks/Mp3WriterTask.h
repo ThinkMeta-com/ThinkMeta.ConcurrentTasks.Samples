@@ -13,16 +13,13 @@
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
 
-#include <array>
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 
-#include "IoPriority.h"
 #include "NodeProfile.h"
 
 // headers with imports last
-#include "BlockPipe.h"
+#include "Mp3File.h"
 #include "Text.h"
 
 import ThinkMeta.ConcurrentTasks.Tasks.Task;
@@ -31,58 +28,35 @@ import ThinkMeta.ConcurrentTasks.AsyncIo.AsyncFile;
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     /// <summary>
-    /// Node Write of the encoder graph (EncodeGraph.h): writes the blocks of a pipe
-    /// to a file with several overlapped writes in flight. At the end
-    /// it can write a final header, e.g. the LAME tag frame behind an ID3v2 tag, whose content is only
-    /// known after encoding. Runs on the I/O scheduler and sets its own priority by the fill
-    /// level of the pipe.
+    /// Node Write of the encoder graph (EncodeGraph.h): writes the MP3 file front to back, section after section as
+    /// Mp3File hands them over. One write at a time; a write suspends the task, not its thread. Runs on the I/O
+    /// scheduler.
     /// </summary>
     class Mp3WriterTask final : public Tasks::Task
     {
     public:
-        static constexpr std::uint32_t MaxWritesInFlight = 8;
-
         struct Settings {
-            const Shared::Char* path = nullptr;
-#if defined(_WIN32)
-            std::uint32_t creationDisposition = CREATE_ALWAYS; // Linux: always created
-#endif
-            std::uint32_t            writesInFlight   = 4;       // at most MaxWritesInFlight, less than the pipe's blocks
-            const std::atomic<bool>* producerFinished = nullptr; // optional: drain with High priority once set
-            FillLevelPolicy          policy;
-            TaskProfile*             profile = nullptr; // CTLAME_PROFILE: busy and idle time
+            const Shared::Char* path    = nullptr; // the file is created, or emptied
+            TaskProfile*        profile = nullptr; // CTLAME_PROFILE: busy and idle time
         };
 
-        Mp3WriterTask(BlockPipe& pipe, const Settings& settings) noexcept;
-
-        /// <summary>
-        /// Data to write at the offset (default 0) after the last block. The producer sets it before it ends the
-        /// stream and keeps the memory alive until the task has finished.
-        /// </summary>
-        void SetFinalHeader(const std::byte* data, std::uint32_t size, std::uint64_t offset = 0) noexcept
-        {
-            header_       = data;
-            headerSize_   = size;
-            headerOffset_ = offset;
-        }
+        Mp3WriterTask(Mp3File& mp3, const Settings& settings) noexcept;
 
         void Run() noexcept override;
 
         /// <summary>0 (success) or the error that ended the writing.</summary>
         std::uint32_t Error() const noexcept { return error_; }
 
-        const IoStats& Stats() const noexcept { return stats_; }
-
     private:
-        BlockPipe&       pipe_;
-        Settings         settings_;
-        const std::byte* header_       = nullptr;
-        std::uint64_t    headerOffset_ = 0;
-        std::uint32_t    headerSize_   = 0;
-        std::uint32_t    error_        = 0;
-        IoStats          stats_;
+        /// <summary>
+        /// Writes the bytes at position and moves position behind them. After an error it writes nothing more; the first
+        /// error stays.
+        /// </summary>
+        void Write(AsyncIo::AsyncFile& output, std::uint64_t& position, Mp3File::Bytes bytes) noexcept;
 
-        std::array<AsyncIo::WaitableAsyncFileIoRequest_s, MaxWritesInFlight> requests_;
+        Mp3File&      mp3_;
+        Settings      settings_;
+        std::uint32_t error_ = 0;
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

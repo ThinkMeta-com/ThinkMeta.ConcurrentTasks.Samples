@@ -269,9 +269,9 @@ flowchart LR
     end
     subgraph cpu ["compute scheduler · one thread per logical processor"]
         D["1 Dispatch<br/>in order"]
-        P["2 Prepare ×N<br/>psychoacoustics without state<br/>(the workers)"]
+        P["2 Prepare ×N<br/>psychoacoustics without state"]
         V["3 Resolve<br/>psychoacoustics with state<br/>in order"]
-        S["4 Search ×N<br/>MDCT, quantization search, Huffman<br/>(the same workers)"]
+        S["4 Search ×N<br/>MDCT, quantization search, Huffman"]
         E["5 Encode<br/>bit reservoir, bit stream<br/>in order"]
     end
     R -- "PCM pipe" --> D
@@ -285,9 +285,10 @@ flowchart LR
 **[How the graph grew, step by step →](docs/task-graph.md)** from LAME's single loop to this graph,
 with the reason and the measured gain of each step.
 
-Prepare and Search are not two groups of tasks: the same N worker tasks, one per compute thread,
-take whichever work is ready, searches first, since they belong to older frames and free slots
-sooner. Dispatch converts the WAV data into the sample stream, one float stream per channel in
+Prepare and Search each have N tasks of their own, one per compute thread, and each task is a plain
+loop over the frames of its stage. The stages behind Prepare run with `High` priority, since their
+frames are older and free slots sooner.
+Dispatch converts the WAV data into the sample stream, one float stream per channel in
 virtual memory; each frame in the ring points to its window there instead of copying it, and
 Encode releases the window when the frame is done.
 
@@ -416,31 +417,40 @@ about tasks (`src\Encoder\`). Read it in this order:
    task with `ConvertThreadToTask`, because `EncodeGraph::Run` waits for the graph on it, starts the
    core's completion port for the overlapped file I/O (`EnableAsyncIo`) and an I/O scheduler with one
    thread for Read and Write. `EncodeGraph::Initialize` allocates the edges; a `RunningScheduler` is
-   the compute scheduler with one thread per worker (`--threads`, else one per logical processor).
+   the compute scheduler (`--threads` threads, else one per logical processor).
    The graph runs; on return the compute scheduler stops, the graph goes, and `TaskRuntime` undoes
    its steps in reverse order. The rest of `src\App\` is
    LAME's frontend: the command line (`CommandLine.cpp`), the WAV header (`WavFile`) and the
    messages.
 2. **`src\Tasks\EncodeGraph.h`**: the graph as a diagram, then its members, the edges and the
-   nodes in the order the data flows. `EncodeGraph::Run` (`EncodeGraph.cpp`) creates the nodes,
-   puts all of them into one `TaskGroup_s` (one waiter: the caller), hands them to the schedulers
-   with `ITaskScheduler::AddTask` (Read and Write to the I/O scheduler; Encode and Resolve first and
-   with `High` priority, then Dispatch and the workers to the compute scheduler) and waits for the
-   group. The graph owns its edges and their events and destroys the nodes before the edges.
-3. **The edges**: `BlockPipe` (Read → Dispatch, the PCM pipe; Encode → Write, the MP3 pipe),
-   `PcmFeed` (WAV bytes into the sample stream), `SampleStream` (`src\Encoder\`: one float stream
-   per channel in reserved virtual memory, committed as it grows and decommitted behind the
-   finished frames) and `FrameRing` (the frames in flight through the five stages). Their methods
-   follow one vocabulary: `Acquire…` may wait and hands out the next piece of work, `TryAcquire…`
-   does not wait, `Complete…` or `Commit…` hands the result on, `Release…` gives a block or a frame
-   back.
+   nodes in the order the data flows. `EncodeGraph::CreateNodes` (`EncodeGraph.cpp`) creates the
+   nodes as a table: the task, the scheduler it runs on and its priority (Read and Write on the I/O
+   scheduler; Encode, Search and Resolve with `High` priority, Dispatch, Prepare and Gain with
+   `Normal`). `EncodeGraph::Run` puts all of them into one `TaskGroup_s` (one waiter: the caller),
+   hands them to the schedulers with `ITaskScheduler::AddTask` and waits for the group. The graph
+   owns its edges and their events and destroys the nodes before the edges.
+3. **The edges**, the objects in which the tasks meet; each holds the data and owns the waiting:
+   `BlockPipe` (Read → Dispatch, the PCM pipe),
+   `SharedSampleStream` (the sample stream between Dispatch, the Gain tasks and Encode; it wraps
+   `SampleStream` of `src\Encoder\`: one float stream per channel in reserved virtual memory,
+   committed as it grows and decommitted behind the finished frames), `FrameRing` (the frames in
+   flight through the five stages) and `Mp3File` (Encode → Write: the MP3 file as its sections in
+   file order, its stream a `BlockPipe`). The header of each says who waits, who wakes and how the
+   end gets through. Their methods follow one vocabulary: `Acquire…` may wait and hands out the next
+   piece of work, `Complete…` or `Commit…` hands the result on, `Release…` gives a block or a frame
+   back, and `End…` says that no more will come. Only the port of a Gain task differs: its
+   `NextPiece` hands out the next piece and takes the one before back.
 4. **The nodes** (`src\Tasks\`), each a plain loop that waits on an edge: `WavReaderTask` (Read),
-   `DispatchTask`, `WorkerTask` (Prepare and Search), `ResolveTask`, `EncodeTask` with
-   `FrameEncoder` (Encode) and `Mp3WriterTask` (Write), and with ReplayGain one `GainTask` per
-   channel, which Dispatch wakes and Encode waits for before the LAME tag. `SequentialEncodeTask` is the one compute
-   node of `--sequential`, with the same edges and the same encoder. `ProfiledRun` and `WhileIdle`
-   (`NodeProfile.h`) only measure the nodes with `--stats` (or the environment variable `CTLAME_PROFILE`);
-   read past them.
+   `DispatchTask`, `PrepareTask`, `ResolveTask`, `SearchTask`, `EncodeTask` with `FrameEncoder`
+   (Encode) and `Mp3WriterTask` (Write: the file front to back, ID3v2 tag, MP3 stream, ID3v1 tag
+   and then the LAME tag in its place), and with ReplayGain one `GainTask` per channel, which reads
+   the sample stream through a port of its own; Encode gets their result with the end of the
+   stream. Dispatch does its conversion with `PcmFeed` (WAV bytes into the sample stream), as Encode
+   does its work with `FrameEncoder`. `SequentialEncodeTask` is the one compute node of
+   `--sequential`, with the same edges and the same encoder. With `--stats` (or the environment
+   variable `CTLAME_PROFILE`) a node counts its life time (`ProfiledRun` in `NodeProfile.h`, the
+   first line of each `Run`), and the edges count the time their nodes wait in them
+   (`MeasureWaits`); read past both.
 5. **The encoder** (`src\Encoder\`): `Encoder.h` has the four calls a frame goes through, one for
    each of the stages 2 to 5. `Prepare` and `Search` are `const`, so the compiler checks that they
    keep no state and may run for many frames at once; `Resolve` and `Encode` take the frames in
@@ -454,22 +464,25 @@ The five stages of a frame, with the same numbers in `FrameRing.h`, `Stages.h`, 
 | Stage | Frames | Node | Encoder call | Work (`Stages.h`) |
 |---|---|---|---|---|
 | 1 Dispatch | in order | `DispatchTask` | | the frame's window of the sample stream |
-| 2 Prepare | any order, N workers | `WorkerTask` | `Encoder::Prepare` | 2a input, 2b psychoacoustic model without state, 2c polyphase filterbank |
+| 2 Prepare | any order, N tasks | `PrepareTask` | `Encoder::Prepare` | 2a input, 2b psychoacoustic model without state, 2c polyphase filterbank |
 | 3 Resolve | in order, `High` | `ResolveTask` | `Encoder::Resolve` | 3a psychoacoustic model with state, 3b filterbank carry |
-| 4 Search | any order, N workers | `WorkerTask` | `Encoder::Search` | 4a MDCT, 4b stereo decision, 4c quantization search and main data |
+| 4 Search | any order, N tasks, `High` | `SearchTask` | `Encoder::Search` | 4a MDCT, 4b stereo decision, 4c quantization search and main data |
 | 5 Encode | in order, `High` | `EncodeTask`, `FrameEncoder` | `Encoder::Encode` | 5a quantization with the bit reservoir, 5b bit stream |
 
 "Encode" alone always means stage 5; `EncodeGraph` is the whole graph, and
 `Encoder::RunAllStages` runs the four calls on one frame after the other (for the unit tests).
 
 Why the frame ring is a class of its own and not the library's `Semaphore_s`: the stages need
-more than a count (which frame, which kind of work, searches before preparations), and a counter
-per stage plus an event costs one atomic operation per frame and stage. Three of its events have
-exactly one waiter (Dispatch, Resolve and Encode) and use the cheaper `AutoResetEvent_s`; the
-workers share one `AutoResetEvent`. `FrameRing.h` describes the protocol, and
-`src\Tests\FrameRingTests.cpp` runs the ring under load with stand-in stages on a real scheduler.
-`BlockPipe`, unlike the library's `SpscVirtualMemoryPipe`, holds back the producer when all blocks
-are full, and its fill level sets the priority of the I/O tasks (`IoPriority.h`).
+more than a count (which frame), and a counter per stage plus an event costs one atomic operation
+per frame and stage. Three of its events have exactly one waiter (Dispatch, Resolve and Encode) and
+use the cheaper `AutoResetEvent_s`; the tasks of Prepare share one `AutoResetEvent` and those of
+Search another. `FrameRing.h` describes the protocol, and `src\Tests\FrameRingTests.cpp` runs the
+ring under load with stand-in stages on a real scheduler. `BlockPipe`, unlike the library's
+`SpscVirtualMemoryPipe`, holds back the producer when all blocks are full.
+
+The output must not depend on the order in which the tasks run. `src\Tests\EncodeGraphOrderTests.cpp`
+checks that: it runs all nodes of the graph on one thread, started in many orders and with other
+priorities than the graph gives them, and compares each file with the one of the sequential graph.
 
 ### Error handling
 
@@ -484,7 +497,7 @@ ctLame reports errors with LAME's messages and exit codes and does not try to re
 - **An error of the encoder** (LAME's "INTERNAL ERROR IN VBR NEW CODE", a frame too large for its
   buffer): Encode stops encoding but keeps taking the frames from the ring, so the stages before it
   finish; the message and the exit code are LAME's.
-- **Out of memory:** `EncodeGraph::Initialize` checks the allocations of the edges and the workers
+- **Out of memory:** `EncodeGraph::Initialize` checks the allocations of the edges and the nodes
   before the graph starts ("ctLame: out of memory", exit code 1), and a scheduler or the
   asynchronous I/O that cannot be created ends the program with "ctLame: cannot start the
   schedulers" (exit code 1). If the sample stream (or the one frame of `--sequential`) gets no
@@ -511,7 +524,7 @@ ctLame is fast, but not at the end; the measurements point to these limits and n
   about as much per frame before its pre-echo control was vectorized, so on this CPU it runs close
   to its limit. A split of Resolve into two short serial parts (about 5 µs per frame together) with
   a parallel part between them was tried and was bit-identical, but gave nothing on 8 cores, where
-  the workers are fully busy; it is not in this code and waits for CPUs with more cores. The bit
+  the parallel stages keep all cores busy; it is not in this code and waits for CPUs with more cores. The bit
   stream at the end (stage 5, Encode) takes about 4 µs per frame, since the Huffman coding moved
   into the parallel search.
 * **Turbo clock and hyperthreading:** the same work costs more time the more threads run: about

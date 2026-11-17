@@ -10,26 +10,20 @@
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
-    DispatchTask::DispatchTask(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format, FrameRing& ring, GainSignals* gain,
-                               TaskProfile* profile) noexcept
+    DispatchTask::DispatchTask(BlockPipe& pcm, SharedSampleStream& stream, const PcmReader::Format& format, FrameRing& ring, TaskProfile* profile) noexcept
         : feed_(pcm, stream, format),
           stream_(stream),
           ring_(ring),
-          gain_(gain),
           profile_(profile)
     {}
 
     void DispatchTask::Run() noexcept
     {
         const ProfiledRun run(profile_);
-        while (feed_.Next(profile_)) {
-            if (gain_ != nullptr)
-                gain_->Publish(stream_, false);
+        while (feed_.Next())
             DispatchReady();
-        }
-        if (gain_ != nullptr)
-            gain_->Publish(stream_, true); // the stream has ended
-        DispatchReady();                   // the rest of the input and the flush frames
+        feed_.End();     // the end of the sample stream: its last samples and the padding
+        DispatchReady(); // the frames these complete
         ring_.EndDispatch();
     }
 
@@ -37,9 +31,9 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     {
         const std::int64_t ready = stream_.FramesReady();
         for (; next_ < ready; ++next_) {
-            FrameData* const frame = WhileIdle(profile_, [&] { return &ring_.AcquireDispatch(); });
-            // the workers prepare the frame from its window
-            stream_.Window(next_, frame->input);
+            FrameData& frame = ring_.AcquireDispatch();
+            // the frame points to its window in the stream, nothing is copied; Encode releases the window
+            stream_.Window(next_, frame.input);
             ring_.CompleteDispatch();
         }
     }

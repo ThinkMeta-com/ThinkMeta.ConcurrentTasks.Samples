@@ -13,11 +13,8 @@
 // Before any import: MSVC cannot merge a textual include that follows an import of the same entities.
 #include <ThinkMeta.ConcurrentTasks/Core.h>
 
-#include <array>
-#include <atomic>
 #include <cstdint>
 
-#include "IoPriority.h"
 #include "NodeProfile.h"
 
 // headers with imports last
@@ -30,44 +27,30 @@ import ThinkMeta.ConcurrentTasks.AsyncIo.AsyncFile;
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
     /// <summary>
-    /// Node Read of the encoder graph (EncodeGraph.h): reads the sample data of a
-    /// WAV file into a pipe with several overlapped reads in flight. Runs on the I/O scheduler
-    /// and sets its own priority by the fill level of the pipe.
+    /// Node Read of the encoder graph (EncodeGraph.h): reads the sample data of a WAV file into a pipe, block after
+    /// block. One read at a time; a read suspends the task, not its thread. Runs on the I/O scheduler.
     /// </summary>
     class WavReaderTask final : public Tasks::Task
     {
     public:
-        static constexpr std::uint32_t MaxReadsInFlight = 16;
-
         struct Settings {
-            const Shared::Char* path          = nullptr;
-            std::uint64_t       dataOffset    = 0;     // first byte of the sample data
-            std::uint64_t       byteLimit     = ~0ull; // bytes to read at most (the data chunk size)
-            std::uint32_t       readsInFlight = 4;     // at most MaxReadsInFlight, less than the pipe's blocks
-            FillLevelPolicy     policy;
-            TaskProfile*        profile = nullptr; // CTLAME_PROFILE: busy and idle time
+            const Shared::Char* path       = nullptr;
+            std::uint64_t       dataOffset = 0;       // first byte of the sample data
+            std::uint64_t       byteLimit  = ~0ull;   // bytes to read at most (the data chunk size)
+            TaskProfile*        profile    = nullptr; // CTLAME_PROFILE: busy and idle time
         };
 
-        WavReaderTask(BlockPipe& pipe, const Settings& settings) noexcept;
+        WavReaderTask(BlockPipe& pcm, const Settings& settings) noexcept;
 
         void Run() noexcept override;
 
         /// <summary>0 (success) or the error that ended the reading.</summary>
         std::uint32_t Error() const noexcept { return error_; }
 
-        /// <summary>Set once the last block is in the pipe (or reading failed).</summary>
-        const std::atomic<bool>* FinishedFlag() const noexcept { return &finished_; }
-
-        const IoStats& Stats() const noexcept { return stats_; }
-
     private:
-        BlockPipe&        pipe_;
-        Settings          settings_;
-        std::uint32_t     error_ = 0;
-        std::atomic<bool> finished_{false};
-        IoStats           stats_;
-
-        std::array<AsyncIo::WaitableAsyncFileIoRequest_s, MaxReadsInFlight> requests_;
+        BlockPipe&    pcm_;
+        Settings      settings_;
+        std::uint32_t error_ = 0;
     };
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame

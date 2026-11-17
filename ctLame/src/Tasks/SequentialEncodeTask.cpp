@@ -12,7 +12,7 @@
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
-    SequentialEncodeTask::SequentialEncodeTask(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format, Encoder& encoder,
+    SequentialEncodeTask::SequentialEncodeTask(BlockPipe& pcm, SharedSampleStream& stream, const PcmReader::Format& format, Encoder& encoder,
                                                FrameEncoder& frameEncoder, TaskProfile* profile) noexcept
         : feed_(pcm, stream, format),
           stream_(stream),
@@ -32,20 +32,23 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
     void SequentialEncodeTask::Run() noexcept
     {
         const ProfiledRun run(profile_);
-        if (frame_ == nullptr) { // no memory for the frame: drain the input so the reader can finish, report the error
-            feed_.Drain(profile_);
-            frameEncoder_.Finish(0, 0, -3);
+        if (frame_ == nullptr) { // no memory for the frame: empty the pipe so that Read can finish, report the error
+            feed_.Drain();
+            feed_.End();
+            frameEncoder_.Finish(0, 0, FrameEncoder::OutOfMemory);
             return;
         }
         frameEncoder_.Begin();
-        bool more = true;
-        while (more && !Stopped()) {
-            more = feed_.Next(profile_);
-            EncodeReady(); // after the end of the pipe: the rest of the input and the flush frames
-        }
-        if (more)
-            feed_.Drain(profile_); // after an error only drain the pipe, so the reader can finish
-        frameEncoder_.Finish(stream_.EncoderPadding(), stream_.RadioGain(), stream_.Failed() ? -3 : 0);
+        while (!Stopped() && feed_.Next())
+            EncodeReady();
+        if (Stopped())
+            feed_.Drain(); // after an error of the encoder only empty the pipe, so that Read can finish
+        feed_.End();       // the end of the sample stream: its last samples and the padding
+        EncodeReady();     // the frames these complete (none after an error)
+
+        // this task has ended the stream itself, so the end is there
+        const SharedSampleStream::StreamEnd end = stream_.WaitForEnd();
+        frameEncoder_.Finish(end.encoderPadding, end.radioGain, end.failed ? FrameEncoder::OutOfMemory : 0);
     }
 
     void SequentialEncodeTask::EncodeReady() noexcept

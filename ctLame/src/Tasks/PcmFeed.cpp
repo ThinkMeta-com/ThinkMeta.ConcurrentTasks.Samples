@@ -8,23 +8,18 @@
 
 namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
 
-    PcmFeed::PcmFeed(BlockPipe& pcm, SampleStream& stream, const PcmReader::Format& format) noexcept : pcm_(pcm), stream_(stream)
+    PcmFeed::PcmFeed(BlockPipe& pcm, SharedSampleStream& stream, const PcmReader::Format& format) noexcept : pcm_(pcm), stream_(stream)
     {
         // a sample width read_samples_pcm cannot read yields no samples; LAME then still
         // encodes the flush frames
         (void)reader_.Initialize(format);
     }
 
-    bool PcmFeed::Next(TaskProfile* profile) noexcept
+    bool PcmFeed::Next() noexcept
     {
         if (!held_) {
-            const bool available = WhileIdle(profile, [&] { return pcm_.AcquireReadBlock(block_); });
-            if (!available) {
-                // the end of lame_encoder_loop: the rest of the input and the flush padding
-                reader_.Finish(stream_);
-                stream_.Finish();
+            if (!pcm_.AcquireReadBlock(block_))
                 return false;
-            }
             held_   = true;
             offset_ = 0;
         }
@@ -39,18 +34,21 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Lame {
         return true;
     }
 
-    void PcmFeed::Drain(TaskProfile* profile) noexcept
+    void PcmFeed::End() noexcept
+    {
+        reader_.Finish(stream_);
+        stream_.End();
+    }
+
+    void PcmFeed::Drain() noexcept
     {
         if (held_) {
             pcm_.ReleaseReadBlock();
             held_ = false;
         }
         BlockPipe::ReadBlock block{};
-        for (;;) {
-            if (!WhileIdle(profile, [&] { return pcm_.AcquireReadBlock(block); }))
-                break;
+        while (pcm_.AcquireReadBlock(block))
             pcm_.ReleaseReadBlock();
-        }
     }
 
 } // namespace ThinkMeta::ConcurrentTasks::Samples::Lame
