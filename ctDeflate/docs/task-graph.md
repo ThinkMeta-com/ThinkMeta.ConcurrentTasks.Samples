@@ -256,12 +256,12 @@ search waits for its input, Read and Write wait for the disk, Write waits for fi
 wait suspends only the task: when a worker waits, its thread searches or codes for another worker
 meanwhile, and every stage stays a plain loop in order, without callbacks or state machines.
 
-**Result** (benchmark 2026-10-17, i9-11900K, 16 threads, whole program run, input read cold from the disk):
+**Result** (benchmark 2026-11-19, i9-11900K, 16 threads, whole program run, input read cold from the disk):
 
 | | level 1 | level 6 | level 9 |
 |---|---:|---:|---:|
-| enwik9 (1 GB of text) | 200 → 833 MB/s (**4.2×**) | 89 → 366 MB/s (**4.1×**) | 58 → 296 MB/s (**5.1×**) |
-| Silesia corpus (12 files, 212 MB) | 1.6× | 1.7× | 2.9× |
+| enwik9 (1 GB of text) | 210 → 929 MB/s (**4.4×**) | 102 → 387 MB/s (**3.8×**) | 58 → 296 MB/s (**5.1×**) |
+| Silesia corpus (12 files, 212 MB) | 1.6× | 1.8× | 3.0× |
 
 Every output bit-identical to `gzip.exe`, on three machines. Moving Read and Write onto the I/O
 scheduler (2026-10-10) left the parallel speed the same or slightly better (0.97 to 1.07 of the build before, A/B over three

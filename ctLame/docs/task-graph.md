@@ -301,8 +301,8 @@ suspends only the task, and its thread meanwhile runs the search of other frames
 | frame ring | one `FrameData` per frame, through the five stages | 4 slots per compute thread, 16 to 128 |
 | MP3 pipe | the MP3 bytes in frame order | 16 blocks of 64 KB |
 
-**Result**, 343 files, 45 hours of music, whole process: **14.02×** `lame.exe` on the Core i9-11900K,
-7.98× on a 4-core Xeon E3, 7.36× on a Core Ultra 7 155H notebook. Every file bit-identical to LAME.
+**Result**, 343 files, 45 hours of music, whole process: **13.88×** `lame.exe` on the Core i9-11900K,
+8.21× on a 4-core Xeon E3, 9.03× on a Core Ultra 7 155H notebook. Every file bit-identical to LAME.
 Details in the [benchmarks](../README.md#benchmarks).
 
 In the code: `EncodeGraph` (`src\Tasks\EncodeGraph.h`) owns the edges and the nodes and has this

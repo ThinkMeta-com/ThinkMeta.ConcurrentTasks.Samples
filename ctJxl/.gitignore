@@ -1,0 +1,8 @@
+/jxl/cjxl-oracle/build
+/.vs
+/build
+/x64
+/testdata
+*.vcxproj.user
+/benchmark/work
+/benchmark/results

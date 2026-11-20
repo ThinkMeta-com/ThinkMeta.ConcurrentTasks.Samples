@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated: for a project that uses libjxl like cjxl
+     (ctJxl). Include directories and defines of the CMake target cjxl; the vendored libraries as references. -->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <TM_LibjxlMsvcDir>$(MSBuildThisFileDirectory)</TM_LibjxlMsvcDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(TM_LibjxlMsvcDir)..;$(TM_LibjxlMsvcDir)..\third_party\highway;$(TM_LibjxlMsvcDir)include-gen\lib\include;$(TM_LibjxlMsvcDir)..\lib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>HWY_DISABLED_TARGETS=(HWY_AVX3|HWY_AVX3_DL|HWY_AVX3_SPR|HWY_AVX3_ZEN4|HWY_RVV|HWY_SSSE3|HWY_SVE|HWY_SVE_256|HWY_SVE2|HWY_SVE2_128);FJXL_ENABLE_AVX512=0;_CRT_SECURE_NO_WARNINGS;JXL_STATIC_DEFINE;JXL_CMS_STATIC_DEFINE;JXL_THREADS_STATIC_DEFINE;TOOLCHAIN_MISS_SYS_AUXV_H;TOOLCHAIN_MISS_ASM_HWCAP_H;HWY_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-png.vcxproj">
+      <Project>{ec3c100b-5c76-f530-4df8-11b84ac1921f}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-cms.vcxproj">
+      <Project>{178f094e-063f-98f7-2071-02c561529222}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-jxl.vcxproj">
+      <Project>{791d2efe-9082-5cca-bb02-91a1e0e65266}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-tool.vcxproj">
+      <Project>{2dc8e7de-1fd7-8185-95de-7df6cc742866}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-hwy.vcxproj">
+      <Project>{0cd31adf-818b-cc46-8dd2-401a4a0366ca}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-extras.vcxproj">
+      <Project>{c758f0b0-ef16-0c23-7a0f-cb2c484b033c}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-zlib.vcxproj">
+      <Project>{8a7d61f2-aa3e-01f5-e456-c311b0a7a60d}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-threads.vcxproj">
+      <Project>{5c760047-3b4f-14fe-1e3a-02cb092a52ac}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-brotlicommon.vcxproj">
+      <Project>{e171d3d5-1add-d2bc-68c2-5f8f7fd32000}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-brotlienc.vcxproj">
+      <Project>{895e5b83-3158-c49d-f044-af3ab2ea01c2}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-brotlidec.vcxproj">
+      <Project>{ae620ebc-9c1a-1689-3c38-0612b122a896}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)..\..\giflib-5.2.2\giflib.vcxproj">
+      <Project>{3760fadd-1015-d4ea-f60a-083410d0d76f}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(TM_LibjxlMsvcDir)libjxl-jpeg-turbo.vcxproj">
+      <Project>{2daf66b0-ad9b-4338-cc2d-3416a61b3953}</Project>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

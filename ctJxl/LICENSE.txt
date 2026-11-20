@@ -1,0 +1,31 @@
+MIT License
+
+Copyright (c) 2026 ThinkMeta Software GmbH
+
+This license applies to ctJxl's own code in src\ (the files that start with the ThinkMeta copyright
+notice), the program built from it (bin\win-x64\ctJxl.exe, for its own code), the scripts
+(verify\, benchmark\, jxl\cjxl-oracle\), the generated project files in jxl\libjxl-0.13.0\msvc\ and
+jxl\giflib-5.2.2\ and the documentation in this folder. It does not apply to
+bin\win-x64\ThinkMeta.ConcurrentTasks.Core.dll (see LICENSE-Core.txt), nor to libjxl and the other
+reference sources in jxl\ and the programs built from them (see COPYING and the license files in
+jxl\). src\Encoder\ and two files of src\App\ (CjxlMain.cc, ctjxl_apng.cc) are marked copies of
+libjxl files; they stay under libjxl's BSD 3-Clause License (see COPYING), as do libjxl's parts of
+ctJxl.exe.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

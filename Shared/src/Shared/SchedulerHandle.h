@@ -41,11 +41,15 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
 
         ~SchedulerHandle() { Reset(); }
 
-        /// <summary>Creates a scheduler with numberOfThreads threads; the handle is empty if the core rejects the arguments.</summary>
-        static SchedulerHandle Create(SchedulerKind kind, std::uint32_t numberOfThreads) noexcept
+        /// <summary>
+        /// Creates a scheduler with numberOfThreads threads and room for taskQueueCapacity runnable tasks (0: the core's
+        /// default); the handle is empty if the core rejects the arguments.
+        /// </summary>
+        static SchedulerHandle Create(SchedulerKind kind, std::uint32_t numberOfThreads, std::uint32_t taskQueueCapacity = 0) noexcept
         {
             SchedulerInfo info;
-            info.numberOfThreads = numberOfThreads;
+            info.numberOfThreads   = numberOfThreads;
+            info.taskQueueCapacity = taskQueueCapacity;
             return SchedulerHandle(CreateTaskScheduler(kind, &info));
         }
 

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from the CMake build of the cjxl oracle
+     (brotlienc). Compiles exactly what CMake compiles (bit identity with
+     the oracle): the solution-wide settings that would change the code are overridden. Plus /arch:AVX2, bit-identical
+     to the oracle's AVX2 target.  -->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <SolutionDir Condition="'$(SolutionDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\</SolutionDir>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{895e5b83-3158-c49d-f044-af3ab2ea01c2}</ProjectGuid>
+    <RootNamespace>libjxl-brotlienc</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <TargetName>libjxl-brotlienc</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\third_party\brotli\c\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>Default</LanguageStandard>
+      <LanguageStandard_C>Default</LanguageStandard_C>
+      <ExceptionHandling>false</ExceptionHandling>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <ConformanceMode>false</ConformanceMode>
+      <SDLCheck>false</SDLCheck>
+      <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <UseFullPaths>false</UseFullPaths>
+    </ClCompile>
+    <Link>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;HWY_DISABLED_TARGETS=(HWY_AVX3|HWY_AVX3_DL|HWY_AVX3_SPR|HWY_AVX3_ZEN4|HWY_RVV|HWY_SSSE3|HWY_SVE|HWY_SVE_256|HWY_SVE2|HWY_SVE2_128);FJXL_ENABLE_AVX512=0;_CRT_SECURE_NO_WARNINGS;CTJXL_DCT_FLATTEN_MAX=64;NDEBUG</PreprocessorDefinitions>
+      <Optimization>MaxSpeed</Optimization>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;HWY_DISABLED_TARGETS=(HWY_AVX3|HWY_AVX3_DL|HWY_AVX3_SPR|HWY_AVX3_ZEN4|HWY_RVV|HWY_SSSE3|HWY_SVE|HWY_SVE_256|HWY_SVE2|HWY_SVE2_128);FJXL_ENABLE_AVX512=0;_CRT_SECURE_NO_WARNINGS;CTJXL_DCT_FLATTEN_MAX=64;_DEBUG</PreprocessorDefinitions>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\third_party\brotli\c\enc\backward_references.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\backward_references_hq.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\bit_cost.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\block_splitter.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\brotli_bit_stream.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\cluster.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\command.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\compound_dictionary.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\compress_fragment.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\compress_fragment_two_pass.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\dictionary_hash.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\encode.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\encoder_dict.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\entropy_encode.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\fast_log.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\histogram.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\literal_cost.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\memory.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\metablock.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\static_dict.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\static_dict_lut.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\static_init.c" />
+    <ClCompile Include="..\third_party\brotli\c\enc\utf8_util.c" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

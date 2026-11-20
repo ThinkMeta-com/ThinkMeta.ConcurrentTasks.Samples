@@ -26,8 +26,8 @@ namespace ThinkMeta::ConcurrentTasks::Samples::Shared {
     class RunningScheduler
     {
     public:
-        RunningScheduler(SchedulerKind kind, std::uint32_t numberOfThreads) noexcept
-            : handle_(numberOfThreads > 0 ? SchedulerHandle::Create(kind, numberOfThreads) : SchedulerHandle())
+        RunningScheduler(SchedulerKind kind, std::uint32_t numberOfThreads, std::uint32_t taskQueueCapacity = 0) noexcept
+            : handle_(numberOfThreads > 0 ? SchedulerHandle::Create(kind, numberOfThreads, taskQueueCapacity) : SchedulerHandle())
         {
             if (handle_)
                 handle_->Start();

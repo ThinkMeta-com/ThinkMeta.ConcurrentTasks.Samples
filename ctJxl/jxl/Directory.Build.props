@@ -1,0 +1,5 @@
+<Project>
+    <!-- The same build settings as the projects of the API submodule (toolset, output in build\), for the generated
+         projects of libjxl and giflib. -->
+    <Import Project="$(MSBuildThisFileDirectory)..\ThinkMeta.SolutionFiles\ThinkMeta.Build.props" />
+</Project>

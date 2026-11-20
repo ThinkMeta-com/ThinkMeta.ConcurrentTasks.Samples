@@ -22,7 +22,7 @@ files. Only numbers within one series compare:
 | **development** | 0, 2 to 5 | single measurements during development, mostly AVX2 and 16 threads, jpegli measured alongside |
 | **I/O test** | 1 | A/B test of today's encoder, memory-mapped against asynchronous reading and writing, alternating, warm 11 and cold 7 rounds, AVX2; cold means a fresh copy of the file, written unbuffered before every run, so it is not in the file cache; median of the per-run ratios |
 | **tuning** | 6 and 7 | benchmark script on a quiet machine, best of 3 or 5, and series of 9 runs |
-| **benchmark package** | 8 | the benchmark package of this repository, images read cold (not from the file cache), median of 5, High Performance power plan, 2026-10-17; the numbers of the README |
+| **benchmark package** | 8 | the benchmark package of this repository, images read cold (not from the file cache), median of 5, High Performance power plan, 2026-11-19; the numbers of the README |
 
 | Shape | Meaning |
 |---|---|
@@ -324,14 +324,14 @@ and `--sequential` is a graph of its own with a single task. The computing kerne
 an A/B test against the previous build gave 0.96 to 1.04 of the time on three photos, with all
 threads, few threads and one, both feature sets — measurement noise.
 
-**Result (benchmark package, 2026-10-17, images read cold, AVX2, all outputs bit-identical to jpegli):**
+**Result (benchmark package, 2026-11-19, images read cold, AVX2, all outputs bit-identical to jpegli):**
 
 | Machine | jpegli | ctJpeg | vs jpegli |
 |---|---:|---:|---:|
-| Intel Core i9-11900K (8 cores / 16 threads), the 39-megapixel photo | 0.821 s | 0.126 s | **6.5×** |
-| Intel Core i9-11900K, 6 photos (99 megapixels) | 2.109 s | 0.425 s | 5.0× |
-| Intel Xeon E3-1275 v6 (4 cores / 8 threads), 6 photos | 3.369 s | 0.672 s | 5.0× |
-| Intel Core Ultra 7 155H (22 threads, hybrid), 6 photos | 2.673 s | 0.571 s | 4.7× |
+| Intel Core i9-11900K (8 cores / 16 threads), the 39-megapixel photo | 0.818 s | 0.118 s | **6.9×** |
+| Intel Core i9-11900K, 6 photos (99 megapixels) | 2.069 s | 0.390 s | 5.3× |
+| Intel Xeon E3-1275 v6 (4 cores / 8 threads), 6 photos | 3.356 s | 0.663 s | 5.1× |
+| Intel Core Ultra 7 155H (22 threads, hybrid), 6 photos | 2.506 s | 0.497 s | 5.0× |
 
 **In the code:** `EncodeGraph` (`src\Tasks\EncodeGraph.h`) holds the graph: its header has it as a
 diagram, the edges are members in data flow order, each with a comment naming the nodes it connects,

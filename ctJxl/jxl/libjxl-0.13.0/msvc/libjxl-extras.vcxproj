@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from the CMake build of the cjxl oracle
+     (jxl_extras_core-obj). Compiles exactly what CMake compiles (bit identity with
+     the oracle): the solution-wide settings that would change the code are overridden. Plus /arch:AVX2, bit-identical
+     to the oracle's AVX2 target.  -->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <SolutionDir Condition="'$(SolutionDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\</SolutionDir>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{c758f0b0-ef16-0c23-7a0f-cb2c484b033c}</ProjectGuid>
+    <RootNamespace>libjxl-extras</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <TargetName>libjxl-extras</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..;$(MSBuildThisFileDirectory)..\lib\include;$(MSBuildThisFileDirectory)include-gen\lib\include;$(MSBuildThisFileDirectory)..\third_party\highway;$(MSBuildThisFileDirectory)..\..\giflib-5.2.2;$(MSBuildThisFileDirectory)..\..\libjpeg-turbo-3.2.0\src;$(MSBuildThisFileDirectory)..\..\libjpeg-turbo-3.2.0\msvc;$(MSBuildThisFileDirectory)..\third_party\libpng;$(MSBuildThisFileDirectory)include-gen\libpng;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard_C>Default</LanguageStandard_C>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <ConformanceMode>false</ConformanceMode>
+      <SDLCheck>false</SDLCheck>
+      <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <UseFullPaths>false</UseFullPaths>
+    </ClCompile>
+    <Link>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;HWY_DISABLED_TARGETS=(HWY_AVX3|HWY_AVX3_DL|HWY_AVX3_SPR|HWY_AVX3_ZEN4|HWY_RVV|HWY_SSSE3|HWY_SVE|HWY_SVE_256|HWY_SVE2|HWY_SVE2_128);JPEGXL_ENABLE_SKCMS=1;JPEGXL_ENABLE_TRANSCODE_JPEG=1;JPEGXL_ENABLE_BOXES=1;JPEGXL_ENABLE_GIF=1;JPEGXL_ENABLE_JPEG=1;JPEGXL_ENABLE_APNG=1;JXL_EXPORT=;FJXL_ENABLE_AVX512=0;_CRT_SECURE_NO_WARNINGS;CTJXL_DCT_FLATTEN_MAX=64;NDEBUG</PreprocessorDefinitions>
+      <Optimization>MaxSpeed</Optimization>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;HWY_DISABLED_TARGETS=(HWY_AVX3|HWY_AVX3_DL|HWY_AVX3_SPR|HWY_AVX3_ZEN4|HWY_RVV|HWY_SSSE3|HWY_SVE|HWY_SVE_256|HWY_SVE2|HWY_SVE2_128);JPEGXL_ENABLE_SKCMS=1;JPEGXL_ENABLE_TRANSCODE_JPEG=1;JPEGXL_ENABLE_BOXES=1;JPEGXL_ENABLE_GIF=1;JPEGXL_ENABLE_JPEG=1;JPEGXL_ENABLE_APNG=1;JXL_EXPORT=;FJXL_ENABLE_AVX512=0;_CRT_SECURE_NO_WARNINGS;CTJXL_DCT_FLATTEN_MAX=64;_DEBUG</PreprocessorDefinitions>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\lib\extras\alpha_blend.cc" />
+    <ClCompile Include="..\lib\extras\common.cc" />
+    <ClCompile Include="..\lib\extras\compressed_icc.cc" />
+    <ClCompile Include="..\lib\extras\dec\color_description.cc" />
+    <ClCompile Include="..\lib\extras\dec\color_hints.cc" />
+    <ClCompile Include="..\lib\extras\dec\decode.cc" />
+    <ClCompile Include="..\lib\extras\enc\encode.cc" />
+    <ClCompile Include="..\lib\extras\exif.cc" />
+    <ClCompile Include="..\lib\extras\gain_map.cc" />
+    <ClCompile Include="..\lib\extras\mmap.cc" />
+    <ClCompile Include="..\lib\extras\packed_image.cc" />
+    <ClCompile Include="..\lib\extras\time.cc" />
+    <ClCompile Include="..\lib\extras\dec\apng.cc">
+      <ObjectFileName>$(IntDir)extras/dec/apng.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\enc\apng.cc">
+      <ObjectFileName>$(IntDir)extras/enc/apng.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\dec\exr.cc">
+      <ObjectFileName>$(IntDir)extras/dec/exr.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\enc\exr.cc">
+      <ObjectFileName>$(IntDir)extras/enc/exr.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\dec\gif.cc" />
+    <ClCompile Include="..\lib\extras\dec\jpg.cc">
+      <ObjectFileName>$(IntDir)extras/dec/jpg.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\enc\jpg.cc">
+      <ObjectFileName>$(IntDir)extras/enc/jpg.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\dec\jxl.cc">
+      <ObjectFileName>$(IntDir)extras/dec/jxl.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\enc\jxl.cc">
+      <ObjectFileName>$(IntDir)extras/enc/jxl.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\dec\pgx.cc">
+      <ObjectFileName>$(IntDir)extras/dec/pgx.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\enc\pgx.cc">
+      <ObjectFileName>$(IntDir)extras/enc/pgx.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\dec\pnm.cc">
+      <ObjectFileName>$(IntDir)extras/dec/pnm.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\enc\pnm.cc">
+      <ObjectFileName>$(IntDir)extras/enc/pnm.cc.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\lib\extras\enc\npy.cc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

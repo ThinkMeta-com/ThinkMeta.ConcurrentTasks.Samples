@@ -16,7 +16,7 @@ resampling, encoding, writing). Only numbers within one series compare:
 |---|---|---|
 | **A** | 0, 2, 3 | median of 5 runs per variant, one variant after the other |
 | **B** | 4 to 9 | all variants interleaved in one run; on some days the machine was 10 to 15 % slower, so opusenc always ran in the same run as the yardstick |
-| **C** | 9 | the published benchmark: 343 music files, 45 hours, three PCs, cold, the binaries in `bin\` (2026-10-17) |
+| **C** | 9 | the published benchmark: 343 music files, 45 hours, three PCs, cold, the binaries in `bin\` (2026-11-19) |
 | **D** | 1 | the build before and after the step, alternating, 11 pairs, median of the ratios; opusenc in the same run |
 
 | Shape | Meaning |
@@ -349,9 +349,9 @@ from 12. All Theta helpers only at `--comp 8` and above.
 
 | PC | opusenc | ctOpus | faster |
 |---|---:|---:|---:|
-| Intel Core i9-11900K, 8 cores / 16 threads | 1 279 s | 290 s | **4.4×** |
-| Intel Xeon E3-1275 v6, 4 / 8 | 1 788 s | 438 s | **4.1×** |
-| Intel Core Ultra 7 155H, 16 / 22 (notebook) | 1 431 s | 560 s | **2.6×** |
+| Intel Core i9-11900K, 8 cores / 16 threads | 1 322 s | 293 s | **4.5×** |
+| Intel Xeon E3-1275 v6, 4 / 8 | 1 793 s | 430 s | **4.2×** |
+| Intel Core Ultra 7 155H, 16 / 22 (notebook) | 1 371 s | 552 s | **2.5×** |
 
 **In the code:** `EncodeGraph` (`Tasks\EncodeGraph.h`) has this graph as a diagram in its header.
 `EncodeGraph::Run` (`EncodeGraph.cpp`) applies the rule above (`OneLevelThreads`, `CascadeThreads`,

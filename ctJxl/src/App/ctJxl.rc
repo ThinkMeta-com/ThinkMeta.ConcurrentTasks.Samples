@@ -1,0 +1,16 @@
+// Copyright (c) 2026 ThinkMeta Software GmbH
+// SPDX-License-Identifier: MIT (see LICENSE.txt)
+
+// Version resource of ctJxl.exe: the values; the resource itself is Shared/VersionInfo.rc2
+
+#include "ctJxlVersion.h"
+
+#define CT_RC_VERSION_MAJOR  CTJXL_VERSION_MAJOR
+#define CT_RC_VERSION_MINOR  CTJXL_VERSION_MINOR
+#define CT_RC_VERSION_PATCH  CTJXL_VERSION_PATCH
+#define CT_RC_VERSION_STRING CTJXL_VERSION_STRING
+#define CT_RC_NAME           "ctJxl"
+#define CT_RC_DESCRIPTION    "ctJxl - parallel JPEG XL encoder (libjxl) on ThinkMeta.ConcurrentTasks"
+#define CT_RC_REFERENCE      "libjxl: Copyright (c) the JPEG XL Project Authors; BSD-3-Clause"
+
+#include "VersionInfo.rc2"

@@ -16,7 +16,7 @@ ctOpus was created **AI-assisted**, using ThinkMeta.ConcurrentTasks: AI coding a
 
 **ctOpus at maximum complexity is twice as fast as opusenc at minimum complexity**, on a single file and with output identical to opusenc at maximum complexity.
 
-On a corpus of 343 music files (45.1 hours), `--comp 10 --bitrate 128`, measured cold: **4.4× faster than opusenc** on an 8-core Core i9-11900K (559× real time) and 4.1× on a 4-core Xeon E3-1275 v6, all 343 files bit-identical on every machine ([details](#benchmarks)).
+On a corpus of 343 music files (45.1 hours), `--comp 10 --bitrate 128`, measured cold: **4.5× faster than opusenc** on an 8-core Core i9-11900K (555× real time) and 4.2× on a 4-core Xeon E3-1275 v6, all 343 files bit-identical on every machine ([details](#benchmarks)).
 
 ---
 
@@ -183,7 +183,7 @@ Measured with `benchmark\Compare-Folder.ps1`: the wall time of the whole process
 
 Corpus runs: `benchmark\run.cmd <folder> -Rounds 3`, i.e. `--comp 10 --bitrate 128` for both programs, 3 rounds, all threads for ctOpus, measured **cold**: before every timed run the script writes a fresh copy of the input without buffering, so it is not in the Windows file cache (the copy is not timed).
 
-The corpus numbers were measured on 2026-10-17 with the Windows binaries in `bin\win-x64\` (static C runtime); there are no Linux measurements yet. The single-file table at the top and the live numbers below come from earlier builds of both programs, measured warm; they show the same proportions.
+The corpus numbers were measured on 2026-11-19 with the Windows binaries in `bin\win-x64\` (static C runtime); there are no Linux measurements yet. The single-file table at the top and the live numbers below come from earlier builds of both programs, measured warm; they show the same proportions.
 
 ### Corpus
 
@@ -199,7 +199,7 @@ Desktop (i9-11900K), whole corpus, 128 kbit/s; time is the sum of the per-file m
 
 | `--comp` | opusenc | ctOpus (all threads) | vs opusenc | identical |
 |---|---:|---:|---:|---:|
-| 10 | 1,278.6 s (127× real time) | **290.3 s (559× real time)** | **4.40×** | 343 / 343 |
+| 10 | 1,322.3 s (123× real time) | **292.6 s (555× real time)** | **4.52×** | 343 / 343 |
 
 <!-- BENCHMARK: --comp 0 and 5, the --sequential column, and ctOpus --comp 10 against opusenc --comp 0 (-ReferenceArgs "--comp 0") on the corpus -->
 
@@ -215,9 +215,9 @@ Same corpus, `--comp 10 --bitrate 128`, 3 rounds, cold:
 
 | Computer | opusenc | ctOpus | vs opusenc | identical |
 |---|---:|---:|---:|---:|
-| Desktop, i9-11900K, 8 / 16 | 1,278.6 s (127×) | **290.3 s (559×)** | **4.40×** | 343 / 343 |
-| Server, Xeon E3-1275 v6, 4 / 8 | 1,787.7 s (91×) | **437.5 s (371×)** | **4.09×** | 343 / 343 |
-| Notebook, Core Ultra 7 155H, 16 / 22 | 1,430.6 s (113×) | **559.5 s (290×)** | **2.56×** | 343 / 343 |
+| Desktop, i9-11900K, 8 / 16 | 1,322.3 s (123×) | **292.6 s (555×)** | **4.52×** | 343 / 343 |
+| Server, Xeon E3-1275 v6, 4 / 8 | 1,793.2 s (91×) | **429.5 s (378×)** | **4.17×** | 343 / 343 |
+| Notebook, Core Ultra 7 155H, 16 / 22 | 1,370.9 s (118×) | **551.7 s (294×)** | **2.48×** | 343 / 343 |
 
 <details>
 <summary><b>Split by file length</b>: the notebook slows down under sustained load</summary>
@@ -226,11 +226,11 @@ By file length (the 314 files up to 17 min against the 29 album-length files):
 
 | Computer | tracks (22.0 h) | albums (23.1 h) |
 |---|---:|---:|
-| Desktop | 4.33× | 4.48× |
-| Server | 4.03× | 4.14× |
-| Notebook | 3.60× | 1.90× |
+| Desktop | 4.44× | 4.60× |
+| Server | 4.09× | 4.27× |
+| Notebook | 3.44× | 1.89× |
 
-On the desktop and the server the long files scale as well as the tracks. On the notebook the factor falls with the time ctOpus works on one file without a break: 3.6× for a track of 4 minutes (0.7 s), 3.1× at 1.7 s, 2.3× at 3.7 s and about 1.9× for the album files (8 to 17 s), while opusenc on one core even gets slightly faster on them. The most likely cause is the notebook's power limit under sustained load on all cores; that Windows moves the serial encoding task to an efficiency core during long runs would fit as well. Neither has been verified.
+On the desktop and the server the long files scale as well as the tracks. On the notebook the factor falls with the time ctOpus works on one file without a break: 3.5× for a track of 4 minutes (0.6 s), 3.2× at about 1 s, 2.3× at 3.5 s and about 1.9× for the album files (8 to 20 s), while opusenc on one core even gets faster on them (130× against 108× real time). The most likely cause is the notebook's power limit under sustained load on all cores; that Windows moves the serial encoding task to an efficiency core during long runs would fit as well. Neither has been verified.
 
 </details>
 
@@ -464,7 +464,7 @@ ctOpus is not finished; the measurements point to these next steps:
 * **Turbo clock:** every additional busy core lowers the clock of all of them. The band quantization itself took about 5 % longer with 2 busy cores and 10 % longer with 6; more speculation levels or helpers therefore pay off only up to a point (three levels from 8 threads, helpers for the levels only from 12).
 * **Fewer than 7 threads:** below 7 threads speculation costs more than it gains and is switched off, so CPUs with 4 cores / 4 threads get only the analysis chain, the input stage and the theta helper of the encoder.
 * **SILK and hybrid modes:** the speculation covers CELT frames only; speech at low bit rates (SILK, hybrid) runs the backbone without it. These modes are bit-identical but their speedup has not been measured separately.
-* **Notebooks under sustained load:** on the Core Ultra 7 155H ctOpus is 3.5× faster than opusenc on single tracks but only 1.9× on album-length files; with fewer threads ctOpus might hold a higher clock for longer. This has not been measured yet.
+* **Notebooks under sustained load:** on the Core Ultra 7 155H ctOpus is 3.4× faster than opusenc on single tracks but only 1.9× on album-length files; with fewer threads ctOpus might hold a higher clock for longer. This has not been measured yet.
 * **CPUs without AVX2:** `ctOpus.exe` is built for AVX2; a build for older CPUs has not been made or checked.
 * **Live encoding:** a frame takes 20 to 90 µs, too little to split over cores profitably; the theta helper brought no gain there. A frame that arrives after an idle pause takes 1.4 to 2 times longer than one encoded back to back (the core's caches are cold and its clock is low). Encoding the tonality analysis next to the CELT front end of the same frame would save at most about 15 % at 20 ms frames.
 * **Linux:** no measurements yet, and the benchmark script is Windows only. Many ctOpus processes at once crowd each other out more than on Windows (the active waits between frames); to be measured. The Linux programs need glibc 2.38 because libstdc++ is linked in from Ubuntu 24.04; a build against an older glibc (in a container) would let them run on Ubuntu 22.04 and Debian 12 as well. The extras ctOpusGui and ctOpusLiveBench are not planned for Linux.

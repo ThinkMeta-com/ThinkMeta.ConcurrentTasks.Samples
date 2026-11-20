@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4a584c00-0002-4000-8000-000000000003}</ProjectGuid>
+    <RootNamespace>ThinkMetaConcurrentTasksSamplesctJxl</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <TargetName>ctJxl</TargetName>
+  </PropertyGroup>
+  <!-- The core of the API submodule, relative to this project. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\..\ThinkMeta.ConcurrentTasks.API\Core\ThinkMeta.ConcurrentTasks.Core.props" />
+  <!-- libjxl as cjxl uses it: include directories, defines, the vendored libraries -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\jxl\libjxl-0.13.0\msvc\libjxl.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\Shared\src\Shared;$(MSBuildThisFileDirectory)..\Tasks;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- an AVX2 program like libjxl in libjxl-0.13.0\msvc (plan E5) -->
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <!-- Shared\CpuCheck: checks the instruction sets of /arch:AVX2 before the C runtime starts -->
+      <EntryPointSymbol>CpuCheckedConsoleStartup</EntryPointSymbol>
+    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\Shared\src\Shared;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="Application.h" />
+    <ClInclude Include="CjxlMain.h" />
+    <ClInclude Include="ctjxl_apng.h" />
+    <ClInclude Include="ctJxlVersion.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ctJxl.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Application.cpp" />
+    <!-- a marked copy of libjxl's tools/cjxl_main.cc: compiled like libjxl's own tools (vendor code) -->
+    <ClCompile Include="CjxlMain.cc">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <ConformanceMode>false</ConformanceMode>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
+    </ClCompile>
+    <!-- a marked copy of libjxl's lib/extras/dec/apng.cc with the chunked PNG input (plan D1.6b): compiled like
+         libjxl-extras -->
+    <ClCompile Include="ctjxl_apng.cc">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <ConformanceMode>false</ConformanceMode>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
+      <AdditionalIncludeDirectories>..\..\jxl\libjxl-0.13.0\third_party\libpng;..\..\jxl\libjxl-0.13.0\msvc\include-gen\libpng;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>JPEGXL_ENABLE_APNG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- as cjxl: the process code page is UTF-8, so cjxl's fopen opens the UTF-8 file names -->
+    <Manifest Include="..\..\jxl\libjxl-0.13.0\tools\utf8.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\src\Shared\ThinkMeta.ConcurrentTasks.Samples.Shared.vcxproj">
+      <Project>{5a4ed000-0001-4000-8000-000000000001}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\ThinkMeta.ConcurrentTasks.API\Library\ThinkMeta.ConcurrentTasks\ThinkMeta.ConcurrentTasks.vcxproj">
+      <Project>{8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\Encoder\ThinkMeta.ConcurrentTasks.Samples.ctJxl.Encoder.vcxproj">
+      <Project>{4a584c00-0002-4000-8000-000000000001}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\Tasks\ThinkMeta.ConcurrentTasks.Samples.ctJxl.Tasks.vcxproj">
+      <Project>{4a584c00-0002-4000-8000-000000000002}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

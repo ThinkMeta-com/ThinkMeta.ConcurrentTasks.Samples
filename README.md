@@ -1,11 +1,11 @@
 # ThinkMeta.ConcurrentTasks Samples
 
 Encoders built on **ThinkMeta.ConcurrentTasks**, a fiber-based task scheduler for Windows and Linux (x64). Each
-one is a new C++ port (rewritten, not linked) of a well-known reference encoder, writes *exactly*
-the same output as that reference (byte for byte) and spreads the work on a **single file** over
-all cores.
+one writes *exactly* the same output as a well-known reference encoder (byte for byte) and spreads the work on a
+**single file** over all cores. ctLame, ctOpus, ctDeflate and ctJpeg are new C++ ports (rewritten, not linked) of
+their reference; ctJxl is libjxl itself, with eleven of its encoder files replaced by marked copies.
 
-All four encoders were created **AI-assisted**, using ThinkMeta.ConcurrentTasks: AI coding
+All five encoders were created **AI-assisted**, using ThinkMeta.ConcurrentTasks: AI coding
 agents wrote the port, its parallelization and optimizations, measured and tuned the code under
 the direction of ThinkMeta's developers, and every step was checked byte for byte against the
 reference. **An in-depth code review is still pending:** the output is verified to be identical
@@ -17,7 +17,8 @@ to the reference, but the code itself has not yet been reviewed line by line.
 | [`ctOpus\`](ctOpus) | opusenc (opus-tools 0.2, libopus 1.6.1) | source code, prebuilt binaries for Windows and Linux, benchmark, live encoding (Windows) |
 | [`ctDeflate\`](ctDeflate) | libdeflate 1.26 (gzip) | source code, prebuilt binaries for Windows and Linux, benchmark |
 | [`ctJpeg\`](ctJpeg) | jpegli (JPEG, google/jpegli @ 031a007) | source code, prebuilt binaries for Windows and Linux, benchmark |
-| [`Shared\`](Shared) | - | the code all four share (console output, version resource, CPU check, task setup, `--stats`), a static library |
+| [`ctJxl\`](ctJxl) | cjxl (JPEG XL, libjxl 0.13.0) | source code (libjxl with marked changes), prebuilt binaries for Windows and Linux, benchmark |
+| [`Shared\`](Shared) | - | the code all samples share (console output, version resource, CPU check, task setup, `--stats`), a static library |
 | [`ThinkMeta.ConcurrentTasks.API\`](https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.API) | - | the public API of the scheduler, as a submodule ([below](#thinkmetaconcurrenttasks-api)) |
 
 Clone with the submodule:
@@ -33,24 +34,31 @@ and benchmark scripts in the `ct…` folders run without it; building from sourc
 
 | Encoder | Workload | Reference | ct… | Speedup |
 |---|---|---:|---:|---:|
-| [ctLame](ctLame#benchmarks) | 343 WAV files, 45.1 h of CD audio, `-V 4` | 1,195.2 s | 85.2 s | **14.0×** |
-| [ctOpus](ctOpus#benchmarks) | 343 WAV files, 45.1 h of music, 128 kbit/s, `--comp 10` | 1,278.6 s | 290.3 s | **4.4×** |
-| [ctDeflate](ctDeflate#benchmarks) | Silesia corpus + enwik9, 1.2 GB, level 6 / level 9 | 87 / 53 MB/s | 282 / 228 MB/s | **3.3× / 4.3×** |
-| [ctJpeg](ctJpeg#benchmarks) | 6 photos, 99 MP, `-q 85`, AVX2 | 2.109 s | 0.425 s | **5.0×** |
+| [ctLame](ctLame#benchmarks) | 343 WAV files, 45.1 h of CD audio, `-V 4` | 1,174.0 s | 84.6 s | **13.9×** |
+| [ctOpus](ctOpus#benchmarks) | 343 WAV files, 45.1 h of music, 128 kbit/s, `--comp 10` | 1,322.3 s | 292.6 s | **4.5×** |
+| [ctDeflate](ctDeflate#benchmarks) | Silesia corpus + enwik9, 1.2 GB, level 6 / level 9 | 98 / 53 MB/s | 300 / 232 MB/s | **3.1× / 4.3×** |
+| [ctJpeg](ctJpeg#benchmarks) | 6 photos, 99 MP, `-q 85`, AVX2 | 2.069 s | 0.390 s | **5.3×** |
+| [ctJxl](ctJxl#benchmarks) | 25 images of the JPEG XL conformance set, `-q 90` / `-d 0` | 7.31 / 12.29 s | 4.22 / 5.77 s | **1.7× / 2.1×** |
 
 *Intel Core i9-11900K (8 cores, 16 threads), Windows 11, High Performance power plan, cold runs
 (fresh copy of the input before every run), wall time of each program run, sum of the medians
-over all files, reference and ct… encoder with the same settings, every output bit-identical to
+over all files (ctJxl: of the mean of the middle three of five runs), measured 2026-11-19, reference and ct… encoder with the same settings, every output bit-identical to
 the reference. Details, two more machines (Xeon E3-1275 v6, Core Ultra 7 155H) and the limits of
 each encoder are in the README of each folder. There are no Linux measurements yet.*
 
+ctJxl (preliminary) reaches 1.6× at cjxl's default (`-q 90`) on photos, 1.1–1.3× lossless and up to 7× for
+animations; cjxl itself already runs in parallel.
+
 ## Why fibers
 
-In all four encoders the reference is sequential, and the parallel version has to reproduce its
+In ctLame, ctOpus, ctDeflate and ctJpeg the reference is sequential, and the parallel version has to reproduce its
 result exactly. In ctLame, ctOpus and ctDeflate that takes many small jobs that wait for each
 other in the middle of their work: for the frame before them, for the next job of their stage,
 for a chunk of the file to arrive. ctJpeg is simpler, a fixed sequence of fork-join phases; there
-only the encoder itself waits, once per phase. ThinkMeta.ConcurrentTasks runs every job as a task
+only the encoder itself waits, once per phase. ctJxl starts from a reference that is already parallel: libjxl splits
+its kernels into regions on its own thread pool. ctJxl runs those regions as tasks, so they can nest, and lets
+the DC groups of an image, the frames of an animation and the reading of the input run at the same time, waiting
+for each other where the order of the bytes requires it. ThinkMeta.ConcurrentTasks runs every job as a task
 on a fiber:
 
 * **Waiting does not block a thread.** A task that waits is switched out, and its worker thread
@@ -88,7 +96,9 @@ they build against the API submodule. Results of your hardware are welcome.
   library and the scheduler core next to them.
 * **CPU:** ctOpus and ctDeflate need a CPU with AVX2 (Intel Haswell, AMD Excavator or later) and
   say so at start-up on older CPUs; ctJpeg runs on any x64 CPU and uses AVX2 where available;
-  ctLame runs on any x64 CPU and chooses scalar, SSE4.1 or AVX2 code at run time.
+  ctLame runs on any x64 CPU and chooses scalar, SSE4.1 or AVX2 code at run time; ctJxl on Windows
+  needs AVX2, FMA and BMI1/2 and stops at start-up without them, on Linux it chooses its SIMD code at
+  run time, as cjxl.
 * **Scripts:** the verification scripts (`verify\`) need PowerShell 7 on both platforms; the
   benchmark scripts are Windows only for now and run on Windows PowerShell 5.1 and later.
 
@@ -138,7 +148,7 @@ release.
 
 ## Parallelize your own algorithm with an AI agent
 
-The four encoders were made by AI coding agents along the same route: keep the sequential
+The encoders were made by AI coding agents along the same route: keep the sequential
 reference as an oracle, port it, make the port bit-identical, then parallelize step by step and
 check every step against the oracle. You can give an agent (Claude Code, Codex, Gemini CLI or
 similar, with access to a shell and Visual Studio 2026) the same task for your own code. A
@@ -152,7 +162,7 @@ sequential version, and is as fast as possible on one input.
 1. Clone https://github.com/ThinkMeta-com/ThinkMeta.ConcurrentTasks.Samples with
    --recurse-submodules. Read README.md, ThinkMeta.ConcurrentTasks.API/README.md, the
    documentation at https://www.thinkmeta.com/concurrenttasks, and the README and
-   docs/task-graph.md of the sample closest to my problem (ctLame, ctOpus, ctDeflate, ctJpeg).
+   docs/task-graph.md of the sample closest to my problem (ctLame, ctOpus, ctDeflate, ctJpeg, ctJxl).
 2. Read my code in <path>. Describe its hot spots and its data dependencies, and propose a
    task graph before writing code. Note the limits of the minimal core in the Samples README.
 3. List the calls in the hot paths that serialize or block when many tasks run at once:
@@ -181,6 +191,8 @@ use commercially needs a license from ThinkMeta Software GmbH (see `LICENSE-Core
 
 * **ctOpus, ctDeflate, ctJpeg:** source code and binaries under the MIT License (`LICENSE.txt` in
   each folder). Each port includes the license notice of its reference (`COPYING`).
+* **ctJxl:** its own code under the MIT License (`LICENSE.txt`); libjxl, including the eleven replaced encoder
+  files, under the BSD 3-Clause License with libjxl's patent grant (`COPYING`).
 * **ctLame:** a port of LAME and therefore source code and the ctLame programs under the GNU LGPL
   (`COPYING` and `src\ctLame-LICENSE.md` in the folder).
 * **The scheduler core** (`ThinkMeta.ConcurrentTasks.Core.dll`, `libThinkMeta.ConcurrentTasks.Core.so.2`):

@@ -8,14 +8,14 @@ jpegli is the JPEG encoder from the JPEG XL team: at the same visual quality its
 
 | One image, 7216×5412 (39 MP), `-q 85` | time | vs jpegli |
 |---|---:|---:|
-| mozjpeg 4.1.5 (`cjpeg`) | 3.27 s | 0.25× |
-| jpegli (`cjpegli`, AVX2) | 0.821 s | 1.00× |
-| libjpeg-turbo 3.2 (`cjpeg-turbo -optimize -progressive`) | 0.573 s | 1.43× |
-| **`ctJpeg`** (16 threads, AVX2) | **0.126 s** | **6.5×** |
+| mozjpeg 4.1.5 (`cjpeg`) | 3.34 s | 0.25× |
+| jpegli (`cjpegli`, AVX2) | 0.818 s | 1.00× |
+| libjpeg-turbo 3.2 (`cjpeg-turbo -optimize -progressive`) | 0.555 s | 1.47× |
+| **`ctJpeg`** (16 threads, AVX2) | **0.118 s** | **6.9×** |
 
 *Intel Core i9-11900K (8 cores, 16 threads), Windows 11, High Performance power plan, median of 5, whole process time with the image read cold (not from the file cache), every ctJpeg output bit-identical to jpegli on the same SIMD target. Details, both feature sets and more CPUs in [Benchmarks](#benchmarks).*
 
-**ctJpeg is 3.4 to 4.6 times as fast as libjpeg-turbo on large images, with jpegli's smaller files** (2 to 18 % smaller than mozjpeg at the same SSIMULACRA2 score in our measurements, mozjpeg in turn being smaller than libjpeg-turbo).
+**ctJpeg is 3.4 to 5.1 times as fast as libjpeg-turbo on large images, with jpegli's smaller files** (2 to 18 % smaller than mozjpeg at the same SSIMULACRA2 score in our measurements, mozjpeg in turn being smaller than libjpeg-turbo).
 
 ---
 
@@ -77,7 +77,7 @@ The script encodes every PPM/PGM image of the folder with jpegli, ctJpeg, mozjpe
 
 Two measurements, both with whole process time (including reading the PPM file and writing the JPEG), quality 85, the High Performance power plan, and every ctJpeg output compared byte for byte with jpegli on the same SIMD target:
 
-* **Benchmark package on three machines** (the main results below, 2026-10-17): `benchmark\Compare-Folder.ps1` from the package of `New-BenchPackage.ps1`, 6 photos, SSE2 and AVX2, ctJpeg with all logical processors, encoders interleaved image by image, **median of 5**. Every image is read **cold**: before each run the script writes a fresh copy of it with unbuffered I/O, so no program finds it in the file cache. The programs are the ones in `bin\win-x64\`. All numbers in this README are from Windows; there are no Linux measurements yet.
+* **Benchmark package on three machines** (the main results below, 2026-11-19): `benchmark\Compare-Folder.ps1` from the package of `New-BenchPackage.ps1`, 6 photos, SSE2 and AVX2, ctJpeg with all logical processors, encoders interleaved image by image, **median of 5**. Every image is read **cold**: before each run the script writes a fresh copy of it with unbuffered I/O, so no program finds it in the file cache. The programs are the ones in `bin\win-x64\`. All numbers in this README are from Windows; there are no Linux measurements yet.
 * **Development machine** (i9-11900K, no other load, 2026-10-08): an internal benchmark script, all 14 photos, SSE2 and AVX2, also `ctJpeg --sequential`, best of 3 (scaling: best of 5). These numbers were measured **warm** (images in the file cache) with an earlier ctJpeg build that mapped the input into memory and had no asynchronous reading; they show the relations between the encoders and the scaling, not today's absolute times.
 
 jpegli is `cjpegli --target sse2|avx2` (unmodified jpegli with the SIMD target fixed), ctJpeg `--simd sse2|avx2`, mozjpeg runs with its defaults, libjpeg-turbo with `-optimize -progressive`; mozjpeg and libjpeg-turbo write the same bytes on every SIMD level.
@@ -92,9 +92,9 @@ The benchmark package with 6 of the photos (3.4 to 39 MP, 99 MP in all), `-q 85`
 
 | CPU | jpegli | ctJpeg | vs jpegli | vs libjpeg-turbo | SSE2: vs jpegli | big_building (39 MP) | cathedral (6 MP) | flower_foveon (3.4 MP) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Intel Core i9-11900K, 8 cores / 16 threads | 2.109 s | 0.425 s | **4.96×** | 3.39× | 5.09× | 6.5× | 2.8× | 1.8× |
-| Intel Xeon E3-1275 v6, 4 cores / 8 threads | 3.369 s | 0.672 s | **5.01×** | 3.05× | 5.19× | 5.5× | 4.0× | 3.2× |
-| Intel Core Ultra 7 155H, 6P + 8E + 2 LP-E cores, 22 threads | 2.673 s | 0.571 s | **4.68×** | 3.00× | 4.47× | 6.6× | 2.6× | 1.6× |
+| Intel Core i9-11900K, 8 cores / 16 threads | 2.069 s | 0.390 s | **5.31×** | 3.58× | 5.28× | 6.9× | 3.0× | 1.9× |
+| Intel Xeon E3-1275 v6, 4 cores / 8 threads | 3.356 s | 0.663 s | **5.06×** | 3.12× | 5.30× | 5.5× | 4.0× | 3.3× |
+| Intel Core Ultra 7 155H, 6P + 8E + 2 LP-E cores, 22 threads | 2.506 s | 0.497 s | **5.04×** | 3.26× | 5.02× | 7.6× | 2.7× | 1.6× |
 
 Large images scale on every machine; small images lose with many workers (see [Room for improvement](#room-for-improvement)).
 
@@ -105,34 +105,34 @@ Large images scale on every machine; small images lose with many workers (see [R
 
 | Image | MP | jpegli | ctJpeg | vs jpegli | mozjpeg | libjpeg-turbo |
 |---|---:|---:|---:|---:|---:|---:|
-| big_building | 39.1 | 0.821 s | 0.126 s | 6.5× | 3.265 s | 0.573 s |
-| big_tree | 27.7 | 0.604 s | 0.095 s | 6.3× | 2.766 s | 0.408 s |
-| spider_web | 12.1 | 0.231 s | 0.058 s | 4.0× | 0.630 s | 0.140 s |
-| deer | 10.7 | 0.242 s | 0.056 s | 4.4× | 1.265 s | 0.168 s |
-| cathedral | 6.0 | 0.138 s | 0.049 s | 2.8× | 0.482 s | 0.102 s |
-| flower_foveon | 3.4 | 0.073 s | 0.042 s | 1.8× | 0.202 s | 0.048 s |
+| big_building | 39.1 | 0.818 s | 0.118 s | 6.9× | 3.337 s | 0.555 s |
+| big_tree | 27.7 | 0.581 s | 0.085 s | 6.8× | 2.660 s | 0.396 s |
+| spider_web | 12.1 | 0.221 s | 0.054 s | 4.1× | 0.618 s | 0.135 s |
+| deer | 10.7 | 0.242 s | 0.050 s | 4.8× | 1.247 s | 0.165 s |
+| cathedral | 6.0 | 0.133 s | 0.044 s | 3.0× | 0.487 s | 0.097 s |
+| flower_foveon | 3.4 | 0.074 s | 0.039 s | 1.9× | 0.192 s | 0.047 s |
 
 **Intel Xeon E3-1275 v6 (4 cores / 8 threads)**
 
 | Image | MP | jpegli | ctJpeg | vs jpegli | mozjpeg | libjpeg-turbo |
 |---|---:|---:|---:|---:|---:|---:|
-| big_building | 39.1 | 1.351 s | 0.247 s | 5.5× | 4.889 s | 0.835 s |
-| big_tree | 27.7 | 0.965 s | 0.179 s | 5.4× | 3.913 s | 0.601 s |
-| spider_web | 12.1 | 0.362 s | 0.082 s | 4.4× | 0.870 s | 0.188 s |
-| deer | 10.7 | 0.374 s | 0.079 s | 4.7× | 1.799 s | 0.235 s |
-| cathedral | 6.0 | 0.208 s | 0.051 s | 4.0× | 0.682 s | 0.131 s |
-| flower_foveon | 3.4 | 0.110 s | 0.034 s | 3.2× | 0.263 s | 0.056 s |
+| big_building | 39.1 | 1.342 s | 0.245 s | 5.5× | 4.836 s | 0.849 s |
+| big_tree | 27.7 | 0.966 s | 0.176 s | 5.5× | 3.922 s | 0.601 s |
+| spider_web | 12.1 | 0.361 s | 0.079 s | 4.5× | 0.867 s | 0.189 s |
+| deer | 10.7 | 0.374 s | 0.078 s | 4.8× | 1.777 s | 0.240 s |
+| cathedral | 6.0 | 0.206 s | 0.052 s | 4.0× | 0.679 s | 0.131 s |
+| flower_foveon | 3.4 | 0.108 s | 0.033 s | 3.3× | 0.262 s | 0.057 s |
 
 **Intel Core Ultra 7 155H (6P + 8E + 2 LP-E cores, 22 threads)**
 
 | Image | MP | jpegli | ctJpeg | vs jpegli | mozjpeg | libjpeg-turbo |
 |---|---:|---:|---:|---:|---:|---:|
-| big_building | 39.1 | 1.050 s | 0.159 s | 6.6× | 4.080 s | 0.690 s |
-| big_tree | 27.7 | 0.755 s | 0.126 s | 6.0× | 3.362 s | 0.482 s |
-| spider_web | 12.1 | 0.302 s | 0.084 s | 3.6× | 0.820 s | 0.165 s |
-| deer | 10.7 | 0.301 s | 0.076 s | 4.0× | 1.639 s | 0.197 s |
-| cathedral | 6.0 | 0.171 s | 0.066 s | 2.6× | 0.636 s | 0.120 s |
-| flower_foveon | 3.4 | 0.094 s | 0.060 s | 1.6× | 0.260 s | 0.059 s |
+| big_building | 39.1 | 0.982 s | 0.128 s | 7.6× | 3.805 s | 0.653 s |
+| big_tree | 27.7 | 0.717 s | 0.105 s | 6.8× | 3.190 s | 0.459 s |
+| spider_web | 12.1 | 0.275 s | 0.073 s | 3.8× | 0.755 s | 0.153 s |
+| deer | 10.7 | 0.281 s | 0.072 s | 3.9× | 1.504 s | 0.186 s |
+| cathedral | 6.0 | 0.163 s | 0.061 s | 2.7× | 0.600 s | 0.113 s |
+| flower_foveon | 3.4 | 0.089 s | 0.057 s | 1.6× | 0.244 s | 0.056 s |
 
 </details>
 
@@ -415,8 +415,8 @@ ctJpeg stops at the first error, reports it and ends with exit code 1; it does n
 
 ctJpeg is not finished; the measurements point to these next steps:
 
-* **Small images on CPUs with many threads:** ctJpeg starts one worker per logical processor. For an image of a few megapixels that is more workers than there is work, and their fixed costs show: a 3.4-megapixel photo takes 0.034 s on a 4-core Xeon with 8 workers but 0.060 s on a Core Ultra 7 155H with 22, no faster than libjpeg-turbo there. The number of workers will follow the image size.
-* **Hybrid CPUs:** on the Core Ultra 7 155H (performance and efficiency cores) ctJpeg reaches 4.7× over the six test photos against 5.0× on the other machines, although large images scale as well as elsewhere (6.6× on the 39-megapixel photo); the small photos pull it down.
+* **Small images on CPUs with many threads:** ctJpeg starts one worker per logical processor. For an image of a few megapixels that is more workers than there is work, and their fixed costs show: a 3.4-megapixel photo takes 0.033 s on a 4-core Xeon with 8 workers but 0.057 s on a Core Ultra 7 155H with 22, no faster than libjpeg-turbo there. The number of workers will follow the image size.
+* **Hybrid CPUs:** on the Core Ultra 7 155H (performance and efficiency cores) ctJpeg scales best of the three machines on the 39-megapixel photo (7.6×), but reaches only 2.7× on the 6-megapixel and 1.6× on the 3.4-megapixel photo; over the six test photos that leaves 5.0×, no more than the 4-core Xeon.
 * **Pixel phase and tokenization in one pass:** today the pixel phase writes all quantized coefficients to memory and the tokenization reads them back; tokenizing each band while it is still in the cache should save another 10 to 15 % on large images.
 * **Single-thread tokenizer:** on one thread the tokenization takes about as long as in jpegli; more SIMD there helps at every thread count.
 * **Linux:** no measurements yet, and the benchmark script is Windows only; a Linux benchmark script would come first. The Linux programs need glibc 2.38 because libstdc++ is linked in from Ubuntu 24.04; a build against an older glibc (in a container) would let them run on Ubuntu 22.04 and Debian 12 as well.

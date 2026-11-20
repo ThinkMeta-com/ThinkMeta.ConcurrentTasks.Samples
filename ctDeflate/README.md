@@ -7,9 +7,9 @@ ctDeflate was created **AI-assisted**, using ThinkMeta.ConcurrentTasks: AI codin
 | i9-11900K, 16 threads | enwik9 (1 GB, one file) | | | Silesia corpus (12 files, 212 MB) | | |
 |---|---:|---:|---:|---:|---:|---:|
 | | gzip.exe | **ctDeflate** | factor | gzip.exe | **ctDeflate** | factor |
-| level 1 | 200 MB/s | **833 MB/s** | **4.2×** | 122 MB/s | **193 MB/s** | **1.6×** |
-| level 6 (default) | 89 MB/s | **366 MB/s** | **4.1×** | 78 MB/s | **135 MB/s** | **1.7×** |
-| level 9 | 58 MB/s | **296 MB/s** | **5.1×** | 38 MB/s | **109 MB/s** | **2.9×** |
+| level 1 | 210 MB/s | **929 MB/s** | **4.4×** | 129 MB/s | **209 MB/s** | **1.6×** |
+| level 6 (default) | 102 MB/s | **387 MB/s** | **3.8×** | 82 MB/s | **146 MB/s** | **1.8×** |
+| level 9 | 58 MB/s | **296 MB/s** | **5.1×** | 39 MB/s | **115 MB/s** | **3.0×** |
 
 *Wall time of the whole program run including reading the input cold from the disk and writing the `.gz`, median of 3, every output bit-identical to `gzip.exe` (the official libdeflate 1.26 build). Details, all files and more CPUs under [Benchmarks](#benchmarks).*
 
@@ -88,7 +88,7 @@ The script compresses every file with gzip.exe and ctDeflate at every level, mea
 
 * Main machine: Intel Core i9-11900K (8 cores, 16 threads), Windows 11, High Performance power plan. Further CPUs below. All numbers in this README are from Windows; there are no Linux measurements yet.
 * `benchmark\Compare-Gzip.ps1`: every file and level compressed by `gzip.exe` (libdeflate 1.26, one thread) and by ctDeflate (all logical processors), the programs interleaved round by round; measured is the wall time of the whole program run, including program start, reading the input and writing the `.gz`. Median of 3 runs. Every output is compared with `gzip.exe`'s byte for byte: 117 of 117 runs on the three machines were identical.
-* Measured cold (2026-10-17, the Windows programs of this repository): before every run the script writes a fresh copy of the input without the file cache (`robocopy /J`), so each program reads the file from the disk, as it would a file it has not seen before; the copy is not timed. `-Warm` reads from the file cache instead; earlier versions of this README showed warm numbers, which are higher for the small files.
+* Measured cold (2026-11-19, the Windows programs of this repository): before every run the script writes a fresh copy of the input without the file cache (`robocopy /J`), so each program reads the file from the disk, as it would a file it has not seen before; the copy is not timed. `-Warm` reads from the file cache instead; earlier versions of this README showed warm numbers, which are higher for the small files.
 
 </details>
 
@@ -108,21 +108,23 @@ Intel Core i9-11900K, 16 threads, gzip.exe → ctDeflate:
 
 | File | size | level 1 | level 6 | level 9 |
 |---|---:|---:|---:|---:|
-| enwik9 (Wikipedia XML text) | 1,000 MB | 200 → 833 MB/s (**4.2×**) | 89 → 366 MB/s (**4.1×**) | 58 → 296 MB/s (**5.1×**) |
-| mozilla (tar of executables) | 51 MB | 202 → 650 MB/s (**3.2×**) | 113 → 332 MB/s (**2.9×**) | 37 → 214 MB/s (**5.8×**) |
-| webster (dictionary text) | 41 MB | 57 → 68 MB/s (**1.2×**) | 42 → 60 MB/s (**1.4×**) | 24 → 55 MB/s (**2.3×**) |
-| nci (chemical database) | 34 MB | 333 → 925 MB/s (**2.8×**) | 198 → 572 MB/s (**2.9×**) | 68 → 343 MB/s (**5.0×**) |
-| samba (tar of source code) | 22 MB | 214 → 498 MB/s (**2.3×**) | 111 → 245 MB/s (**2.2×**) | 48 → 168 MB/s (**3.5×**) |
-| dickens (English text) | 10 MB | 150 → 280 MB/s (**1.9×**) | 69 → 145 MB/s (**2.1×**) | 36 → 113 MB/s (**3.1×**) |
-| osdb (MySQL database) | 10 MB | 149 → 337 MB/s (**2.3×**) | 89 → 196 MB/s (**2.2×**) | 80 → 185 MB/s (**2.3×**) |
-| mr (MRI image) | 10 MB | 178 → 330 MB/s (**1.9×**) | 86 → 119 MB/s (**1.4×**) | 41 → 79 MB/s (**1.9×**) |
-| x-ray (X-ray image) | 8 MB | 105 → 219 MB/s (**2.1×**) | 79 → 97 MB/s (**1.2×**) | 69 → 93 MB/s (**1.3×**) |
-| sao (star catalog, binary) | 7 MB | 100 → 205 MB/s (**2.1×**) | 59 → 107 MB/s (**1.8×**) | 46 → 93 MB/s (**2.0×**) |
-| reymont (Polish text, PDF) | 7 MB | 113 → 195 MB/s (**1.7×**) | 64 → 124 MB/s (**1.9×**) | 20 → 61 MB/s (**3.0×**) |
-| ooffice (executable) | 6 MB | 81 → 119 MB/s (**1.5×**) | 58 → 82 MB/s (**1.4×**) | 42 → 77 MB/s (**1.8×**) |
-| xml (XML files) | 5 MB | 64 → 74 MB/s (**1.2×**) | 54 → 60 MB/s (**1.1×**) | 37 → 54 MB/s (**1.4×**) |
+| enwik9 (Wikipedia XML text) | 1,000 MB | 210 → 929 MB/s (**4.4×**) | 102 → 387 MB/s (**3.8×**) | 58 → 296 MB/s (**5.1×**) |
+| mozilla (tar of executables) | 51 MB | 194 → 620 MB/s (**3.2×**) | 108 → 321 MB/s (**3.0×**) | 36 → 197 MB/s (**5.6×**) |
+| webster (dictionary text) | 41 MB | 65 → 84 MB/s (**1.3×**) | 50 → 75 MB/s (**1.5×**) | 30 → 67 MB/s (**2.2×**) |
+| nci (chemical database) | 34 MB | 324 → 879 MB/s (**2.7×**) | 191 → 562 MB/s (**2.9×**) | 64 → 335 MB/s (**5.2×**) |
+| samba (tar of source code) | 22 MB | 220 → 515 MB/s (**2.3×**) | 112 → 253 MB/s (**2.3×**) | 47 → 168 MB/s (**3.6×**) |
+| dickens (English text) | 10 MB | 145 → 295 MB/s (**2.0×**) | 65 → 146 MB/s (**2.3×**) | 33 → 104 MB/s (**3.1×**) |
+| osdb (MySQL database) | 10 MB | 165 → 329 MB/s (**2.0×**) | 98 → 108 MB/s (**1.1×**) ³ | 61 → 184 MB/s (**3.0×**) |
+| mr (MRI image) | 10 MB | 177 → 335 MB/s (**1.9×**) | 87 → 118 MB/s (**1.4×**) | 35 → 70 MB/s (**2.0×**) |
+| x-ray (X-ray image) | 8 MB | 97 → 235 MB/s (**2.4×**) | 78 → 103 MB/s (**1.3×**) | 64 → 101 MB/s (**1.6×**) |
+| sao (star catalog, binary) | 7 MB | 112 → 207 MB/s (**1.8×**) | 57 → 111 MB/s (**1.9×**) | 44 → 96 MB/s (**2.2×**) |
+| reymont (Polish text, PDF) | 7 MB | 123 → 77 MB/s (**0.6×**) ³ | 62 → 121 MB/s (**1.9×**) | 20 → 61 MB/s (**3.1×**) |
+| ooffice (executable) | 6 MB | 81 → 133 MB/s (**1.6×**) | 61 → 90 MB/s (**1.5×**) | 39 → 75 MB/s (**1.9×**) |
+| xml (XML files) | 5 MB | 78 → 93 MB/s (**1.2×**) | 63 → 71 MB/s (**1.1×**) | 39 → 59 MB/s (**1.5×**) |
 
-The gain grows with the file size and the level. ctDeflate parses the input in 1 MiB chunks, so a file of 6 to 10 MB keeps only 6 to 10 of the 16 threads busy, and its run is partly program start and I/O. Cold, `webster` and `xml` are bound by reading the file: ctDeflate needs about the same time at every level there (webster 0.61 to 0.75 s), so the factor stays small. Level 9 spends the most time in the match search, the part that runs in parallel. `mr` (an MRI image) is the hard case at level 6: the minimum match length libdeflate chooses changes all the time there, and the resolver has to re-parse parts of the file on its own thread.
+³ Outliers of this run: at level 1 ctDeflate took 0.086 s for `reymont`, more than at level 6 (0.055 s), and `osdb` at level 6 reached 2.2× in the run before (2026-10-17) and 2.0× and 3.0× at levels 1 and 9 here. With runs of 0.05 to 0.1 s a single disturbance of the cold read moves the median; not investigated further.
+
+The gain grows with the file size and the level. ctDeflate parses the input in 1 MiB chunks, so a file of 6 to 10 MB keeps only 6 to 10 of the 16 threads busy, and its run is partly program start and I/O. Cold, `webster` and `xml` are bound by reading the file: ctDeflate needs about the same time at every level there (webster 0.50 to 0.62 s), so the factor stays small. Level 9 spends the most time in the match search, the part that runs in parallel. `mr` (an MRI image) is the hard case at level 6: the minimum match length libdeflate chooses changes all the time there, and the resolver has to re-parse parts of the file on its own thread.
 
 </details>
 
@@ -134,14 +136,14 @@ Factor against gzip.exe on the same machine, all logical processors, same corpus
 
 | CPU | enwik9 level 1 | level 6 | level 9 | Silesia level 1 | level 6 | level 9 |
 |---|---:|---:|---:|---:|---:|---:|
-| Intel Core i9-11900K, 8 cores / 16 threads, Windows 11 | 4.2× | 4.1× | 5.1× | 1.6× | 1.7× | 2.9× |
-| Intel Core Ultra 7 155H (notebook), 16 cores (6 performance, 10 efficiency) / 22 threads | 2.4× | 1.6× ² | 2.2× ² | 1.7× | 1.8× | 2.8× |
-| Intel Xeon E3-1275 v6, 4 cores / 8 threads | 5.4× ¹ | 2.9× | 3.3× | 2.3× | 1.7× | 2.6× |
+| Intel Core i9-11900K, 8 cores / 16 threads, Windows 11 | 4.4× | 3.8× | 5.1× | 1.6× | 1.8× | 3.0× |
+| Intel Core Ultra 7 155H (notebook), 16 cores (6 performance, 10 efficiency) / 22 threads | 2.4× | 1.7× ² | 2.3× ² | 1.7× | 1.9× | 3.0× |
+| Intel Xeon E3-1275 v6, 4 cores / 8 threads | 5.1× ¹ | 3.1× | 3.4× | 2.2× | 1.8× | 2.7× |
 
-All three machines 2026-10-17, cold, 39 of 39 runs bit-identical on each.
+All three machines 2026-11-19, cold, 39 of 39 runs bit-identical on each.
 
-¹ On the Xeon machine `gzip.exe` compressed enwik9 at level 1 with only 73 MB/s, while it reached 142 MB/s at level 1 on the Silesia files there and 149 to 200 MB/s on enwik9 on the other machines. So that run was limited by reading and writing the 1 GB file rather than by compression, and the level 1 factor overstates the gain.
-² On the Core Ultra notebook ctDeflate reached only 128 MB/s on enwik9 at level 6 and 100 MB/s at level 9 (the i9 machine: 366 and 296 MB/s), although the notebook has more cores. Not yet explained; see Room for improvement.
+¹ On the Xeon machine `gzip.exe` compressed enwik9 at level 1 with only 72 MB/s, while it reached 139 MB/s at level 1 on the Silesia files there and 157 to 210 MB/s on enwik9 on the other machines. So that run was limited by reading and writing the 1 GB file rather than by compression, and the level 1 factor overstates the gain.
+² On the Core Ultra notebook ctDeflate reached only 139 MB/s on enwik9 at level 6 and 107 MB/s at level 9 (the i9 machine: 387 and 296 MB/s), although the notebook has more cores. Not yet explained; see Room for improvement.
 
 ### Threads
 
@@ -379,7 +381,7 @@ ctDeflate is not finished; the measurements point to these next steps:
 * **Re-parsing where the minimum match length changes:** libdeflate chooses a minimum match length per block from the block's own data and adjusts it within the block. On data where it changes often (source code, logs, the MRI image of the Silesia corpus), a chunk follows several parse paths for the candidate values, and every extra path costs up to 20 % of parse speed; where none of them meets the true parse, the resolver re-parses on its own thread. A better prediction of the value at chunk starts would save both.
 * **Per-thread overhead:** with one worker, the parallel pipeline was about 18 % slower than ctDeflate `--sequential` in our last measurement: every chunk rebuilds the matchfinder from the 32 KiB before it, parses 16 KiB past its end, and the paths need bookkeeping. Larger chunks or reusing the matchfinder across neighbouring chunks would reduce that.
 * **Small files:** a file of 6 to 10 MB has only 6 to 10 chunks of 1 MiB, fewer than the threads of most CPUs; smaller chunks for small files would keep all threads busy. Below about 20 MB the program start and the file I/O also take a large share of the time, and the parse-path selection needs a few resolved chunks before it settles on one path.
-* **Hybrid CPUs:** on the Core Ultra 7 155H (performance and efficiency cores) enwik9 ran at only 128 MB/s at level 6 and 100 MB/s at level 9, a third of the i9 machine with half its cores, while the other machines gain most at level 9. Whether the scheduling of the parse tasks onto efficiency cores, power limits of the notebook or memory is the cause is still open.
+* **Hybrid CPUs:** on the Core Ultra 7 155H (performance and efficiency cores) enwik9 ran at only 139 MB/s at level 6 and 107 MB/s at level 9, a third of the i9 machine with half its cores, while the other machines gain most at level 9. Whether the scheduling of the parse tasks onto efficiency cores, power limits of the notebook or memory is the cause is still open.
 * **Compiler:** the single-threaded match search runs at 92 to 100 % of libdeflate built with the same compiler (MSVC), but the official `gzip.exe` is built with GCC and is up to 10 % faster on one core.
 * **Levels 10 to 12:** libdeflate's near-optimal parser carries its cost model from block to block, a serial chain; ctDeflate does not support these levels yet.
 * **Linux:** no measurements yet, and the benchmark script is Windows only; a Linux benchmark script would come first. The Linux programs need glibc 2.38 because libstdc++ is linked in from Ubuntu 24.04; a build against an older glibc (in a container) would let them run on Ubuntu 22.04 and Debian 12 as well.

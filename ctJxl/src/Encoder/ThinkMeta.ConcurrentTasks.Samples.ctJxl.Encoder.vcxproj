@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4a584c00-0002-4000-8000-000000000001}</ProjectGuid>
+    <RootNamespace>ThinkMetaConcurrentTasksSamplesctJxlEncoder</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <!-- as libjxl (libjxl-code.props): no LTCG, multi-byte character set -->
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!-- ctJxl's marked copies of libjxl units (link replacement, plan B2/B3), compiled exactly like libjxl -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\jxl\libjxl-0.13.0\msvc\libjxl-code.props" />
+  <ItemGroup>
+    <ClCompile Include="enc_adaptive_quantization.cc" />
+    <ClCompile Include="enc_ans.cc" />
+    <ClInclude Include="ctjxl_modular_hooks.h" />
+    <ClCompile Include="enc_encoding.cc" />
+    <ClCompile Include="enc_frame.cc" />
+    <ClCompile Include="enc_heuristics.cc" />
+    <ClCompile Include="enc_lz77.cc" />
+    <ClCompile Include="enc_ma.cc" />
+    <ClCompile Include="enc_modular.cc" />
+    <ClCompile Include="enc_patch_dictionary.cc" />
+    <ClCompile Include="enc_squeeze.cc" />
+    <ClCompile Include="encode.cc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

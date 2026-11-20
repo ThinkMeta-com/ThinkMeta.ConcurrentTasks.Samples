@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)ThinkMeta.SolutionFiles\ThinkMeta.Cpp.Configurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{4a584c00-0002-4000-8000-000000000002}</ProjectGuid>
+    <RootNamespace>ThinkMetaConcurrentTasksSamplesctJxlTasks</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!-- The core of the API submodule, relative to this project. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\..\ThinkMeta.ConcurrentTasks.API\Core\ThinkMeta.ConcurrentTasks.Core.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!-- libjxl's public C headers only (jxl/parallel_runner.h) -->
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\..\Shared\src\Shared;$(MSBuildThisFileDirectory)..\..\jxl\libjxl-0.13.0\lib\include;$(MSBuildThisFileDirectory)..\..\jxl\libjxl-0.13.0\msvc\include-gen\lib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>JXL_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="GroupSync.h" />
+    <ClInclude Include="InputBands.h" />
+    <ClInclude Include="ParallelRunner.h" />
+    <ClInclude Include="RunnerInfo.h" />
+    <ClInclude Include="TaskPool.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="GroupSync.cpp" />
+    <ClCompile Include="InputBands.cpp" />
+    <ClCompile Include="ParallelRunner.cpp" />
+    <ClCompile Include="TaskPool.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\ThinkMeta.ConcurrentTasks.API\Library\ThinkMeta.ConcurrentTasks\ThinkMeta.ConcurrentTasks.vcxproj">
+      <Project>{8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

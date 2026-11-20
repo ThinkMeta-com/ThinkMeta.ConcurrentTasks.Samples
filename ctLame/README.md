@@ -18,8 +18,8 @@ Windows and with clang and CMake on Linux ([Building](#building)); `bin\win-x64\
 
 | | lame.exe | ctLame |
 |---|---:|---:|
-| 45 hours of CD audio (343 files), `-V 4` | 19 min 55 s | **85 s** |
-| speed | 136× real time | **1905× real time** |
+| 45 hours of CD audio (343 files), `-V 4` | 19 min 34 s | **85 s** |
+| speed | 138× real time | **1920× real time** |
 | output | reference | **bit-identical** |
 
 This repository contains:
@@ -179,7 +179,7 @@ ctLame takes about 29 % longer on 16 threads ([room for improvement](#room-for-i
 | Settings | `-V 4` (LAME's default VBR quality), all other options at their defaults; **no ReplayGain**: neither measured program had it yet, and `benchmark\` passes `--noreplaygain` to both |
 | Timing | wall time of the whole process (start, reading the WAV file, encoding, writing the MP3), one process at a time; every run reads a fresh copy of the WAV file that is not in the file cache (cold); per file the programs take turns, three rounds, the median of each file counts, the totals are the sums of the medians |
 | Check | every MP3 of ctLame compared byte for byte with lame.exe's |
-| Run | 17 October 2026 with `benchmark\run.cmd <folder> -Rounds 3`, the script in this repository |
+| Run | 19 November 2026 with `benchmark\run.cmd <folder> -Rounds 3`, the script in this repository |
 
 </details>
 
@@ -193,8 +193,8 @@ each, 17 to 79 minutes long (23.4 hours): blues rock and classical crossover.
 
 | Program | Time | Real-time factor | vs. lame.exe |
 |---|---:|---:|---:|
-| `lame.exe` (reference) | 1195.2 s | 136× | 1.00 |
-| `ctLame` (all 16 threads) | 85.2 s | 1905× | **14.02** |
+| `lame.exe` (reference) | 1174.0 s | 138× | 1.00 |
+| `ctLame` (all 16 threads) | 84.6 s | 1920× | **13.88** |
 
 All 343 MP3 files of ctLame were bit-identical to lame.exe's.
 
@@ -208,12 +208,12 @@ order as the scalar code, so they too give identical bits.
 
 | Files | Audio | lame.exe | ctLame | vs. lame.exe | per file: median (min to max) |
 |---|---:|---:|---:|---:|---:|
-| 313 single tracks | 21.7 h | 571.3 s | 43.4 s | 13.16 | 13.30 (5.25 to 15.94) |
-| 30 albums in one file | 23.4 h | 623.9 s | 41.8 s | 14.92 | 14.86 (13.51 to 16.75) |
+| 313 single tracks | 21.7 h | 577.8 s | 43.8 s | 13.19 | 13.20 (7.23 to 15.09) |
+| 30 albums in one file | 23.4 h | 596.1 s | 40.7 s | 14.63 | 14.63 (14.15 to 15.14) |
 
 The shorter the file, the more the start of the process and the filling and draining of the
-pipeline weigh: the lowest factor, 5.3, belongs to a 39-second intro, while every file of more than
-16 minutes is encoded at least 13.5 times as fast.
+pipeline weigh: the single tracks spread from 7.2 to 15.1 (a 39-second intro reaches 7.4), while
+every file of more than 16 minutes is encoded at least 14 times as fast.
 
 </details>
 
@@ -223,21 +223,21 @@ The same 343 files, the same binaries and method (`benchmark\run.cmd <folder> -R
 
 | CPU | Cores / threads | lame.exe | ctLame | Real-time factor | vs. lame.exe |
 |---|---|---:|---:|---:|---:|
-| Intel Core i9-11900K (Rocket Lake, desktop) | 8 / 16 | 1195.2 s | 85.2 s | 1905× | **14.02** |
-| Intel Xeon E3-1275 v6 (Kaby Lake, server, Windows Server 2016) | 4 / 8 | 1733.3 s | 217.1 s | 748× | **7.98** |
-| Intel Core Ultra 7 155H (Meteor Lake, notebook) | 6 P + 8 E + 2 LP-E / 22 | 1531.8 s | 208.2 s | 780× | **7.36** |
+| Intel Core i9-11900K (Rocket Lake, desktop) | 8 / 16 | 1174.0 s | 84.6 s | 1920× | **13.88** |
+| Intel Xeon E3-1275 v6 (Kaby Lake, server, Windows Server 2016) | 4 / 8 | 1680.4 s | 204.6 s | 793× | **8.21** |
+| Intel Core Ultra 7 155H (Meteor Lake, notebook) | 6 P + 8 E + 2 LP-E / 22 | 1392.5 s | 154.1 s | 1053× | **9.03** |
 
 <details>
 <summary><b>Split by file length</b>: the notebook slows down under sustained load</summary>
 
 | CPU | single tracks | albums in one file |
 |---|---:|---:|
-| Core i9-11900K | 13.16 | 14.92 |
-| Xeon E3-1275 v6 | 7.95 | 8.02 |
-| Core Ultra 7 155H | 9.51 | 5.79 |
+| Core i9-11900K | 13.19 | 14.63 |
+| Xeon E3-1275 v6 | 8.10 | 8.32 |
+| Core Ultra 7 155H | 11.89 | 7.07 |
 
-On the notebook ctLame keeps up on the single tracks but loses half its speed on the albums,
-which ran last; lame.exe, on one core, does not slow down there (see
+On the notebook ctLame keeps up on the single tracks but loses about 40 % of its speed on the
+albums, which ran last; lame.exe, on one core, does not slow down there (see
 [room for improvement](#room-for-improvement)).
 
 </details>
@@ -509,12 +509,12 @@ ctLame reports errors with LAME's messages and exit codes and does not try to re
 
 ctLame is fast, but not at the end; the measurements point to these limits and next steps:
 
-* **Notebooks under sustained load:** on the Core Ultra 7 155H ctLame reaches 9.5× on the single
-  tracks, but only 5.8× on the album-length files, which ran last, after about 35 minutes of full
-  load. lame.exe on one core does not slow down on them (121× against 94× real time on the single
+* **Notebooks under sustained load:** on the Core Ultra 7 155H ctLame reaches 11.9× on the single
+  tracks, but only 7.1× on the album-length files, which ran last, after about 40 minutes of full
+  load. lame.exe on one core does not slow down on them (130× against 105× real time on the single
   tracks), so this is probably the notebook's sustained power or thermal limit, which cuts the
-  clock of all cores when all of them are busy. A desktop CPU (14.9× on the albums) and the server
-  CPU (8.0×) show no such drop. Whether fewer threads give more there is still to be measured.
+  clock of all cores when all of them are busy. A desktop CPU (14.6× on the albums) and the server
+  CPU (8.3×) show no such drop. Whether fewer threads give more there is still to be measured.
 * **Hybrid CPUs:** apart from that, performance and efficiency cores share the work well: on the
   155H all 22 threads are within 2 % of the best thread count. AVX2 brings nothing over SSE4.1
   there, probably because the efficiency cores execute 256-bit instructions in two halves. A
@@ -530,9 +530,9 @@ ctLame is fast, but not at the end; the measurements point to these limits and n
 * **Turbo clock and hyperthreading:** the same work costs more time the more threads run: about
   16 % more with 4 threads, 25 % with 8 (lower turbo clock, shared cache) and 50 % with 16, when
   two threads share a core. That is why 16 threads on 8 cores are 8 times as fast as one thread,
-  not 16 times. With four cores (Xeon E3) ctLame reaches 8.0×, evenly for short and long files;
+  not 16 times. With four cores (Xeon E3) ctLame reaches 8.2×, evenly for short and long files;
   there speed comes only from less work per frame.
-* **Short files:** a 39-second file is encoded only 5 times as fast; starting the process and
+* **Short files:** a 39-second file is encoded only about 7 times as fast; starting the process and
   filling and draining the pipeline take a larger share there.
 * **Less work per frame:** most of the time goes into the search for scalefactors and
   quantization, the psychoacoustic preparation and the MDCT. Long sums stay scalar because their

@@ -1,0 +1,73 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/ctJxl/">
+    <Project Path="src/App/ThinkMeta.ConcurrentTasks.Samples.ctJxl.vcxproj" Id="4a584c00-0002-4000-8000-000000000003">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Encoder/ThinkMeta.ConcurrentTasks.Samples.ctJxl.Encoder.vcxproj" Id="4a584c00-0002-4000-8000-000000000001">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Tasks/ThinkMeta.ConcurrentTasks.Samples.ctJxl.Tasks.vcxproj" Id="4a584c00-0002-4000-8000-000000000002">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Tests/ThinkMeta.ConcurrentTasks.Samples.ctJxl.Tests.vcxproj" Id="4a584c00-0002-4000-8000-000000000004">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/libjxl/">
+    <Project Path="jxl/giflib-5.2.2/giflib.vcxproj" Id="3760fadd-1015-d4ea-f60a-083410d0d76f">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-brotlicommon.vcxproj" Id="e171d3d5-1add-d2bc-68c2-5f8f7fd32000">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-brotlidec.vcxproj" Id="ae620ebc-9c1a-1689-3c38-0612b122a896">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-brotlienc.vcxproj" Id="895e5b83-3158-c49d-f044-af3ab2ea01c2">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-cms.vcxproj" Id="178f094e-063f-98f7-2071-02c561529222">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-extras.vcxproj" Id="c758f0b0-ef16-0c23-7a0f-cb2c484b033c">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-hwy.vcxproj" Id="0cd31adf-818b-cc46-8dd2-401a4a0366ca">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-jpeg-turbo.vcxproj" Id="2daf66b0-ad9b-4338-cc2d-3416a61b3953">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-jxl.vcxproj" Id="791d2efe-9082-5cca-bb02-91a1e0e65266">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-png.vcxproj" Id="ec3c100b-5c76-f530-4df8-11b84ac1921f">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-threads.vcxproj" Id="5c760047-3b4f-14fe-1e3a-02cb092a52ac">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-tool.vcxproj" Id="2dc8e7de-1fd7-8185-95de-7df6cc742866">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="jxl/libjxl-0.13.0/msvc/libjxl-zlib.vcxproj" Id="8a7d61f2-aa3e-01f5-e456-c311b0a7a60d">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/Shared/">
+    <Project Path="../Shared/src/Shared/ThinkMeta.ConcurrentTasks.Samples.Shared.vcxproj" Id="5a4ed000-0001-4000-8000-000000000001">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="../Shared/src/Tests/ThinkMeta.ConcurrentTasks.Samples.Shared.Tests.vcxproj" Id="5a4ed000-0002-4000-8000-000000000002">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/ThinkMeta.ConcurrentTasks.API/">
+    <Project Path="../ThinkMeta.ConcurrentTasks.API/Library/ThinkMeta.ConcurrentTasks/ThinkMeta.ConcurrentTasks.vcxproj" Id="8193c4f2-ccac-4ba7-ad92-ab1a2fad14a2">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+</Solution>
